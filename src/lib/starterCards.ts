@@ -65,6 +65,78 @@ export const STARTER_CARDS: StarterCard[] = [
     caps: [],
   },
   {
+    name: 'PRVI Miles Amex', bank: 'UOB', card_network: 'Amex',
+    base_mpd: 1.4, color: '#00427E',
+    rates: [
+      { category_id: CAT.overseas, label: 'Overseas', mpd: 2.4 },
+      { category_id: CAT.travel,   label: 'Travel',   mpd: 3.0 },
+    ],
+    caps: [],
+  },
+  {
+    // Lady's Card earns 4 mpd on ONE chosen category (Fashion/Dining/Beauty/Family/Travel/Transport/Entertainment).
+    // Default set to Dining — edit in My Cards to match your chosen category.
+    name: "Lady's Card", bank: 'UOB', card_network: 'Mastercard',
+    base_mpd: 0.4, color: '#C2185B',
+    rates: [
+      { category_id: CAT.dining, label: 'Dining (chosen category)', mpd: 4.0 },
+    ],
+    caps: [
+      { category_id: CAT.dining, cap_period: 'monthly', spend_limit: 1000 },
+    ],
+  },
+  {
+    // Same as Lady's Card but with a higher monthly cap.
+    name: "Lady's Solitaire Card", bank: 'UOB', card_network: 'Mastercard',
+    base_mpd: 0.4, color: '#880E4F',
+    rates: [
+      { category_id: CAT.dining, label: 'Dining (chosen category)', mpd: 4.0 },
+    ],
+    caps: [
+      { category_id: CAT.dining, cap_period: 'monthly', spend_limit: 2000 },
+    ],
+  },
+  {
+    // 4 mpd on overseas, petrol and contactless — requires min S$1,000/month spend to unlock.
+    // Note: S$2,000/quarter is a COMBINED cap across all three bonus categories.
+    name: 'Visa Signature', bank: 'UOB', card_network: 'Visa',
+    base_mpd: 0.4, color: '#1A237E',
+    rates: [
+      { category_id: CAT.overseas,  label: 'Overseas',              mpd: 4.0 },
+      { category_id: CAT.petrol,    label: 'Petrol',                mpd: 4.0 },
+      { category_id: CAT.transport, label: 'Contactless transport', mpd: 4.0 },
+    ],
+    caps: [
+      { category_id: CAT.overseas,  cap_period: 'quarterly', spend_limit: 2000 },
+      { category_id: CAT.petrol,    cap_period: 'quarterly', spend_limit: 2000 },
+      { category_id: CAT.transport, cap_period: 'quarterly', spend_limit: 2000 },
+    ],
+  },
+  {
+    // 4 mpd on online spend and contactless payments.
+    // Note: S$1,110/quarter is a COMBINED cap across both bonus categories.
+    name: 'Preferred Platinum Visa', bank: 'UOB', card_network: 'Visa',
+    base_mpd: 0.4, color: '#1565C0',
+    rates: [
+      { category_id: CAT.onlineShopping, label: 'Online shopping',       mpd: 4.0 },
+      { category_id: CAT.transport,      label: 'Contactless transport',  mpd: 4.0 },
+    ],
+    caps: [
+      { category_id: CAT.onlineShopping, cap_period: 'quarterly', spend_limit: 1110 },
+      { category_id: CAT.transport,      cap_period: 'quarterly', spend_limit: 1110 },
+    ],
+  },
+  {
+    // SIA co-branded card — miles credited directly to KrisFlyer monthly.
+    name: 'KrisFlyer Visa', bank: 'UOB', card_network: 'Visa',
+    base_mpd: 1.2, color: '#003580',
+    rates: [
+      { category_id: CAT.travel,   label: 'SIA Group (flights/hotels)', mpd: 3.0 },
+      { category_id: CAT.overseas, label: 'Overseas',                   mpd: 1.2 },
+    ],
+    caps: [],
+  },
+  {
     name: 'Journey Credit Card', bank: 'Standard Chartered', card_network: 'Visa',
     base_mpd: 1.2, color: '#00854A',
     rates: [
