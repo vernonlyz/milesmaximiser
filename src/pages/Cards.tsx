@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Library, Check, Loader2 } from 'lucide-react'
+
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
@@ -18,11 +19,54 @@ export default function Cards() {
   const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
+  const [showLibrary, setShowLibrary] = useState(false)
+  const [librarySelected, setLibrarySelected] = useState<Set<number>>(new Set())
+  const [libraryImporting, setLibraryImporting] = useState(false)
   const [editCard, setEditCard] = useState<CreditCard | null>(null)
   const [form, setForm] = useState<CardFormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Cards the user already owns (matched by bank + name)
+  const ownedKeys = new Set(cards.map(c => `${c.bank}|${c.name}`))
+
+  function openLibrary() {
+    setLibrarySelected(new Set())
+    setShowLibrary(true)
+  }
+
+  function toggleLibraryCard(i: number) {
+    setLibrarySelected(s => {
+      const next = new Set(s)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }
+
+  async function importLibraryCards() {
+    if (!user || librarySelected.size === 0) return
+    setLibraryImporting(true)
+    const toImport = STARTER_CARDS.filter((_, i) => librarySelected.has(i))
+    for (const starter of toImport) {
+      const { data, error } = await supabase.from('credit_cards').insert({
+        name: starter.name, bank: starter.bank, card_network: starter.card_network,
+        base_mpd: starter.base_mpd, color: starter.color, active: true, user_id: user.id,
+      }).select('id').single()
+      if (error || !data) continue
+      if (starter.rates.length > 0)
+        await supabase.from('card_rates').insert(
+          starter.rates.map(r => ({ card_id: data.id, category_id: r.category_id, mpd: r.mpd }))
+        )
+      if (starter.caps.length > 0)
+        await supabase.from('spending_caps').insert(
+          starter.caps.map(c => ({ card_id: data.id, category_id: c.category_id || null, cap_period: c.cap_period, spend_limit: c.spend_limit }))
+        )
+    }
+    setLibraryImporting(false)
+    setShowLibrary(false)
+    refresh()
+  }
 
   function openAdd() {
     setEditCard(null)
@@ -51,35 +95,6 @@ export default function Cards() {
     })
     setError(null)
     setShowModal(true)
-  }
-
-  async function importStarterCards() {
-    if (!user) return
-    if (!confirm('Import the 8 default SG cards? This will add them to your existing cards.')) return
-    setImporting(true)
-    for (const starter of STARTER_CARDS) {
-      const { data, error } = await supabase.from('credit_cards').insert({
-        name: starter.name, bank: starter.bank, card_network: starter.card_network,
-        base_mpd: starter.base_mpd, color: starter.color, active: true,
-        user_id: user.id,
-      }).select('id').single()
-      if (error || !data) continue
-      if (starter.rates.length > 0) {
-        await supabase.from('card_rates').insert(
-          starter.rates.map(r => ({ card_id: data.id, category_id: r.category_id, mpd: r.mpd }))
-        )
-      }
-      if (starter.caps.length > 0) {
-        await supabase.from('spending_caps').insert(
-          starter.caps.map(c => ({
-            card_id: data.id, category_id: c.category_id || null,
-            cap_period: c.cap_period, spend_limit: c.spend_limit,
-          }))
-        )
-      }
-    }
-    setImporting(false)
-    refresh()
   }
 
   async function handleDelete(card: CreditCard) {
@@ -187,8 +202,8 @@ export default function Cards() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">My Cards</h1>
         <div className="flex gap-2">
-          <button onClick={importStarterCards} disabled={importing} className="btn-secondary">
-            <Download size={16} /> {importing ? 'Importing…' : 'Import SG Cards'}
+          <button onClick={openLibrary} className="btn-secondary">
+            <Library size={16} /> Card Library
           </button>
           <button onClick={openAdd} className="btn-primary">
             <Plus size={16} /> Add Card
@@ -283,6 +298,89 @@ export default function Cards() {
             )
           })}
         </div>
+      )}
+
+      {/* Card Library modal */}
+      {showLibrary && (
+        <Modal title="Card Library" onClose={() => setShowLibrary(false)} wide>
+          <p className="text-sm text-gray-500 -mt-2">
+            Select cards to add to your wallet. Cards you already own are greyed out.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            {STARTER_CARDS.map((starter, i) => {
+              const alreadyOwned = ownedKeys.has(`${starter.bank}|${starter.name}`)
+              const isSelected = librarySelected.has(i)
+              return (
+                <button
+                  key={i}
+                  onClick={() => !alreadyOwned && toggleLibraryCard(i)}
+                  disabled={alreadyOwned}
+                  className={`relative rounded-xl p-4 text-left border-2 transition-all ${
+                    alreadyOwned
+                      ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                      : isSelected
+                      ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200 shadow-sm'
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm cursor-pointer'
+                  }`}
+                >
+                  {/* Checkmark / owned badge */}
+                  <div className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    alreadyOwned
+                      ? 'bg-gray-300 border-gray-300'
+                      : isSelected
+                      ? 'bg-indigo-600 border-indigo-600'
+                      : 'border-gray-300 bg-white'
+                  }`}>
+                    {(alreadyOwned || isSelected) && <Check size={11} className="text-white" strokeWidth={3} />}
+                  </div>
+
+                  {/* Bank badge */}
+                  <div
+                    className="w-9 h-9 rounded-lg mb-2 flex items-center justify-center text-white text-xs font-bold"
+                    style={{ backgroundColor: starter.color }}
+                  >
+                    {starter.bank.slice(0, 2).toUpperCase()}
+                  </div>
+
+                  <p className="font-semibold text-sm text-gray-900 leading-tight">{starter.bank}</p>
+                  <p className="text-xs text-gray-400 leading-tight mt-0.5">{starter.name}</p>
+
+                  <div className="mt-2 space-y-0.5">
+                    {starter.rates.slice(0, 2).map((r, j) => (
+                      <p key={j} className="text-xs text-indigo-600 font-medium">
+                        {r.mpd} mpd · {r.label}
+                      </p>
+                    ))}
+                    <p className="text-xs text-gray-400">{starter.base_mpd} mpd base</p>
+                  </div>
+
+                  {alreadyOwned && (
+                    <p className="text-xs text-gray-400 mt-1 font-medium">Already added</p>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-sm text-gray-500">
+              {librarySelected.size > 0 ? `${librarySelected.size} card${librarySelected.size !== 1 ? 's' : ''} selected` : 'None selected'}
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowLibrary(false)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={importLibraryCards}
+                disabled={librarySelected.size === 0 || libraryImporting}
+                className="btn-primary"
+              >
+                {libraryImporting
+                  ? <><Loader2 size={14} className="animate-spin" /> Adding…</>
+                  : `Add ${librarySelected.size || ''} Card${librarySelected.size !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {showModal && (
