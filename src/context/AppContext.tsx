@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from './AuthContext'
 import { Category, CreditCard, CardRate, SpendingCap, Transaction } from '../lib/types'
 
 interface AppContextValue {
@@ -17,6 +18,7 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
   const [cards, setCards] = useState<CreditCard[]>([])
   const [rates, setRates] = useState<CardRate[]>([])
@@ -71,9 +73,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await loadTransactions()
   }, [loadTransactions])
 
+  // Reload all data when the logged-in user changes
   useEffect(() => {
-    refresh()
-  }, [refresh])
+    if (user) refresh()
+    else {
+      setCategories([])
+      setCards([])
+      setRates([])
+      setCaps([])
+      setTransactions([])
+      setLoading(false)
+    }
+  }, [user?.id])
 
   return (
     <AppContext.Provider value={{

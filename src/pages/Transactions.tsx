@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Plus, Trash2, ChevronDown, Sparkles } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import { supabase } from '../lib/supabase'
@@ -18,6 +19,7 @@ const EMPTY_FORM: TransactionFormData = {
 
 export default function Transactions() {
   const { cards, categories, rates, caps, transactions, refreshTransactions } = useApp()
+  const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<TransactionFormData>(EMPTY_FORM)
@@ -73,6 +75,7 @@ export default function Transactions() {
       transaction_date: form.transaction_date,
       miles_earned: Math.round(miles),
       effective_mpd: parseFloat(effectiveMpd.toFixed(2)),
+      user_id: user!.id,
     })
 
     setSaving(false)

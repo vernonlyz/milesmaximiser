@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut,
 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 const nav = [
   { to: '/',             label: 'Dashboard',    Icon: LayoutDashboard },
@@ -13,6 +14,7 @@ const nav = [
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
+  const { user, signOut } = useAuth()
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -69,8 +71,21 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="px-6 py-4 border-t border-gray-700 text-xs text-gray-500">
-          Rates are indicative — verify with your bank.
+        <div className="px-4 py-4 border-t border-gray-700 space-y-3">
+          <p className="text-xs text-gray-500 px-2">Rates are indicative — verify with your bank.</p>
+          <div className="flex items-center gap-2 px-2">
+            <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {user?.email?.[0].toUpperCase() ?? '?'}
+            </div>
+            <span className="text-xs text-gray-400 truncate flex-1">{user?.email}</span>
+            <button
+              onClick={signOut}
+              title="Sign out"
+              className="text-gray-500 hover:text-white transition-colors p-1 rounded"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
         </div>
       </aside>
 

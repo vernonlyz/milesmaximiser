@@ -1,13 +1,21 @@
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
 import { buildPeriodSpending } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel } from '../lib/utils'
+import { isOnboarded } from './Onboarding'
 
 export default function Dashboard() {
   const { cards, categories, caps, transactions, loading, error, refresh } = useApp()
+  const { user } = useAuth()
+
+  // First-time user with no cards → send to onboarding
+  if (!loading && user && cards.length === 0 && !isOnboarded(user.id)) {
+    return <Navigate to="/onboarding" replace />
+  }
 
   const now = new Date()
 

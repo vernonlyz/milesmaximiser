@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Download } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import { supabase } from '../lib/supabase'
 import { CreditCard, CardFormData } from '../lib/types'
 import { CARD_NETWORKS, CAP_PERIODS, PRESET_COLORS, capPeriodLabel } from '../lib/utils'
+import { STARTER_CARDS } from '../lib/starterCards'
 
 const EMPTY_FORM: CardFormData = {
   name: '', bank: '', card_network: 'Visa', base_mpd: '1.2',
@@ -13,11 +15,13 @@ const EMPTY_FORM: CardFormData = {
 
 export default function Cards() {
   const { cards, categories, rates, caps, refresh } = useApp()
+  const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
   const [editCard, setEditCard] = useState<CreditCard | null>(null)
   const [form, setForm] = useState<CardFormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   function openAdd() {
@@ -47,6 +51,35 @@ export default function Cards() {
     })
     setError(null)
     setShowModal(true)
+  }
+
+  async function importStarterCards() {
+    if (!user) return
+    if (!confirm('Import the 8 default SG cards? This will add them to your existing cards.')) return
+    setImporting(true)
+    for (const starter of STARTER_CARDS) {
+      const { data, error } = await supabase.from('credit_cards').insert({
+        name: starter.name, bank: starter.bank, card_network: starter.card_network,
+        base_mpd: starter.base_mpd, color: starter.color, active: true,
+        user_id: user.id,
+      }).select('id').single()
+      if (error || !data) continue
+      if (starter.rates.length > 0) {
+        await supabase.from('card_rates').insert(
+          starter.rates.map(r => ({ card_id: data.id, category_id: r.category_id, mpd: r.mpd }))
+        )
+      }
+      if (starter.caps.length > 0) {
+        await supabase.from('spending_caps').insert(
+          starter.caps.map(c => ({
+            card_id: data.id, category_id: c.category_id || null,
+            cap_period: c.cap_period, spend_limit: c.spend_limit,
+          }))
+        )
+      }
+    }
+    setImporting(false)
+    refresh()
   }
 
   async function handleDelete(card: CreditCard) {
@@ -94,6 +127,7 @@ export default function Cards() {
         base_mpd: baseMpd,
         color: form.color,
         active: form.active,
+        user_id: user!.id,
       }).select('id').single()
       if (e1 || !data) { setSaving(false); setError(e1?.message ?? 'Insert failed'); return }
       await insertRatesAndCaps(data.id)
@@ -152,9 +186,14 @@ export default function Cards() {
     <div className="max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">My Cards</h1>
-        <button onClick={openAdd} className="btn-primary">
-          <Plus size={16} /> Add Card
-        </button>
+        <div className="flex gap-2">
+          <button onClick={importStarterCards} disabled={importing} className="btn-secondary">
+            <Download size={16} /> {importing ? 'Importing…' : 'Import SG Cards'}
+          </button>
+          <button onClick={openAdd} className="btn-primary">
+            <Plus size={16} /> Add Card
+          </button>
+        </div>
       </div>
 
       {cards.length === 0 ? (
