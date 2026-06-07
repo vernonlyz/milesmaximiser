@@ -5,80 +5,111 @@ import { Category, CreditCard, CardRate, SpendingCap, Transaction } from '../lib
 
 interface AppContextValue {
   categories: Category[]
-  cards: CreditCard[]
-  rates: CardRate[]
-  caps: SpendingCap[]
+  allCards: CreditCard[]           // every card in the library
+  cards: CreditCard[]              // only the user's selected cards (wallet)
+  selectedCardIds: Set<string>
+  rates: CardRate[]                // all library rates (filter by card_id as needed)
+  caps: SpendingCap[]              // all library caps
   transactions: Transaction[]
   loading: boolean
   error: string | null
   refresh: () => void
   refreshTransactions: () => void
+  addCardSelection: (cardId: string) => Promise<void>
+  removeCardSelection: (cardId: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const [categories, setCategories] = useState<Category[]>([])
-  const [cards, setCards] = useState<CreditCard[]>([])
-  const [rates, setRates] = useState<CardRate[]>([])
-  const [caps, setCaps] = useState<SpendingCap[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  const loadStaticData = useCallback(async () => {
-    try {
-      const [catRes, cardRes, rateRes, capRes] = await Promise.all([
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('credit_cards').select('*').order('bank').order('name'),
-        supabase.from('card_rates').select('*'),
-        supabase.from('spending_caps').select('*'),
-      ])
-      if (catRes.error) throw catRes.error
-      if (cardRes.error) throw cardRes.error
-      if (rateRes.error) throw rateRes.error
-      if (capRes.error) throw capRes.error
+  const [categories, setCategories]           = useState<Category[]>([])
+  const [allCards, setAllCards]               = useState<CreditCard[]>([])
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+  const [rates, setRates]                     = useState<CardRate[]>([])
+  const [caps, setCaps]                       = useState<SpendingCap[]>([])
+  const [transactions, setTransactions]       = useState<Transaction[]>([])
+  const [loading, setLoading]                 = useState(true)
+  const [error, setError]                     = useState<string | null>(null)
 
-      setCategories(catRes.data ?? [])
-      setCards(cardRes.data ?? [])
-      setRates(rateRes.data ?? [])
-      setCaps(capRes.data ?? [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load data')
-    }
+  const loadLibrary = useCallback(async () => {
+    const [catRes, cardRes, rateRes, capRes] = await Promise.all([
+      supabase.from('categories').select('*').order('name'),
+      supabase.from('card_library').select('*').order('bank').order('name'),
+      supabase.from('library_rates').select('*'),
+      supabase.from('library_caps').select('*'),
+    ])
+    if (catRes.error)  throw catRes.error
+    if (cardRes.error) throw cardRes.error
+    if (rateRes.error) throw rateRes.error
+    if (capRes.error)  throw capRes.error
+    setCategories(catRes.data ?? [])
+    setAllCards(cardRes.data ?? [])
+    setRates(rateRes.data ?? [])
+    setCaps(capRes.data ?? [])
   }, [])
 
+  const loadSelections = useCallback(async () => {
+    if (!user) return
+    const { data, error } = await supabase
+      .from('user_card_selections')
+      .select('card_id')
+      .eq('user_id', user.id)
+    if (error) throw error
+    setSelectedCardIds(new Set(data?.map(s => s.card_id) ?? []))
+  }, [user?.id])
+
   const loadTransactions = useCallback(async () => {
-    // Load transactions from start of current year onwards to cover all cap periods
+    if (!user) return
     const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
+      .eq('user_id', user.id)
       .gte('transaction_date', yearStart)
       .order('transaction_date', { ascending: false })
       .order('created_at', { ascending: false })
-    if (error) setError(error.message)
-    else setTransactions(data ?? [])
-  }, [])
+    if (error) throw error
+    setTransactions(data ?? [])
+  }, [user?.id])
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
-    await Promise.all([loadStaticData(), loadTransactions()])
+    try {
+      await Promise.all([loadLibrary(), loadSelections(), loadTransactions()])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load data')
+    }
     setLoading(false)
-  }, [loadStaticData, loadTransactions])
+  }, [loadLibrary, loadSelections, loadTransactions])
 
   const refreshTransactions = useCallback(async () => {
-    await loadTransactions()
+    try { await loadTransactions() } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load transactions')
+    }
   }, [loadTransactions])
 
-  // Reload all data when the logged-in user changes
+  async function addCardSelection(cardId: string) {
+    if (!user) return
+    await supabase.from('user_card_selections').insert({ user_id: user.id, card_id: cardId })
+    setSelectedCardIds(prev => new Set([...prev, cardId]))
+  }
+
+  async function removeCardSelection(cardId: string) {
+    if (!user) return
+    await supabase.from('user_card_selections')
+      .delete().eq('user_id', user.id).eq('card_id', cardId)
+    setSelectedCardIds(prev => { const next = new Set(prev); next.delete(cardId); return next })
+  }
+
   useEffect(() => {
     if (user) refresh()
     else {
       setCategories([])
-      setCards([])
+      setAllCards([])
+      setSelectedCardIds(new Set())
       setRates([])
       setCaps([])
       setTransactions([])
@@ -86,10 +117,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id])
 
+  // Derive wallet cards from library + selections
+  const cards = allCards.filter(c => selectedCardIds.has(c.id))
+
   return (
     <AppContext.Provider value={{
-      categories, cards, rates, caps, transactions,
-      loading, error, refresh, refreshTransactions,
+      categories, allCards, cards, selectedCardIds,
+      rates, caps, transactions,
+      loading, error,
+      refresh, refreshTransactions,
+      addCardSelection, removeCardSelection,
     }}>
       {children}
     </AppContext.Provider>

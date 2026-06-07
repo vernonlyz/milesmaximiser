@@ -4,6 +4,7 @@ export interface Category {
   icon: string
 }
 
+// Library card — admin-managed, shared across all users
 export interface CreditCard {
   id: string
   name: string
@@ -15,21 +16,29 @@ export interface CreditCard {
   created_at: string
 }
 
+// Bonus earn rate for a library card — has effective_from for versioning
 export interface CardRate {
   id: string
   card_id: string
   category_id: string
   mpd: number
-  effective_from: string   // ISO date — rate applies from this date onward
+  effective_from: string
 }
 
+// Spending cap for a library card — spend_limit null = cap removed
 export interface SpendingCap {
   id: string
   card_id: string
-  category_id: string | null  // null = global cap on all spend for this card
+  category_id: string | null
   cap_period: 'monthly' | 'quarterly' | 'annual' | 'per_transaction'
-  spend_limit: number | null  // null = cap was REMOVED from effective_from onward
-  effective_from: string      // ISO date — cap applies from this date onward
+  spend_limit: number | null
+  effective_from: string
+}
+
+// Which library cards a user has in their wallet
+export interface UserCardSelection {
+  user_id: string
+  card_id: string
   created_at: string
 }
 
@@ -45,11 +54,6 @@ export interface Transaction {
   created_at: string
 }
 
-export interface TransactionWithDetails extends Transaction {
-  card: CreditCard | null
-  category: Category | null
-}
-
 export interface CardRecommendation {
   card: CreditCard
   bonusMpd: number
@@ -60,29 +64,6 @@ export interface CardRecommendation {
   capPeriod: string | null
   status: 'optimal' | 'partial' | 'capped' | 'base'
   reason: string
-}
-
-export interface CardFormRate {
-  category_id: string
-  mpd: string
-}
-
-export interface CardFormCap {
-  category_id: string           // '' = global cap
-  cap_period: SpendingCap['cap_period']
-  spend_limit: string           // '' = cap removed (will save as NULL)
-}
-
-export interface CardFormData {
-  name: string
-  bank: string
-  card_network: string
-  base_mpd: string
-  color: string
-  active: boolean
-  effective_from: string        // ISO date — applies to all rate/cap changes in this save
-  rates: CardFormRate[]
-  caps: CardFormCap[]
 }
 
 export interface TransactionFormData {
