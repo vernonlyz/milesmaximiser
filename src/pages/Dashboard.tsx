@@ -6,14 +6,13 @@ import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
 import { buildPeriodSpending, resolveCaps } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel } from '../lib/utils'
-import { isOnboarded } from './Onboarding'
 
 export default function Dashboard() {
-  const { cards, categories, caps, transactions, loading, error, refresh } = useApp()
+  const { cards, selectedCardIds, categories, caps, transactions, loading, error, refresh } = useApp()
   const { user } = useAuth()
 
-  // First-time user with no cards → send to onboarding
-  if (!loading && user && cards.length === 0 && !isOnboarded(user.id)) {
+  // No wallet cards → send to onboarding (also catches users who need to re-select after migration)
+  if (!loading && user && cards.length === 0) {
     return <Navigate to="/onboarding" replace />
   }
 
@@ -27,8 +26,12 @@ export default function Dashboard() {
   const totalMiles = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const txnCount = monthTxns.length
 
-  // Resolve current effective caps, then compute period spending
-  const resolvedCaps = useMemo(() => resolveCaps(caps, now), [caps])
+  // Only show caps for cards in the user's wallet
+  const walletCaps = useMemo(
+    () => caps.filter(c => selectedCardIds.has(c.card_id)),
+    [caps, selectedCardIds]
+  )
+  const resolvedCaps = useMemo(() => resolveCaps(walletCaps, now), [walletCaps])
   const periodSpending = useMemo(
     () => buildPeriodSpending(transactions, resolvedCaps, now),
     [transactions, resolvedCaps]
