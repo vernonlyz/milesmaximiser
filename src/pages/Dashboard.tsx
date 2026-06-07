@@ -55,9 +55,19 @@ export default function Dashboard() {
           }
         })
         .sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
-      return { card, cardCaps }
+
+      // Total spent on this card this month (for uncapped cards)
+      const monthlySpent = monthTxns
+        .filter(t => t.card_id === card.id)
+        .reduce((s, t) => s + t.amount, 0)
+
+      const monthlyMiles = monthTxns
+        .filter(t => t.card_id === card.id)
+        .reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+
+      return { card, cardCaps, monthlySpent, monthlyMiles }
     })
-  }, [cards, resolvedCaps, categories, periodSpending])
+  }, [cards, resolvedCaps, categories, periodSpending, monthTxns])
 
   // Recent transactions (last 8)
   const recent = transactions.slice(0, 8)
@@ -132,7 +142,7 @@ export default function Dashboard() {
             <p className="text-sm text-gray-400">No cards in your wallet yet.</p>
           ) : (
             <div className="space-y-5">
-              {cardSummaries.map(({ card, cardCaps }) => (
+              {cardSummaries.map(({ card, cardCaps, monthlySpent, monthlyMiles }) => (
                 <div key={card.id}>
                   {/* Card name row */}
                   <div className="flex items-center gap-2 mb-2">
@@ -146,7 +156,7 @@ export default function Dashboard() {
                       {card.bank} {card.name}
                     </span>
                   </div>
-                  {/* Cap bars or "no cap" note */}
+                  {/* Cap bars, or monthly spend summary for uncapped cards */}
                   {cardCaps.length > 0 ? (
                     <div className="space-y-3 pl-7">
                       {cardCaps.map(row => (
@@ -160,7 +170,20 @@ export default function Dashboard() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400 pl-7">No spending cap</p>
+                    <div className="pl-7 flex items-center gap-4">
+                      <span className="text-xs text-gray-400">No cap ·</span>
+                      <span className="text-xs text-gray-600 font-medium">
+                        S${monthlySpent.toFixed(2)} spent
+                      </span>
+                      {monthlyMiles > 0 && (
+                        <span className="text-xs text-indigo-600 font-medium">
+                          +{Math.round(monthlyMiles).toLocaleString()} miles
+                        </span>
+                      )}
+                      {monthlySpent === 0 && (
+                        <span className="text-xs text-gray-400">this month</span>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
