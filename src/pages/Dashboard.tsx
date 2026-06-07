@@ -46,8 +46,9 @@ export default function Dashboard() {
         const label = card
           ? `${card.bank} ${card.name}${category ? ` · ${category.name}` : ''}`
           : 'Unknown Card'
-        return { key: cap.id, label, spent, limit: cap.spend_limit, period: getPeriodLabel(cap.cap_period) }
+        return { key: cap.id, label, spent, limit: cap.spend_limit ?? 0, period: getPeriodLabel(cap.cap_period) }
       })
+      .filter(row => row.limit > 0)
       .sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
   }, [caps, cards, categories, periodSpending])
 
