@@ -156,35 +156,34 @@ export default function Dashboard() {
                       {card.bank} {card.name}
                     </span>
                   </div>
-                  {/* Cap bars, or monthly spend summary for uncapped cards */}
-                  {cardCaps.length > 0 ? (
-                    <div className="space-y-3 pl-7">
-                      {cardCaps.map(row => (
-                        <CapUsageBar
-                          key={row.key}
-                          label={row.label}
-                          spent={row.spent}
-                          limit={row.limit}
-                          period={row.period}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="pl-7 flex items-center gap-4">
-                      <span className="text-xs text-gray-400">No cap ·</span>
-                      <span className="text-xs text-gray-600 font-medium">
-                        S${monthlySpent.toFixed(2)} spent
+                  <div className="pl-7 space-y-3">
+                    {/* Cap bars for capped categories */}
+                    {cardCaps.map(row => (
+                      <CapUsageBar
+                        key={row.key}
+                        label={row.label}
+                        spent={row.spent}
+                        limit={row.limit}
+                        period={row.period}
+                      />
+                    ))}
+                    {/* Monthly total row — shown for all cards */}
+                    <div className="flex items-center justify-between text-xs pt-0.5">
+                      <span className="text-gray-400">
+                        {cardCaps.length > 0 ? 'Total this month' : 'No cap · total this month'}
                       </span>
-                      {monthlyMiles > 0 && (
-                        <span className="text-xs text-indigo-600 font-medium">
-                          +{Math.round(monthlyMiles).toLocaleString()} miles
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-600 font-medium">
+                          S${monthlySpent.toFixed(2)}
                         </span>
-                      )}
-                      {monthlySpent === 0 && (
-                        <span className="text-xs text-gray-400">this month</span>
-                      )}
+                        {monthlyMiles > 0 && (
+                          <span className="text-indigo-600 font-medium">
+                            +{Math.round(monthlyMiles).toLocaleString()} miles
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               ))}
             </div>
