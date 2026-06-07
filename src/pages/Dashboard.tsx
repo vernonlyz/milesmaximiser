@@ -37,23 +37,27 @@ export default function Dashboard() {
     [transactions, resolvedCaps]
   )
 
-  // Build cap usage rows using resolved (current effective) caps only
-  const capRows = useMemo(() => {
-    return resolvedCaps
-      .filter(c => c.cap_period !== 'per_transaction')
-      .map(cap => {
-        const card = cards.find(c => c.id === cap.card_id)
-        const category = cap.category_id ? categories.find(c => c.id === cap.category_id) : null
-        const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
-        const spent = periodSpending.get(key) ?? 0
-        const label = card
-          ? `${card.bank} ${card.name}${category ? ` · ${category.name}` : ''}`
-          : 'Unknown Card'
-        return { key: cap.id, label, spent, limit: cap.spend_limit ?? 0, period: getPeriodLabel(cap.cap_period) }
-      })
-      .filter(row => row.limit > 0)
-      .sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
-  }, [caps, cards, categories, periodSpending])
+  // Build per-card summary: rates and cap rows for each wallet card
+  const cardSummaries = useMemo(() => {
+    return cards.map(card => {
+      const cardCaps = resolvedCaps
+        .filter(c => c.card_id === card.id && c.cap_period !== 'per_transaction' && (c.spend_limit ?? 0) > 0)
+        .map(cap => {
+          const category = cap.category_id ? categories.find(c => c.id === cap.category_id) : null
+          const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
+          const spent = periodSpending.get(key) ?? 0
+          return {
+            key: cap.id,
+            label: category ? category.name : 'All spend',
+            spent,
+            limit: cap.spend_limit ?? 0,
+            period: getPeriodLabel(cap.cap_period),
+          }
+        })
+        .sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
+      return { card, cardCaps }
+    })
+  }, [cards, resolvedCaps, categories, periodSpending])
 
   // Recent transactions (last 8)
   const recent = transactions.slice(0, 8)
@@ -121,21 +125,44 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Cap usage */}
+        {/* Wallet cards with cap usage */}
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-800 mb-4">Cap Usage</h2>
-          {capRows.length === 0 ? (
-            <p className="text-sm text-gray-400">No spending caps configured yet.</p>
+          <h2 className="font-semibold text-gray-800 mb-4">My Wallet</h2>
+          {cardSummaries.length === 0 ? (
+            <p className="text-sm text-gray-400">No cards in your wallet yet.</p>
           ) : (
             <div className="space-y-5">
-              {capRows.map(row => (
-                <CapUsageBar
-                  key={row.key}
-                  label={row.label}
-                  spent={row.spent}
-                  limit={row.limit}
-                  period={row.period}
-                />
+              {cardSummaries.map(({ card, cardCaps }) => (
+                <div key={card.id}>
+                  {/* Card name row */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className="w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                      style={{ backgroundColor: card.color }}
+                    >
+                      {card.bank.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      {card.bank} {card.name}
+                    </span>
+                  </div>
+                  {/* Cap bars or "no cap" note */}
+                  {cardCaps.length > 0 ? (
+                    <div className="space-y-3 pl-7">
+                      {cardCaps.map(row => (
+                        <CapUsageBar
+                          key={row.key}
+                          label={row.label}
+                          spent={row.spent}
+                          limit={row.limit}
+                          period={row.period}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 pl-7">No spending cap</p>
+                  )}
+                </div>
               ))}
             </div>
           )}
