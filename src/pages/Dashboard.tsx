@@ -6,13 +6,16 @@ import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
 import { buildPeriodSpending, resolveCaps } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel } from '../lib/utils'
+import { isOnboarded } from './Onboarding'
 
 export default function Dashboard() {
   const { cards, selectedCardIds, categories, caps, transactions, loading, error, refresh } = useApp()
   const { user } = useAuth()
 
-  // No wallet cards → send to onboarding (also catches users who need to re-select after migration)
-  if (!loading && user && cards.length === 0) {
+  // Only redirect brand-new users who have never been through onboarding.
+  // Existing users (isOnboarded flag set) stay on the dashboard even if
+  // their wallet is empty after the library migration — they see an empty state instead.
+  if (!loading && user && cards.length === 0 && !isOnboarded(user.id)) {
     return <Navigate to="/onboarding" replace />
   }
 
@@ -139,7 +142,10 @@ export default function Dashboard() {
         <div className="card p-5">
           <h2 className="font-semibold text-gray-800 mb-4">My Wallet</h2>
           {cardSummaries.length === 0 ? (
-            <p className="text-sm text-gray-400">No cards in your wallet yet.</p>
+            <div className="text-center py-6">
+              <p className="text-sm text-gray-400">No cards in your wallet yet.</p>
+              <Link to="/cards" className="btn-primary mt-3 text-xs">Go to My Cards</Link>
+            </div>
           ) : (
             <div className="space-y-5">
               {cardSummaries.map(({ card, cardCaps, monthlySpent, monthlyMiles }) => (
