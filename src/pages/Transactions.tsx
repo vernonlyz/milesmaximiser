@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import { supabase } from '../lib/supabase'
-import { recommendCards, buildPeriodSpending, calcMiles } from '../lib/recommendations'
+import { recommendCards, calcMiles } from '../lib/recommendations'
 import { isoDate } from '../lib/utils'
 import { TransactionFormData, CardRecommendation } from '../lib/types'
 
@@ -31,17 +31,13 @@ export default function Transactions() {
   const [filterCat, setFilterCat] = useState('')
   const [filterCard, setFilterCard] = useState('')
 
-  const periodSpending = useMemo(
-    () => buildPeriodSpending(transactions, caps),
-    [transactions, caps]
-  )
-
-  // Recommendations live while filling form
+  // Recommendations live while filling form — uses transaction_date for effective rate lookup
   const recs = useMemo<CardRecommendation[]>(() => {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
-    return recommendCards(cards, rates, caps, form.category_id, amt, periodSpending)
-  }, [form.category_id, form.amount, cards, rates, caps, periodSpending])
+    const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
+    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate)
+  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions])
 
   const bestCardId = recs[0]?.card.id ?? ''
 
@@ -65,7 +61,8 @@ export default function Transactions() {
     setError(null)
 
     const card = cards.find(c => c.id === form.card_id)!
-    const { miles, effectiveMpd } = calcMiles(card, rates, caps, form.category_id, amount, periodSpending)
+    const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
+    const { miles, effectiveMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate)
 
     const { error: dbErr } = await supabase.from('transactions').insert({
       card_id: form.card_id,

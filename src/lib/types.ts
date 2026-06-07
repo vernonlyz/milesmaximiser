@@ -20,14 +20,16 @@ export interface CardRate {
   card_id: string
   category_id: string
   mpd: number
+  effective_from: string   // ISO date — rate applies from this date onward
 }
 
 export interface SpendingCap {
   id: string
   card_id: string
-  category_id: string | null  // null = global cap on all spend
+  category_id: string | null  // null = global cap on all spend for this card
   cap_period: 'monthly' | 'quarterly' | 'annual' | 'per_transaction'
-  spend_limit: number
+  spend_limit: number | null  // null = cap was REMOVED from effective_from onward
+  effective_from: string      // ISO date — cap applies from this date onward
   created_at: string
 }
 
@@ -48,29 +50,27 @@ export interface TransactionWithDetails extends Transaction {
   category: Category | null
 }
 
-// Result from the recommendation engine for one card
 export interface CardRecommendation {
   card: CreditCard
-  bonusMpd: number        // advertised mpd for this category (before cap)
-  effectiveMpd: number    // actual mpd considering cap usage
-  milesEarned: number     // miles that would be earned on this transaction
-  capRemaining: number | null  // spend remaining in cap this period (null = no cap)
-  capAmount: number | null     // total cap amount
+  bonusMpd: number
+  effectiveMpd: number
+  milesEarned: number
+  capRemaining: number | null
+  capAmount: number | null
   capPeriod: string | null
   status: 'optimal' | 'partial' | 'capped' | 'base'
   reason: string
 }
 
-// Form shapes
 export interface CardFormRate {
   category_id: string
   mpd: string
 }
 
 export interface CardFormCap {
-  category_id: string   // '' = global
+  category_id: string           // '' = global cap
   cap_period: SpendingCap['cap_period']
-  spend_limit: string
+  spend_limit: string           // '' = cap removed (will save as NULL)
 }
 
 export interface CardFormData {
@@ -80,6 +80,7 @@ export interface CardFormData {
   base_mpd: string
   color: string
   active: boolean
+  effective_from: string        // ISO date — applies to all rate/cap changes in this save
   rates: CardFormRate[]
   caps: CardFormCap[]
 }

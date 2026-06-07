@@ -64,7 +64,10 @@ export default function Onboarding() {
 
       if (starter.rates.length > 0) {
         await supabase.from('card_rates').insert(
-          starter.rates.map(r => ({ card_id: data.id, category_id: r.category_id, mpd: r.mpd }))
+          starter.rates.map(r => ({
+            card_id: data.id, category_id: r.category_id, mpd: r.mpd,
+            effective_from: '2000-01-01',
+          }))
         )
       }
       if (starter.caps.length > 0) {
@@ -74,6 +77,7 @@ export default function Onboarding() {
             category_id: c.category_id || null,
             cap_period: c.cap_period,
             spend_limit: c.spend_limit,
+            effective_from: '2000-01-01',
           }))
         )
       }

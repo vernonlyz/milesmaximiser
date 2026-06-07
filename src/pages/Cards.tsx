@@ -1,17 +1,18 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Library, Check, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Library, Check, Loader2, History } from 'lucide-react'
 
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import { supabase } from '../lib/supabase'
 import { CreditCard, CardFormData } from '../lib/types'
-import { CARD_NETWORKS, CAP_PERIODS, PRESET_COLORS, capPeriodLabel } from '../lib/utils'
+import { CARD_NETWORKS, CAP_PERIODS, PRESET_COLORS, capPeriodLabel, isoDate } from '../lib/utils'
 import { STARTER_CARDS } from '../lib/starterCards'
+import { resolveRates, resolveCaps } from '../lib/recommendations'
 
 const EMPTY_FORM: CardFormData = {
   name: '', bank: '', card_network: 'Visa', base_mpd: '1.2',
-  color: '#4F46E5', active: true, rates: [], caps: [],
+  color: '#4F46E5', active: true, effective_from: isoDate(), rates: [], caps: [],
 }
 
 export default function Cards() {
@@ -56,11 +57,11 @@ export default function Cards() {
       if (error || !data) continue
       if (starter.rates.length > 0)
         await supabase.from('card_rates').insert(
-          starter.rates.map(r => ({ card_id: data.id, category_id: r.category_id, mpd: r.mpd }))
+          starter.rates.map(r => ({ card_id: data.id, category_id: r.category_id, mpd: r.mpd, effective_from: '2000-01-01' }))
         )
       if (starter.caps.length > 0)
         await supabase.from('spending_caps').insert(
-          starter.caps.map(c => ({ card_id: data.id, category_id: c.category_id || null, cap_period: c.cap_period, spend_limit: c.spend_limit }))
+          starter.caps.map(c => ({ card_id: data.id, category_id: c.category_id || null, cap_period: c.cap_period, spend_limit: c.spend_limit, effective_from: '2000-01-01' }))
         )
     }
     setLibraryImporting(false)
@@ -77,8 +78,10 @@ export default function Cards() {
 
   function openEdit(card: CreditCard) {
     setEditCard(card)
-    const cardRates = rates.filter(r => r.card_id === card.id)
-    const cardCaps = caps.filter(c => c.card_id === card.id)
+    // Pre-populate with the CURRENT effective rates/caps (not all historical rows)
+    const today = new Date()
+    const effectiveRates = resolveRates(rates.filter(r => r.card_id === card.id), today)
+    const effectiveCaps  = resolveCaps(caps.filter(c => c.card_id === card.id), today)
     setForm({
       name: card.name,
       bank: card.bank,
@@ -86,11 +89,12 @@ export default function Cards() {
       base_mpd: card.base_mpd.toString(),
       color: card.color,
       active: card.active,
-      rates: cardRates.map(r => ({ category_id: r.category_id, mpd: r.mpd.toString() })),
-      caps: cardCaps.map(c => ({
+      effective_from: isoDate(),   // default: changes effective today
+      rates: effectiveRates.map(r => ({ category_id: r.category_id, mpd: r.mpd.toString() })),
+      caps: effectiveCaps.map(c => ({
         category_id: c.category_id ?? '',
         cap_period: c.cap_period,
-        spend_limit: c.spend_limit.toString(),
+        spend_limit: c.spend_limit?.toString() ?? '',
       })),
     })
     setError(null)
@@ -113,12 +117,16 @@ export default function Cards() {
       setError('Base MPD must be a positive number.')
       return
     }
+    if (!form.effective_from) {
+      setError('Effective from date is required.')
+      return
+    }
 
     setSaving(true)
     setError(null)
 
     if (editCard) {
-      // Update card
+      // Update card metadata only
       const { error: e1 } = await supabase.from('credit_cards').update({
         name: form.name.trim(),
         bank: form.bank.trim(),
@@ -129,12 +137,9 @@ export default function Cards() {
       }).eq('id', editCard.id)
       if (e1) { setSaving(false); setError(e1.message); return }
 
-      // Replace rates
-      await supabase.from('card_rates').delete().eq('card_id', editCard.id)
-      await supabase.from('spending_caps').delete().eq('card_id', editCard.id)
-      await insertRatesAndCaps(editCard.id)
+      // Upsert rates and caps with the new effective_from — preserves history
+      await upsertRatesAndCaps(editCard.id)
     } else {
-      // Insert card
       const { data, error: e1 } = await supabase.from('credit_cards').insert({
         name: form.name.trim(),
         bank: form.bank.trim(),
@@ -145,7 +150,7 @@ export default function Cards() {
         user_id: user!.id,
       }).select('id').single()
       if (e1 || !data) { setSaving(false); setError(e1?.message ?? 'Insert failed'); return }
-      await insertRatesAndCaps(data.id)
+      await upsertRatesAndCaps(data.id)
     }
 
     setSaving(false)
@@ -153,22 +158,34 @@ export default function Cards() {
     refresh()
   }
 
-  async function insertRatesAndCaps(cardId: string) {
+  async function upsertRatesAndCaps(cardId: string) {
+    const effectiveFrom = form.effective_from
+
     const validRates = form.rates.filter(r => r.category_id && parseFloat(r.mpd) > 0)
     if (validRates.length > 0) {
-      await supabase.from('card_rates').insert(
-        validRates.map(r => ({ card_id: cardId, category_id: r.category_id, mpd: parseFloat(r.mpd) }))
+      await supabase.from('card_rates').upsert(
+        validRates.map(r => ({
+          card_id: cardId,
+          category_id: r.category_id,
+          mpd: parseFloat(r.mpd),
+          effective_from: effectiveFrom,
+        })),
+        { onConflict: 'card_id,category_id,effective_from' }
       )
     }
-    const validCaps = form.caps.filter(c => parseFloat(c.spend_limit) > 0)
+
+    const validCaps = form.caps.filter(c => c.category_id !== '' || true) // include all rows
     if (validCaps.length > 0) {
-      await supabase.from('spending_caps').insert(
+      await supabase.from('spending_caps').upsert(
         validCaps.map(c => ({
           card_id: cardId,
           category_id: c.category_id || null,
           cap_period: c.cap_period,
-          spend_limit: parseFloat(c.spend_limit),
-        }))
+          // Empty spend_limit = cap removed (stored as NULL)
+          spend_limit: c.spend_limit === '' ? null : parseFloat(c.spend_limit),
+          effective_from: effectiveFrom,
+        })),
+        { onConflict: 'card_id,category_id,cap_period,effective_from' }
       )
     }
   }
@@ -252,11 +269,12 @@ export default function Cards() {
                     {/* Rates */}
                     {cardRates.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {cardRates.map(r => {
+                        {resolveRates(cardRates).map(r => {
                           const cat = categories.find(c => c.id === r.category_id)
                           return (
-                            <span key={r.id} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg">
+                            <span key={r.id} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg" title={`Since ${r.effective_from}`}>
                               {cat?.icon} {cat?.name}: {r.mpd} mpd
+                              <span className="text-indigo-400 ml-1">since {r.effective_from}</span>
                             </span>
                           )
                         })}
@@ -389,6 +407,23 @@ export default function Cards() {
           onClose={() => setShowModal(false)}
           wide
         >
+          {/* Effective date — shown prominently so users understand this creates history */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-3">
+            <History size={16} className="text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-800">Rate changes effective from</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Old rates stay as history. New rates apply from this date on new transactions.
+              </p>
+              <input
+                type="date"
+                className="input mt-2 bg-white w-44"
+                value={form.effective_from}
+                onChange={e => setForm(f => ({ ...f, effective_from: e.target.value }))}
+              />
+            </div>
+          </div>
+
           {/* Basic info */}
           <div className="grid grid-cols-2 gap-3">
             <div>

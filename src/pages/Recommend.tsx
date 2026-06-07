@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Sparkles, Trophy, ChevronDown } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import StatusBadge from '../components/StatusBadge'
-import { recommendCards, buildPeriodSpending } from '../lib/recommendations'
+import { recommendCards } from '../lib/recommendations'
 import { formatSGD } from '../lib/utils'
 import { CardRecommendation } from '../lib/types'
 
@@ -14,15 +14,11 @@ export default function Recommend() {
 
   const amount = parseFloat(amountStr) || 0
 
-  const periodSpending = useMemo(
-    () => buildPeriodSpending(transactions, caps),
-    [transactions, caps]
-  )
-
   const recs = useMemo<CardRecommendation[]>(() => {
     if (!categoryId || amount <= 0) return []
-    return recommendCards(cards, rates, caps, categoryId, amount, periodSpending)
-  }, [cards, rates, caps, categoryId, amount, periodSpending])
+    // recommendCards now resolves effective rates/caps and period spending internally
+    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date())
+  }, [cards, rates, caps, categoryId, amount, transactions])
 
   const cat = categories.find(c => c.id === categoryId)
 

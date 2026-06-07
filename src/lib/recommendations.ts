@@ -1,26 +1,66 @@
 import { CreditCard, CardRate, SpendingCap, Transaction, CardRecommendation } from './types'
 import { getPeriodStart, formatSGD } from './utils'
 
-/**
- * Given the full transaction history and a set of caps, compute how much
- * has already been spent per (card, category) for the relevant cap period.
- *
- * Returns a Map keyed by `${cardId}:${categoryId|'global'}`.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// Effective-date resolvers
+// For a given date, return the single most-recent row per card+category.
+// Rows with effective_from > date are ignored (future changes not yet in effect).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function resolveRates(allRates: CardRate[], date: Date = new Date()): CardRate[] {
+  const dateStr = date.toISOString().slice(0, 10)
+  const map = new Map<string, CardRate>()
+
+  // Sort ascending so later dates overwrite earlier ones in the map
+  const eligible = [...allRates]
+    .filter(r => r.effective_from <= dateStr)
+    .sort((a, b) => a.effective_from.localeCompare(b.effective_from))
+
+  for (const rate of eligible) {
+    map.set(`${rate.card_id}:${rate.category_id}`, rate)
+  }
+
+  return Array.from(map.values())
+}
+
+export function resolveCaps(allCaps: SpendingCap[], date: Date = new Date()): SpendingCap[] {
+  const dateStr = date.toISOString().slice(0, 10)
+  const map = new Map<string, SpendingCap>()
+
+  const eligible = [...allCaps]
+    .filter(c => c.effective_from <= dateStr)
+    .sort((a, b) => a.effective_from.localeCompare(b.effective_from))
+
+  for (const cap of eligible) {
+    const key = `${cap.card_id}:${cap.category_id ?? 'global'}:${cap.cap_period}`
+    map.set(key, cap)
+  }
+
+  // Exclude caps that were explicitly removed (spend_limit = null)
+  return Array.from(map.values()).filter(c => c.spend_limit !== null)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Period spending
+// Sums actual spend for each (card, category) combination within the cap period.
+// Uses the cap's effective_from to determine which period definition to use
+// — so a quarterly cap is compared against quarterly totals, etc.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function buildPeriodSpending(
   transactions: Transaction[],
-  caps: SpendingCap[],
+  resolvedCaps: SpendingCap[],   // already resolved for the target date
   now: Date = new Date()
 ): Map<string, number> {
   const result = new Map<string, number>()
 
-  for (const cap of caps) {
+  for (const cap of resolvedCaps) {
     if (cap.cap_period === 'per_transaction') continue
 
     const periodStart = getPeriodStart(cap.cap_period, now)
     const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
 
-    if (result.has(key)) continue // already computed
+    if (result.has(key)) continue
 
     const spent = transactions
       .filter(t => {
@@ -36,10 +76,14 @@ export function buildPeriodSpending(
   return result
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Core effective-MPD calculation for one card on a specific date
+// ─────────────────────────────────────────────────────────────────────────────
+
 function getEffectiveForCard(
   card: CreditCard,
-  rates: CardRate[],
-  caps: SpendingCap[],
+  resolvedRates: CardRate[],
+  resolvedCaps: SpendingCap[],
   categoryId: string,
   amount: number,
   periodSpending: Map<string, number>
@@ -51,15 +95,14 @@ function getEffectiveForCard(
   capPeriod: string | null
   status: CardRecommendation['status']
 } {
-  const rateRow = rates.find(r => r.card_id === card.id && r.category_id === categoryId)
+  const rateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
   const bonusMpd = rateRow?.mpd ?? card.base_mpd
 
-  // Find most specific applicable cap (category-specific first, then global)
   const cap =
-    caps.find(c => c.card_id === card.id && c.category_id === categoryId) ??
-    caps.find(c => c.card_id === card.id && c.category_id === null)
+    resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId) ??
+    resolvedCaps.find(c => c.card_id === card.id && c.category_id === null)
 
-  if (!cap) {
+  if (!cap || cap.spend_limit === null) {
     return {
       effectiveMpd: bonusMpd,
       milesEarned: amount * bonusMpd,
@@ -70,7 +113,7 @@ function getEffectiveForCard(
     }
   }
 
-  // Per-transaction cap: each transaction is evaluated independently
+  // Per-transaction cap
   if (cap.cap_period === 'per_transaction') {
     const eligible = Math.min(amount, cap.spend_limit)
     const overflow = amount - eligible
@@ -111,7 +154,6 @@ function getEffectiveForCard(
     }
   }
 
-  // Split: partially in cap, rest falls to base rate
   const bonusMiles = remaining * bonusMpd
   const baseMiles = (amount - remaining) * card.base_mpd
   const milesEarned = bonusMiles + baseMiles
@@ -125,22 +167,35 @@ function getEffectiveForCard(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Public API
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Rank all active cards for a given category, amount and transaction date.
+ * Automatically resolves the effective rates and caps for that date.
+ */
 export function recommendCards(
   cards: CreditCard[],
-  rates: CardRate[],
-  caps: SpendingCap[],
+  allRates: CardRate[],
+  allCaps: SpendingCap[],
   categoryId: string,
   amount: number,
-  periodSpending: Map<string, number>
+  transactions: Transaction[],
+  transactionDate: Date = new Date()
 ): CardRecommendation[] {
   if (!categoryId || amount <= 0) return []
+
+  const resolved = resolveRates(allRates, transactionDate)
+  const resolvedCaps = resolveCaps(allCaps, transactionDate)
+  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate)
 
   return cards
     .filter(c => c.active)
     .map(card => {
-      const rateRow = rates.find(r => r.card_id === card.id && r.category_id === categoryId)
+      const rateRow = resolved.find(r => r.card_id === card.id && r.category_id === categoryId)
       const bonusMpd = rateRow?.mpd ?? card.base_mpd
-      const eff = getEffectiveForCard(card, rates, caps, categoryId, amount, periodSpending)
+      const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending)
 
       let reason = ''
       switch (eff.status) {
@@ -161,8 +216,7 @@ export function recommendCards(
       }
 
       return {
-        card,
-        bonusMpd,
+        card, bonusMpd,
         effectiveMpd: eff.effectiveMpd,
         milesEarned: eff.milesEarned,
         capRemaining: eff.capRemaining,
@@ -174,21 +228,26 @@ export function recommendCards(
     })
     .sort((a, b) => {
       if (b.effectiveMpd !== a.effectiveMpd) return b.effectiveMpd - a.effectiveMpd
-      // Tie-break: prefer cards closer to their cap (maximise miles earned from capped cards first)
       if (b.milesEarned !== a.milesEarned) return b.milesEarned - a.milesEarned
       return a.card.name.localeCompare(b.card.name)
     })
 }
 
-/** Compute miles for a single transaction given the card + category. */
+/**
+ * Calculate miles for a single transaction on a specific date.
+ */
 export function calcMiles(
   card: CreditCard,
-  rates: CardRate[],
-  caps: SpendingCap[],
+  allRates: CardRate[],
+  allCaps: SpendingCap[],
   categoryId: string,
   amount: number,
-  periodSpending: Map<string, number>
+  transactions: Transaction[],
+  transactionDate: Date = new Date()
 ): { miles: number; effectiveMpd: number } {
-  const eff = getEffectiveForCard(card, rates, caps, categoryId, amount, periodSpending)
+  const resolved = resolveRates(allRates, transactionDate)
+  const resolvedCaps = resolveCaps(allCaps, transactionDate)
+  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate)
+  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending)
   return { miles: eff.milesEarned, effectiveMpd: eff.effectiveMpd }
 }

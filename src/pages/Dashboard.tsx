@@ -4,7 +4,7 @@ import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle } from 'lucide-re
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
-import { buildPeriodSpending } from '../lib/recommendations'
+import { buildPeriodSpending, resolveCaps } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel } from '../lib/utils'
 import { isOnboarded } from './Onboarding'
 
@@ -27,15 +27,16 @@ export default function Dashboard() {
   const totalMiles = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const txnCount = monthTxns.length
 
-  // Period spending for all caps
+  // Resolve current effective caps, then compute period spending
+  const resolvedCaps = useMemo(() => resolveCaps(caps, now), [caps])
   const periodSpending = useMemo(
-    () => buildPeriodSpending(transactions, caps, now),
-    [transactions, caps]
+    () => buildPeriodSpending(transactions, resolvedCaps, now),
+    [transactions, resolvedCaps]
   )
 
-  // Build cap usage rows
+  // Build cap usage rows using resolved (current effective) caps only
   const capRows = useMemo(() => {
-    return caps
+    return resolvedCaps
       .filter(c => c.cap_period !== 'per_transaction')
       .map(cap => {
         const card = cards.find(c => c.id === cap.card_id)
