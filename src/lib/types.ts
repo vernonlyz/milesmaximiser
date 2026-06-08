@@ -14,6 +14,7 @@ export interface CreditCard {
   color: string
   active: boolean
   selectable_category: boolean  // true = user picks their bonus category
+  max_selectable: number        // how many categories the user may choose (1 or 2)
   created_at: string
 }
 

@@ -11,12 +11,14 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 ALTER TABLE card_library ADD COLUMN IF NOT EXISTS selectable_category BOOLEAN NOT NULL DEFAULT FALSE;
+-- max_selectable: how many bonus categories the cardholder may choose (1 for Lady's Card, 2 for Solitaire)
+ALTER TABLE card_library ADD COLUMN IF NOT EXISTS max_selectable INT NOT NULL DEFAULT 1;
 
-UPDATE card_library SET selectable_category = TRUE
-WHERE id IN (
-  '00000000-0000-0000-0001-000000000010',  -- UOB Lady's Card
-  '00000000-0000-0000-0001-000000000011'   -- UOB Lady's Solitaire Card
-);
+UPDATE card_library SET selectable_category = TRUE, max_selectable = 1
+WHERE id = '00000000-0000-0000-0001-000000000010';  -- UOB Lady's Card
+
+UPDATE card_library SET selectable_category = TRUE, max_selectable = 2
+WHERE id = '00000000-0000-0000-0001-000000000011';  -- UOB Lady's Solitaire Card
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. Add missing spend categories
@@ -31,14 +33,18 @@ ON CONFLICT (id) DO NOTHING;
 -- 3. Valid choices per selectable card (admin-managed, read-only for users)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE library_selectable_categories (
+CREATE TABLE IF NOT EXISTS library_selectable_categories (
   card_id     UUID NOT NULL REFERENCES card_library(id) ON DELETE CASCADE,
   category_id UUID NOT NULL REFERENCES categories(id)   ON DELETE CASCADE,
   PRIMARY KEY (card_id, category_id)
 );
 
 ALTER TABLE library_selectable_categories ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "auth_read" ON library_selectable_categories FOR SELECT TO authenticated USING (true);
+
+DO $$ BEGIN
+  CREATE POLICY "auth_read" ON library_selectable_categories FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- UOB Lady's Card eligible categories
 INSERT INTO library_selectable_categories (card_id, category_id) VALUES
@@ -63,7 +69,7 @@ ON CONFLICT DO NOTHING;
 
 -- category_ids is an array so Lady's Solitaire (2-category choice) is supported
 -- without a schema change. Current seeding only uses 1 slot per card.
-CREATE TABLE user_category_overrides (
+CREATE TABLE IF NOT EXISTS user_category_overrides (
   id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        UUID        NOT NULL REFERENCES auth.users(id)   ON DELETE CASCADE,
   card_id        UUID        NOT NULL REFERENCES card_library(id) ON DELETE CASCADE,
@@ -74,8 +80,13 @@ CREATE TABLE user_category_overrides (
 );
 
 ALTER TABLE user_category_overrides ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "user_own" ON user_category_overrides FOR ALL TO authenticated
-  USING     (user_id = auth.uid())
-  WITH CHECK(user_id = auth.uid());
 
-CREATE INDEX idx_cat_overrides ON user_category_overrides(user_id, card_id, effective_from DESC);
+DO $$ BEGIN
+  CREATE POLICY "user_own" ON user_category_overrides FOR ALL TO authenticated
+    USING     (user_id = auth.uid())
+    WITH CHECK(user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_cat_overrides
+  ON user_category_overrides(user_id, card_id, effective_from DESC);

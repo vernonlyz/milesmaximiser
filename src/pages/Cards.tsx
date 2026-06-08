@@ -36,6 +36,10 @@ export default function Cards() {
       setEditError('Please select at least one category.')
       return
     }
+    if (editChoices.length > editCard.max_selectable) {
+      setEditError(`This card allows up to ${editCard.max_selectable} categories.`)
+      return
+    }
     setEditSaving(true)
     setEditError(null)
     try {
@@ -246,33 +250,50 @@ export default function Cards() {
             <div>
               <p className="text-sm font-medium text-gray-700">{editCard.bank} {editCard.name}</p>
               <p className="text-xs text-gray-500 mt-1">
-                Select the category your card earns its bonus MPD on. This should match the
-                category you chose at card application. You can update it at any time — past
-                transactions are not affected.
+                {editCard.max_selectable === 1
+                  ? 'Select the one category your card earns its bonus MPD on.'
+                  : `Select up to ${editCard.max_selectable} categories your card earns its bonus MPD on.`}{' '}
+                This should match the choice you made at card application. You can update it at
+                any time — past transactions are not affected.
               </p>
             </div>
 
-            {/* Category radio buttons */}
+            {/* Category selector — radio for single-choice, checkbox for multi-choice */}
             <div className="space-y-2">
               {(selectableMap.get(editCard.id) ?? []).map(catId => {
                 const cat = categories.find(c => c.id === catId)
                 if (!cat) return null
                 const selected = editChoices.includes(catId)
+                const isMulti = editCard.max_selectable > 1
+
+                function toggleChoice() {
+                  if (!isMulti) {
+                    setEditChoices([catId])
+                  } else if (selected) {
+                    setEditChoices(prev => prev.filter(id => id !== catId))
+                  } else if (editChoices.length < editCard!.max_selectable) {
+                    setEditChoices(prev => [...prev, catId])
+                  }
+                }
+
                 return (
                   <label
                     key={catId}
                     className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
                       selected
                         ? 'border-indigo-400 bg-indigo-50'
-                        : 'border-gray-200 hover:bg-gray-50'
+                        : editChoices.length >= editCard.max_selectable && !selected
+                          ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                          : 'border-gray-200 hover:bg-gray-50'
                     }`}
                   >
                     <input
-                      type="radio"
+                      type={isMulti ? 'checkbox' : 'radio'}
                       name="bonus-category"
                       value={catId}
                       checked={selected}
-                      onChange={() => setEditChoices([catId])}
+                      onChange={toggleChoice}
+                      disabled={!selected && editChoices.length >= editCard.max_selectable}
                       className="accent-indigo-600"
                     />
                     <span className="text-lg leading-none">{cat.icon}</span>
@@ -281,6 +302,12 @@ export default function Cards() {
                 )
               })}
             </div>
+
+            {editCard.max_selectable > 1 && (
+              <p className="text-xs text-gray-400">
+                {editChoices.length} of {editCard.max_selectable} selected
+              </p>
+            )}
 
             {/* Effective date */}
             <div>
