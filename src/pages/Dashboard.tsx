@@ -70,25 +70,6 @@ export default function Dashboard() {
         })
         .sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
 
-      // For selectable cards: if a chosen category has no cap row, show a spend-only row
-      const spendOnlyRows: { key: string; label: string; spent: number }[] = []
-      if (card.selectable_category) {
-        const chosenCatIds = resolveOverride(overrides, card.id, now) ?? []
-        const coveredCatIds = new Set(capRows.map(r => r.catId).filter(Boolean))
-        for (const catId of chosenCatIds) {
-          if (coveredCatIds.has(catId)) continue
-          const cat = categories.find(c => c.id === catId)
-          const spent = monthTxns
-            .filter(t => t.card_id === card.id && t.category_id === catId)
-            .reduce((s, t) => s + t.amount, 0)
-          spendOnlyRows.push({
-            key: `spend:${card.id}:${catId}`,
-            label: cat ? `${cat.icon} ${cat.name}` : '—',
-            spent,
-          })
-        }
-      }
-
       const monthlySpent = monthTxns
         .filter(t => t.card_id === card.id)
         .reduce((s, t) => s + t.amount, 0)
@@ -97,7 +78,40 @@ export default function Dashboard() {
         .filter(t => t.card_id === card.id)
         .reduce((s, t) => s + (t.miles_earned ?? 0), 0)
 
-      return { card, capRows, spendOnlyRows, monthlySpent, monthlyMiles }
+      // Uncapped spend breakdown — all categories used this month that don't already
+      // have a cap bar. For selectable cards, the chosen categories appear first.
+      const coveredCatIds = new Set(capRows.map(r => r.catId).filter(Boolean))
+
+      // Tally per-category spend for this card this month
+      const catTotals = new Map<string, number>()
+      for (const t of monthTxns) {
+        if (t.card_id !== card.id || !t.category_id) continue
+        if (coveredCatIds.has(t.category_id)) continue
+        catTotals.set(t.category_id, (catTotals.get(t.category_id) ?? 0) + t.amount)
+      }
+
+      // For selectable cards, pin chosen categories to the top (even if S$0 this month)
+      const pinnedCatIds = card.selectable_category
+        ? (resolveOverride(overrides, card.id, now) ?? []).filter(id => !coveredCatIds.has(id))
+        : []
+
+      const spendRows = [
+        // Pinned chosen categories first
+        ...pinnedCatIds.map(catId => {
+          const cat = categories.find(c => c.id === catId)
+          return { key: `pin:${card.id}:${catId}`, catId, label: cat ? `${cat.icon} ${cat.name}` : '—', spent: catTotals.get(catId) ?? 0, pinned: true }
+        }),
+        // All other categories with actual spend, sorted by amount desc
+        ...Array.from(catTotals.entries())
+          .filter(([catId]) => !pinnedCatIds.includes(catId))
+          .sort(([, a], [, b]) => b - a)
+          .map(([catId, spent]) => {
+            const cat = categories.find(c => c.id === catId)
+            return { key: `cat:${card.id}:${catId}`, catId, label: cat ? `${cat.icon} ${cat.name}` : '—', spent, pinned: false }
+          }),
+      ]
+
+      return { card, capRows, spendRows, monthlySpent, monthlyMiles }
     })
   }, [cards, effectiveCaps, categories, periodSpending, monthTxns, overrides])
 
@@ -177,7 +191,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-5">
-              {cardSummaries.map(({ card, capRows, spendOnlyRows, monthlySpent, monthlyMiles }) => (
+              {cardSummaries.map(({ card, capRows, spendRows, monthlySpent, monthlyMiles }) => (
                 <div key={card.id}>
                   {/* Card name row */}
                   <div className="flex items-center gap-2 mb-2">
@@ -203,18 +217,39 @@ export default function Dashboard() {
                       />
                     ))}
 
-                    {/* Spend-only rows for chosen categories with no cap */}
-                    {spendOnlyRows.map(row => (
-                      <div key={row.key} className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">{row.label}</span>
-                        <span className="text-gray-600 font-medium">S${row.spent.toFixed(2)} · no cap</span>
-                      </div>
-                    ))}
+                    {/* Proportional spend bars for uncapped categories */}
+                    {spendRows.filter(r => r.spent > 0 || r.pinned).map(row => {
+                      const pct = monthlySpent > 0 ? (row.spent / monthlySpent) * 100 : 0
+                      return (
+                        <div key={row.key}>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className={row.pinned && row.spent === 0 ? 'text-gray-400' : 'text-gray-600'}>
+                              {row.label}
+                              {row.pinned && row.spent === 0 && <span className="ml-1 text-gray-300">· no spend yet</span>}
+                            </span>
+                            <span className="text-gray-500 tabular-nums">
+                              {row.spent > 0 ? `S$${row.spent.toFixed(2)}` : '—'}
+                              {row.spent > 0 && monthlySpent > 0 && (
+                                <span className="text-gray-300 ml-1">{Math.round(pct)}%</span>
+                              )}
+                            </span>
+                          </div>
+                          {row.spent > 0 && (
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-indigo-200"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
 
-                    {/* Monthly total row — shown for all cards */}
+                    {/* Monthly total row */}
                     <div className="flex items-center justify-between text-xs pt-0.5">
                       <span className="text-gray-400">
-                        {capRows.length > 0 || spendOnlyRows.length > 0 ? 'Total this month' : 'No cap · total this month'}
+                        {capRows.length > 0 ? 'Total this month' : 'No cap · total this month'}
                       </span>
                       <div className="flex items-center gap-3">
                         <span className="text-gray-600 font-medium">
