@@ -4,12 +4,12 @@ import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle } from 'lucide-re
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
-import { buildPeriodSpending, resolveCaps } from '../lib/recommendations'
+import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel } from '../lib/utils'
 import { isOnboarded } from './Onboarding'
 
 export default function Dashboard() {
-  const { cards, selectedCardIds, categories, caps, transactions, loading, error, refresh } = useApp()
+  const { cards, selectedCardIds, categories, rates, caps, overrides, transactions, loading, error, refresh } = useApp()
   const { user } = useAuth()
 
   // Only redirect brand-new users who have never been through onboarding.
@@ -34,32 +34,61 @@ export default function Dashboard() {
     () => caps.filter(c => selectedCardIds.has(c.card_id)),
     [caps, selectedCardIds]
   )
+
+  // Resolve effective caps for today, then apply any selectable-category overrides.
+  // This ensures Lady's Card / Solitaire cap bars track the user's chosen categories,
+  // not the library's Dining default.
   const resolvedCaps = useMemo(() => resolveCaps(walletCaps, now), [walletCaps])
-  const periodSpending = useMemo(
-    () => buildPeriodSpending(transactions, resolvedCaps, now),
-    [transactions, resolvedCaps]
+  const effectiveCaps = useMemo(
+    () => applyAllSelectableOverrides(cards, rates, resolvedCaps, overrides, now).caps,
+    [cards, rates, resolvedCaps, overrides]
   )
 
-  // Build per-card summary: rates and cap rows for each wallet card
+  const periodSpending = useMemo(
+    () => buildPeriodSpending(transactions, effectiveCaps, now),
+    [transactions, effectiveCaps]
+  )
+
+  // Build per-card summary
   const cardSummaries = useMemo(() => {
     return cards.map(card => {
-      const cardCaps = resolvedCaps
+      // Cap bars — use effective caps so selectable cards show correct categories
+      const capRows = effectiveCaps
         .filter(c => c.card_id === card.id && c.cap_period !== 'per_transaction' && (c.spend_limit ?? 0) > 0)
         .map(cap => {
-          const category = cap.category_id ? categories.find(c => c.id === cap.category_id) : null
+          const cat = cap.category_id ? categories.find(c => c.id === cap.category_id) : null
           const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
           const spent = periodSpending.get(key) ?? 0
           return {
             key: cap.id,
-            label: category ? category.name : 'All spend',
+            label: cat ? `${cat.icon} ${cat.name}` : 'All spend',
             spent,
             limit: cap.spend_limit ?? 0,
             period: getPeriodLabel(cap.cap_period),
+            catId: cap.category_id as string | null,
           }
         })
         .sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
 
-      // Total spent on this card this month (for uncapped cards)
+      // For selectable cards: if a chosen category has no cap row, show a spend-only row
+      const spendOnlyRows: { key: string; label: string; spent: number }[] = []
+      if (card.selectable_category) {
+        const chosenCatIds = resolveOverride(overrides, card.id, now) ?? []
+        const coveredCatIds = new Set(capRows.map(r => r.catId).filter(Boolean))
+        for (const catId of chosenCatIds) {
+          if (coveredCatIds.has(catId)) continue
+          const cat = categories.find(c => c.id === catId)
+          const spent = monthTxns
+            .filter(t => t.card_id === card.id && t.category_id === catId)
+            .reduce((s, t) => s + t.amount, 0)
+          spendOnlyRows.push({
+            key: `spend:${card.id}:${catId}`,
+            label: cat ? `${cat.icon} ${cat.name}` : '—',
+            spent,
+          })
+        }
+      }
+
       const monthlySpent = monthTxns
         .filter(t => t.card_id === card.id)
         .reduce((s, t) => s + t.amount, 0)
@@ -68,9 +97,9 @@ export default function Dashboard() {
         .filter(t => t.card_id === card.id)
         .reduce((s, t) => s + (t.miles_earned ?? 0), 0)
 
-      return { card, cardCaps, monthlySpent, monthlyMiles }
+      return { card, capRows, spendOnlyRows, monthlySpent, monthlyMiles }
     })
-  }, [cards, resolvedCaps, categories, periodSpending, monthTxns])
+  }, [cards, effectiveCaps, categories, periodSpending, monthTxns, overrides])
 
   // Recent transactions (last 8)
   const recent = transactions.slice(0, 8)
@@ -148,7 +177,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-5">
-              {cardSummaries.map(({ card, cardCaps, monthlySpent, monthlyMiles }) => (
+              {cardSummaries.map(({ card, capRows, spendOnlyRows, monthlySpent, monthlyMiles }) => (
                 <div key={card.id}>
                   {/* Card name row */}
                   <div className="flex items-center gap-2 mb-2">
@@ -164,7 +193,7 @@ export default function Dashboard() {
                   </div>
                   <div className="pl-7 space-y-3">
                     {/* Cap bars for capped categories */}
-                    {cardCaps.map(row => (
+                    {capRows.map(row => (
                       <CapUsageBar
                         key={row.key}
                         label={row.label}
@@ -173,10 +202,19 @@ export default function Dashboard() {
                         period={row.period}
                       />
                     ))}
+
+                    {/* Spend-only rows for chosen categories with no cap */}
+                    {spendOnlyRows.map(row => (
+                      <div key={row.key} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">{row.label}</span>
+                        <span className="text-gray-600 font-medium">S${row.spent.toFixed(2)} · no cap</span>
+                      </div>
+                    ))}
+
                     {/* Monthly total row — shown for all cards */}
                     <div className="flex items-center justify-between text-xs pt-0.5">
                       <span className="text-gray-400">
-                        {cardCaps.length > 0 ? 'Total this month' : 'No cap · total this month'}
+                        {capRows.length > 0 || spendOnlyRows.length > 0 ? 'Total this month' : 'No cap · total this month'}
                       </span>
                       <div className="flex items-center gap-3">
                         <span className="text-gray-600 font-medium">

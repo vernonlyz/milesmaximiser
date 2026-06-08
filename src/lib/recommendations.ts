@@ -96,6 +96,28 @@ function applySelectableOverride(
   return { rates: [...otherRates, ...newRates], caps: [...otherCaps, ...newCaps] }
 }
 
+// Applies all per-user selectable overrides for every card in the wallet.
+// Used by the Dashboard (and anywhere that needs substituted caps outside of recommendCards).
+export function applyAllSelectableOverrides(
+  cards: CreditCard[],
+  resolvedRates: CardRate[],
+  resolvedCaps: SpendingCap[],
+  overrides: CategoryOverride[],
+  date: Date = new Date()
+): { rates: CardRate[]; caps: SpendingCap[] } {
+  let rates = resolvedRates
+  let caps = resolvedCaps
+  for (const card of cards) {
+    if (!card.selectable_category) continue
+    const chosen = resolveOverride(overrides, card.id, date)
+    if (!chosen) continue
+    const applied = applySelectableOverride(rates, caps, card.id, chosen)
+    rates = applied.rates
+    caps = applied.caps
+  }
+  return { rates, caps }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Period spending
 // Sums actual spend for each (card, category) combination within the cap period.
