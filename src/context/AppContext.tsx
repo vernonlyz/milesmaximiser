@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
-import { Category, CreditCard, CardRate, SpendingCap, Transaction } from '../lib/types'
+import { Category, CreditCard, CardRate, SpendingCap, Transaction, SelectableCategory, CategoryOverride } from '../lib/types'
+import { isoDate } from '../lib/utils'
 
 interface AppContextValue {
   categories: Category[]
@@ -10,6 +11,8 @@ interface AppContextValue {
   selectedCardIds: Set<string>
   rates: CardRate[]                // all library rates (filter by card_id as needed)
   caps: SpendingCap[]              // all library caps
+  selectableCategories: SelectableCategory[]  // valid choices per selectable card
+  overrides: CategoryOverride[]    // user's active bonus-category choices
   transactions: Transaction[]
   loading: boolean
   error: string | null
@@ -17,6 +20,7 @@ interface AppContextValue {
   refreshTransactions: () => void
   addCardSelection: (cardId: string) => Promise<void>
   removeCardSelection: (cardId: string) => Promise<void>
+  saveOverride: (cardId: string, categoryIds: string[], effectiveFrom?: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -24,40 +28,47 @@ const AppContext = createContext<AppContextValue | null>(null)
 export function AppProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
 
-  const [categories, setCategories]           = useState<Category[]>([])
-  const [allCards, setAllCards]               = useState<CreditCard[]>([])
-  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
-  const [rates, setRates]                     = useState<CardRate[]>([])
-  const [caps, setCaps]                       = useState<SpendingCap[]>([])
-  const [transactions, setTransactions]       = useState<Transaction[]>([])
-  const [loading, setLoading]                 = useState(true)
-  const [error, setError]                     = useState<string | null>(null)
+  const [categories, setCategories]                   = useState<Category[]>([])
+  const [allCards, setAllCards]                       = useState<CreditCard[]>([])
+  const [selectedCardIds, setSelectedCardIds]         = useState<Set<string>>(new Set())
+  const [rates, setRates]                             = useState<CardRate[]>([])
+  const [caps, setCaps]                               = useState<SpendingCap[]>([])
+  const [selectableCategories, setSelectableCategories] = useState<SelectableCategory[]>([])
+  const [overrides, setOverrides]                     = useState<CategoryOverride[]>([])
+  const [transactions, setTransactions]               = useState<Transaction[]>([])
+  const [loading, setLoading]                         = useState(true)
+  const [error, setError]                             = useState<string | null>(null)
 
   const loadLibrary = useCallback(async () => {
-    const [catRes, cardRes, rateRes, capRes] = await Promise.all([
+    const [catRes, cardRes, rateRes, capRes, selectableRes] = await Promise.all([
       supabase.from('categories').select('*').order('name'),
       supabase.from('card_library').select('*').order('bank').order('name'),
       supabase.from('library_rates').select('*'),
       supabase.from('library_caps').select('*'),
+      supabase.from('library_selectable_categories').select('*'),
     ])
-    if (catRes.error)  throw catRes.error
-    if (cardRes.error) throw cardRes.error
-    if (rateRes.error) throw rateRes.error
-    if (capRes.error)  throw capRes.error
+    if (catRes.error)       throw catRes.error
+    if (cardRes.error)      throw cardRes.error
+    if (rateRes.error)      throw rateRes.error
+    if (capRes.error)       throw capRes.error
+    if (selectableRes.error) throw selectableRes.error
     setCategories(catRes.data ?? [])
     setAllCards(cardRes.data ?? [])
     setRates(rateRes.data ?? [])
     setCaps(capRes.data ?? [])
+    setSelectableCategories(selectableRes.data ?? [])
   }, [])
 
   const loadSelections = useCallback(async () => {
     if (!user) return
-    const { data, error } = await supabase
-      .from('user_card_selections')
-      .select('card_id')
-      .eq('user_id', user.id)
-    if (error) throw error
-    setSelectedCardIds(new Set(data?.map(s => s.card_id) ?? []))
+    const [selRes, overrideRes] = await Promise.all([
+      supabase.from('user_card_selections').select('card_id').eq('user_id', user.id),
+      supabase.from('user_category_overrides').select('*').eq('user_id', user.id),
+    ])
+    if (selRes.error)      throw selRes.error
+    if (overrideRes.error) throw overrideRes.error
+    setSelectedCardIds(new Set(selRes.data?.map(s => s.card_id) ?? []))
+    setOverrides(overrideRes.data ?? [])
   }, [user?.id])
 
   const loadTransactions = useCallback(async () => {
@@ -104,6 +115,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedCardIds(prev => { const next = new Set(prev); next.delete(cardId); return next })
   }
 
+  // Upsert a bonus-category override for a selectable card.
+  // Uses effectiveFrom (default today) so history is preserved on future changes.
+  async function saveOverride(
+    cardId: string,
+    categoryIds: string[],
+    effectiveFrom: string = isoDate()
+  ) {
+    if (!user) return
+    const { data, error } = await supabase
+      .from('user_category_overrides')
+      .upsert(
+        { user_id: user.id, card_id: cardId, category_ids: categoryIds, effective_from: effectiveFrom },
+        { onConflict: 'user_id,card_id,effective_from' }
+      )
+      .select()
+      .single()
+    if (error) throw error
+    setOverrides(prev => {
+      const without = prev.filter(o => !(o.card_id === cardId && o.effective_from === effectiveFrom))
+      return [...without, data as CategoryOverride]
+    })
+  }
+
   useEffect(() => {
     if (user) refresh()
     else {
@@ -112,6 +146,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSelectedCardIds(new Set())
       setRates([])
       setCaps([])
+      setSelectableCategories([])
+      setOverrides([])
       setTransactions([])
       setLoading(false)
     }
@@ -123,10 +159,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={{
       categories, allCards, cards, selectedCardIds,
-      rates, caps, transactions,
+      rates, caps, selectableCategories, overrides,
+      transactions,
       loading, error,
       refresh, refreshTransactions,
-      addCardSelection, removeCardSelection,
+      addCardSelection, removeCardSelection, saveOverride,
     }}>
       {children}
     </AppContext.Provider>

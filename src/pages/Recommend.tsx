@@ -7,7 +7,7 @@ import { formatSGD } from '../lib/utils'
 import { CardRecommendation } from '../lib/types'
 
 export default function Recommend() {
-  const { cards, categories, rates, caps, transactions } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides } = useApp()
 
   const [categoryId, setCategoryId] = useState('')
   const [amountStr, setAmountStr] = useState('')
@@ -17,8 +17,8 @@ export default function Recommend() {
   const recs = useMemo<CardRecommendation[]>(() => {
     if (!categoryId || amount <= 0) return []
     // recommendCards now resolves effective rates/caps and period spending internally
-    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date())
-  }, [cards, rates, caps, categoryId, amount, transactions])
+    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides)
+  }, [cards, rates, caps, categoryId, amount, transactions, overrides])
 
   const cat = categories.find(c => c.id === categoryId)
 

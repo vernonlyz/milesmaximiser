@@ -1,4 +1,4 @@
-import { CreditCard, CardRate, SpendingCap, Transaction, CardRecommendation } from './types'
+import { CreditCard, CardRate, SpendingCap, Transaction, CardRecommendation, CategoryOverride } from './types'
 import { getPeriodStart, formatSGD } from './utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +38,62 @@ export function resolveCaps(allCaps: SpendingCap[], date: Date = new Date()): Sp
 
   // Exclude caps that were explicitly removed (spend_limit = null)
   return Array.from(map.values()).filter(c => c.spend_limit !== null)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Selectable-category overrides
+// Cards like UOB Lady's Card let the holder choose their bonus category.
+// The library stores one "bonus slot" row (Dining → 4mpd). When an override
+// exists, the engine substitutes the chosen category into that slot so the
+// rest of the logic runs unchanged. effective_from means old transactions
+// resolve the override that was active at their date, preserving history.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Returns the active chosen category IDs for a selectable card as of `date`,
+// or null if the user has not set an override (keep library default).
+export function resolveOverride(
+  overrides: CategoryOverride[],
+  cardId: string,
+  date: Date = new Date()
+): string[] | null {
+  const dateStr = date.toISOString().slice(0, 10)
+  const eligible = overrides
+    .filter(o => o.card_id === cardId && o.effective_from <= dateStr)
+    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))
+  return eligible[0]?.category_ids ?? null
+}
+
+// Replaces the library's default bonus slot for a selectable card with the
+// user's chosen category/categories. The template rate and cap are cloned
+// with the new category_id; all other cards are left untouched.
+function applySelectableOverride(
+  resolvedRates: CardRate[],
+  resolvedCaps: SpendingCap[],
+  cardId: string,
+  chosenCategoryIds: string[]
+): { rates: CardRate[]; caps: SpendingCap[] } {
+  const templateRate = resolvedRates.find(r => r.card_id === cardId)
+  const templateCap  = resolvedCaps.find(c => c.card_id === cardId && c.category_id !== null)
+
+  const otherRates = resolvedRates.filter(r => r.card_id !== cardId)
+  const otherCaps  = resolvedCaps.filter(c => c.card_id !== cardId)
+
+  if (!templateRate) return { rates: resolvedRates, caps: resolvedCaps }
+
+  const newRates = chosenCategoryIds.map(catId => ({
+    ...templateRate,
+    id: `${templateRate.id}:override:${catId}`,
+    category_id: catId,
+  }))
+  const newCaps = templateCap
+    ? chosenCategoryIds.map(catId => ({
+        ...templateCap,
+        id: `${templateCap.id}:override:${catId}`,
+        category_id: catId,
+      }))
+    : []
+
+  return { rates: [...otherRates, ...newRates], caps: [...otherCaps, ...newCaps] }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -182,12 +238,26 @@ export function recommendCards(
   categoryId: string,
   amount: number,
   transactions: Transaction[],
-  transactionDate: Date = new Date()
+  transactionDate: Date = new Date(),
+  overrides: CategoryOverride[] = []
 ): CardRecommendation[] {
   if (!categoryId || amount <= 0) return []
 
-  const resolved = resolveRates(allRates, transactionDate)
-  const resolvedCaps = resolveCaps(allCaps, transactionDate)
+  let resolved = resolveRates(allRates, transactionDate)
+  let resolvedCaps = resolveCaps(allCaps, transactionDate)
+
+  // Apply per-user selectable-category overrides before computing period spending.
+  // For each selectable card with an active override, substitute the library's
+  // default bonus slot with the user's chosen category/categories.
+  for (const card of cards) {
+    if (!card.selectable_category) continue
+    const chosen = resolveOverride(overrides, card.id, transactionDate)
+    if (!chosen) continue
+    const applied = applySelectableOverride(resolved, resolvedCaps, card.id, chosen)
+    resolved = applied.rates
+    resolvedCaps = applied.caps
+  }
+
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate)
 
   return cards
@@ -243,10 +313,21 @@ export function calcMiles(
   categoryId: string,
   amount: number,
   transactions: Transaction[],
-  transactionDate: Date = new Date()
+  transactionDate: Date = new Date(),
+  overrides: CategoryOverride[] = []
 ): { miles: number; effectiveMpd: number } {
-  const resolved = resolveRates(allRates, transactionDate)
-  const resolvedCaps = resolveCaps(allCaps, transactionDate)
+  let resolved = resolveRates(allRates, transactionDate)
+  let resolvedCaps = resolveCaps(allCaps, transactionDate)
+
+  if (card.selectable_category) {
+    const chosen = resolveOverride(overrides, card.id, transactionDate)
+    if (chosen) {
+      const applied = applySelectableOverride(resolved, resolvedCaps, card.id, chosen)
+      resolved = applied.rates
+      resolvedCaps = applied.caps
+    }
+  }
+
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate)
   const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending)
   return { miles: eff.milesEarned, effectiveMpd: eff.effectiveMpd }

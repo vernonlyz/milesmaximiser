@@ -18,7 +18,7 @@ const EMPTY_FORM: TransactionFormData = {
 }
 
 export default function Transactions() {
-  const { cards, categories, rates, caps, transactions, refreshTransactions } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides, refreshTransactions } = useApp()
   const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
@@ -36,8 +36,8 @@ export default function Transactions() {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate)
-  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions])
+    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate, overrides)
+  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides])
 
   const bestCardId = recs[0]?.card.id ?? ''
 
@@ -62,7 +62,7 @@ export default function Transactions() {
 
     const card = cards.find(c => c.id === form.card_id)!
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    const { miles, effectiveMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate)
+    const { miles, effectiveMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides)
 
     const { error: dbErr } = await supabase.from('transactions').insert({
       card_id: form.card_id,

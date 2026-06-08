@@ -1,14 +1,51 @@
-import { useMemo } from 'react'
-import { Check, Plus, Minus, Info } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Check, Plus, Minus, Info, Pencil, CalendarDays } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import { resolveRates, resolveCaps } from '../lib/recommendations'
-import { capPeriodLabel } from '../lib/utils'
+import { resolveRates, resolveCaps, resolveOverride } from '../lib/recommendations'
+import { capPeriodLabel, isoDate } from '../lib/utils'
 import { CreditCard } from '../lib/types'
+import Modal from '../components/Modal'
 
 export default function Cards() {
-  const { allCards, selectedCardIds, categories, rates, caps, addCardSelection, removeCardSelection } = useApp()
+  const {
+    allCards, selectedCardIds, categories, rates, caps,
+    selectableCategories, overrides,
+    addCardSelection, removeCardSelection, saveOverride,
+  } = useApp()
 
   const today = useMemo(() => new Date(), [])
+
+  // State for the bonus-category edit modal
+  const [editCard, setEditCard] = useState<CreditCard | null>(null)
+  const [editChoices, setEditChoices] = useState<string[]>([])
+  const [editDate, setEditDate] = useState(isoDate())
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  function openEditModal(card: CreditCard) {
+    const current = resolveOverride(overrides, card.id, today) ?? []
+    setEditCard(card)
+    setEditChoices(current)
+    setEditDate(isoDate())
+    setEditError(null)
+    setEditSaving(false)
+  }
+
+  async function handleSaveOverride() {
+    if (!editCard || editChoices.length === 0) {
+      setEditError('Please select at least one category.')
+      return
+    }
+    setEditSaving(true)
+    setEditError(null)
+    try {
+      await saveOverride(editCard.id, editChoices, editDate)
+      setEditCard(null)
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : 'Failed to save.')
+    }
+    setEditSaving(false)
+  }
 
   // Group library cards by bank
   const grouped = useMemo(() => {
@@ -20,6 +57,17 @@ export default function Cards() {
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [allCards])
+
+  // Build selectable category map: card_id → category_id[]
+  const selectableMap = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const sc of selectableCategories) {
+      const list = map.get(sc.card_id) ?? []
+      list.push(sc.category_id)
+      map.set(sc.card_id, list)
+    }
+    return map
+  }, [selectableCategories])
 
   const walletCount = selectedCardIds.size
 
@@ -54,6 +102,11 @@ export default function Cards() {
               const cardCaps  = resolveCaps(caps.filter(c => c.card_id === card.id), today)
               const inWallet  = selectedCardIds.has(card.id)
 
+              // For selectable cards in the wallet, show the override category instead of the library default
+              const activeOverrideCatIds = card.selectable_category
+                ? (resolveOverride(overrides, card.id, today) ?? null)
+                : null
+
               return (
                 <div
                   key={card.id}
@@ -84,30 +137,68 @@ export default function Cards() {
                       <p className="text-sm text-gray-500 mt-0.5">Base rate: {card.base_mpd} mpd</p>
 
                       {/* Bonus rates */}
-                      {cardRates.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {cardRates.map(r => {
-                            const cat = categories.find(c => c.id === r.category_id)
-                            return (
-                              <span key={r.id} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg">
-                                {cat?.icon} {cat?.name}: {r.mpd} mpd
-                                <span className="text-indigo-400 ml-1 text-[10px]">since {r.effective_from}</span>
-                              </span>
-                            )
-                          })}
+                      {card.selectable_category ? (
+                        // Selectable card: show active override or a prompt
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {activeOverrideCatIds && activeOverrideCatIds.length > 0 ? (
+                            activeOverrideCatIds.map(catId => {
+                              const cat = categories.find(c => c.id === catId)
+                              const templateRate = cardRates[0]
+                              return cat ? (
+                                <span key={catId} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg">
+                                  {cat.icon} {cat.name}: {templateRate?.mpd ?? '—'} mpd
+                                  <span className="text-indigo-400 ml-1 text-[10px]">your choice</span>
+                                </span>
+                              ) : null
+                            })
+                          ) : (
+                            <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
+                              ⚠️ Bonus category not set — using library default (Dining)
+                            </span>
+                          )}
+                          {/* Edit button shown only for wallet cards */}
+                          {inWallet && (
+                            <button
+                              onClick={() => openEditModal(card)}
+                              className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 px-2 py-1 rounded-lg transition-colors"
+                            >
+                              <Pencil size={10} /> Change
+                            </button>
+                          )}
                         </div>
+                      ) : (
+                        /* Regular card: show library rates */
+                        cardRates.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {cardRates.map(r => {
+                              const cat = categories.find(c => c.id === r.category_id)
+                              return (
+                                <span key={r.id} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg">
+                                  {cat?.icon} {cat?.name}: {r.mpd} mpd
+                                  <span className="text-indigo-400 ml-1 text-[10px]">since {r.effective_from}</span>
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )
                       )}
 
                       {/* Caps */}
                       {cardCaps.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {cardCaps.map(c => {
-                            const cat = c.category_id ? categories.find(cat => cat.id === c.category_id) : null
+                            const capCat = c.category_id ? categories.find(cat => cat.id === c.category_id) : null
+                            // For selectable cards, show cap against the active override category name if set
+                            const displayCat = card.selectable_category && activeOverrideCatIds?.length
+                              ? categories.find(cat => cat.id === activeOverrideCatIds[0])
+                              : capCat
                             return (
                               <span key={c.id} className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
                                 Cap: S${c.spend_limit?.toLocaleString()}/{capPeriodLabel(c.cap_period).toLowerCase()}
-                                {cat ? ` (${cat.name})` : ' (all)'}
-                                <span className="text-amber-400 ml-1 text-[10px]">since {c.effective_from}</span>
+                                {displayCat ? ` (${displayCat.name})` : ' (all)'}
+                                {!card.selectable_category && (
+                                  <span className="text-amber-400 ml-1 text-[10px]">since {c.effective_from}</span>
+                                )}
                               </span>
                             )
                           })}
@@ -146,6 +237,79 @@ export default function Cards() {
           <p className="text-gray-400 text-sm">No cards in the library yet.</p>
           <p className="text-gray-400 text-xs mt-1">Ask the admin to seed the card library.</p>
         </div>
+      )}
+
+      {/* Bonus category edit modal */}
+      {editCard && (
+        <Modal title="Set Bonus Category" onClose={() => setEditCard(null)}>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">{editCard.bank} {editCard.name}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Select the category your card earns its bonus MPD on. This should match the
+                category you chose at card application. You can update it at any time — past
+                transactions are not affected.
+              </p>
+            </div>
+
+            {/* Category radio buttons */}
+            <div className="space-y-2">
+              {(selectableMap.get(editCard.id) ?? []).map(catId => {
+                const cat = categories.find(c => c.id === catId)
+                if (!cat) return null
+                const selected = editChoices.includes(catId)
+                return (
+                  <label
+                    key={catId}
+                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                      selected
+                        ? 'border-indigo-400 bg-indigo-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="bonus-category"
+                      value={catId}
+                      checked={selected}
+                      onChange={() => setEditChoices([catId])}
+                      className="accent-indigo-600"
+                    />
+                    <span className="text-lg leading-none">{cat.icon}</span>
+                    <span className="text-sm font-medium text-gray-800">{cat.name}</span>
+                  </label>
+                )
+              })}
+            </div>
+
+            {/* Effective date */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
+                <CalendarDays size={12} /> Effective from
+              </label>
+              <input
+                type="date"
+                value={editDate}
+                onChange={e => setEditDate(e.target.value)}
+                className="input text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Transactions before this date keep their original bonus category for accurate history.
+              </p>
+            </div>
+
+            {editError && (
+              <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{editError}</p>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setEditCard(null)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={handleSaveOverride} disabled={editSaving} className="btn-primary flex-1">
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )
