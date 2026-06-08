@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
@@ -26,12 +26,27 @@ export default function Transactions() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // MPD override state
+  const [mpdOverrideActive, setMpdOverrideActive] = useState(false)
+  const [manualMpd, setManualMpd] = useState('')
+  const [overrideNote, setOverrideNote] = useState('')
+
   // Filters
   const [filterMonth, setFilterMonth] = useState(isoDate().slice(0, 7))
   const [filterCat, setFilterCat] = useState('')
   const [filterCard, setFilterCard] = useState('')
 
-  // Recommendations live while filling form — uses transaction_date for effective rate lookup
+  // Engine-computed MPD for the current form selection (card + category + amount)
+  const computedMpd = useMemo(() => {
+    const amt = parseFloat(form.amount)
+    if (!form.card_id || !form.category_id || isNaN(amt) || amt <= 0) return null
+    const card = cards.find(c => c.id === form.card_id)
+    if (!card) return null
+    const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
+    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides).effectiveMpd
+  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides])
+
+  // Recommendations live while filling form
   const recs = useMemo<CardRecommendation[]>(() => {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
@@ -42,13 +57,33 @@ export default function Transactions() {
   const bestCardId = recs[0]?.card.id ?? ''
 
   function setField(k: keyof TransactionFormData, v: string) {
+    // Reset MPD override when card or category changes — computed value will differ
+    if (k === 'card_id' || k === 'category_id') {
+      setMpdOverrideActive(false)
+      setManualMpd('')
+      setOverrideNote('')
+    }
     setForm(f => ({ ...f, [k]: v }))
   }
 
   function openAdd() {
     setForm(EMPTY_FORM)
+    setMpdOverrideActive(false)
+    setManualMpd('')
+    setOverrideNote('')
     setError(null)
     setShowModal(true)
+  }
+
+  function activateOverride() {
+    setMpdOverrideActive(true)
+    setManualMpd(computedMpd != null ? computedMpd.toFixed(2) : '')
+  }
+
+  function resetOverride() {
+    setMpdOverrideActive(false)
+    setManualMpd('')
+    setOverrideNote('')
   }
 
   async function handleSave() {
@@ -62,7 +97,11 @@ export default function Transactions() {
 
     const card = cards.find(c => c.id === form.card_id)!
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    const { miles, effectiveMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides)
+    const { effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides)
+
+    const parsedManual = parseFloat(manualMpd)
+    const hasValidOverride = mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0
+    const finalMpd = hasValidOverride ? parsedManual : engineMpd
 
     const { error: dbErr } = await supabase.from('transactions').insert({
       card_id: form.card_id,
@@ -70,8 +109,11 @@ export default function Transactions() {
       amount,
       description: form.description || null,
       transaction_date: form.transaction_date,
-      miles_earned: Math.round(miles),
-      effective_mpd: parseFloat(effectiveMpd.toFixed(2)),
+      computed_mpd: parseFloat(engineMpd.toFixed(4)),
+      manual_mpd: hasValidOverride ? parseFloat(parsedManual.toFixed(4)) : null,
+      override_note: hasValidOverride && overrideNote.trim() ? overrideNote.trim() : null,
+      effective_mpd: parseFloat(finalMpd.toFixed(4)),
+      miles_earned: Math.round(amount * finalMpd),
       user_id: user!.id,
     })
 
@@ -100,13 +142,20 @@ export default function Transactions() {
   const totalMiles = filtered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = filtered.reduce((s, t) => s + t.amount, 0)
 
-  // Build month options from available transactions
   const months = useMemo(() => {
     const set = new Set(transactions.map(t => t.transaction_date.slice(0, 7)))
-    const now = isoDate().slice(0, 7)
-    set.add(now)
+    set.add(isoDate().slice(0, 7))
     return Array.from(set).sort().reverse()
   }, [transactions])
+
+  // Live miles preview in modal
+  const parsedManualMpd = parseFloat(manualMpd)
+  const previewMpd = mpdOverrideActive && !isNaN(parsedManualMpd) && parsedManualMpd > 0
+    ? parsedManualMpd
+    : computedMpd
+  const previewMiles = previewMpd != null && parseFloat(form.amount) > 0
+    ? Math.round(parseFloat(form.amount) * previewMpd)
+    : null
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -191,6 +240,7 @@ export default function Transactions() {
               {filtered.map(t => {
                 const card = cards.find(c => c.id === t.card_id)
                 const cat = categories.find(c => c.id === t.category_id)
+                const isManual = t.manual_mpd != null
                 return (
                   <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.transaction_date}</td>
@@ -220,7 +270,22 @@ export default function Transactions() {
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-right hidden md:table-cell text-gray-400 text-xs">
-                      {t.effective_mpd != null ? `${t.effective_mpd} mpd` : '—'}
+                      {t.effective_mpd != null ? (
+                        <span className="inline-flex items-center justify-end gap-1">
+                          {isManual && (
+                            <span
+                              title={
+                                t.override_note
+                                  ? `Manual · ${t.override_note} (computed: ${t.computed_mpd} mpd)`
+                                  : `Manual override (computed: ${t.computed_mpd} mpd)`
+                              }
+                            >
+                              <Pencil size={10} className="text-amber-400" />
+                            </span>
+                          )}
+                          {t.effective_mpd} mpd
+                        </span>
+                      ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
@@ -325,6 +390,69 @@ export default function Transactions() {
               <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
+
+          {/* MPD section — appears once card + category + amount are all set */}
+          {computedMpd !== null && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-medium text-gray-700">Miles Rate</span>
+                {!mpdOverrideActive ? (
+                  <button
+                    type="button"
+                    onClick={activateOverride}
+                    className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
+                  >
+                    <Pencil size={10} /> Override
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={resetOverride}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    ↺ Reset to computed ({computedMpd.toFixed(2)} mpd)
+                  </button>
+                )}
+              </div>
+
+              {!mpdOverrideActive ? (
+                <div className="input bg-gray-50 flex items-center justify-between text-gray-600 cursor-default select-none">
+                  <span>{computedMpd.toFixed(2)} mpd</span>
+                  <span className="text-xs text-gray-400">computed</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      placeholder={computedMpd.toFixed(2)}
+                      value={manualMpd}
+                      onChange={e => setManualMpd(e.target.value)}
+                      className="input flex-1"
+                      autoFocus
+                    />
+                    <span className="text-sm text-gray-500 shrink-0">mpd</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Reason (e.g. 5× Grab weekend promo)"
+                    value={overrideNote}
+                    onChange={e => setOverrideNote(e.target.value)}
+                    className="input text-sm"
+                  />
+                </div>
+              )}
+
+              {previewMiles != null && (
+                <p className="text-xs text-gray-400 mt-1.5 text-right">
+                  Miles earned:{' '}
+                  <span className="text-indigo-600 font-medium">{previewMiles.toLocaleString()} mi</span>
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="label">Description (optional)</label>

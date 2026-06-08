@@ -28,12 +28,14 @@ Browser (React + Vite + TypeScript)
         └─ starterCards.ts     — Default card data for onboarding seed
 
 Supabase (Postgres + Auth + RLS)
-    ├─ card_library        — Admin-managed list of SG credit cards
-    ├─ library_rates       — Bonus MPD per (card, category, effective_from)
-    ├─ library_caps        — Spending caps per (card, category, period, effective_from)
-    ├─ user_card_selections — Per-user wallet (join table)
-    ├─ transactions        — Per-user transaction log
-    └─ categories          — Shared lookup table
+    ├─ card_library                   — Admin-managed list of SG credit cards
+    ├─ library_rates                  — Bonus MPD per (card, category, effective_from)
+    ├─ library_caps                   — Spending caps per (card, category, period, effective_from)
+    ├─ library_selectable_categories  — Valid bonus-category choices per selectable card
+    ├─ user_card_selections           — Per-user wallet (join table)
+    ├─ user_category_overrides        — Per-user chosen bonus category for selectable cards
+    ├─ transactions                   — Per-user transaction log
+    └─ categories                     — Shared lookup table (includes Fashion, Beauty)
 
 Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 ```
@@ -67,7 +69,8 @@ Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 | [src/pages/Recommend.tsx](../src/pages/Recommend.tsx) | Ad-hoc card recommender for a given category + amount |
 | [src/pages/Cards.tsx](../src/pages/Cards.tsx) | Library browser; add/remove cards from wallet |
 | [src/pages/Onboarding.tsx](../src/pages/Onboarding.tsx) | First-run card selection flow |
-| [supabase/migrations/004_library_model.sql](../supabase/migrations/004_library_model.sql) | Current schema — library + user_card_selections model |
+| [supabase/migrations/004_library_model.sql](../supabase/migrations/004_library_model.sql) | Library + user_card_selections schema |
+| [supabase/migrations/005_selectable_categories.sql](../supabase/migrations/005_selectable_categories.sql) | Per-user selectable bonus category schema and seed |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | 14-card SG library seed (run after migration 004) |
 
 ---
@@ -90,6 +93,8 @@ The app is a functional MVP. All core features are implemented:
 | Effective-date versioning of rates and caps | Complete |
 | Per-user data isolation (RLS) | Complete |
 | Responsive mobile layout | Complete |
+| Per-user selectable bonus category (Lady's Card, Solitaire) | Complete |
+| Dashboard proportional spend bars for uncapped categories | Complete |
 
 **Card library (14 cards):**
 DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), UOB Lady's Card, UOB Lady's Solitaire, UOB Visa Signature, UOB Preferred Platinum Visa, Standard Chartered Journey, Citi PremierMiles, OCBC 90°N, HSBC TravelOne, Maybank Horizon, Singapore Airlines KrisFlyer Visa.
@@ -107,14 +112,13 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 ### Missing but impactful
 - **Test suite** — No tests exist. The recommendation engine has complex cap-splitting logic that would benefit significantly from unit tests covering edge cases (period boundaries, partial caps, per-transaction caps).
 - **Admin interface for library updates** — Currently, updating card rates/caps requires manual SQL against Supabase. There is no UI for maintaining the library.
-- **Multi-category bonus selection** — Some cards (e.g. UOB Lady's Card) let the cardholder choose their bonus category from a list. The app defaults to Dining; there is no UI to change the selection per user.
+- **Combined-cap modelling** — Some cards (e.g. UOB Visa Signature) have a single shared cap across multiple categories. The app models these as independent per-category caps, which overstates available headroom.
 
 ### Missing but lower priority
 - **No `.env.example`** — Onboarding a new developer requires inspecting the code to know which env vars are needed.
 - **No README** — No setup instructions, no description of how to run locally or deploy.
 - **Silent failures on pages other than Dashboard** — If a Supabase query fails on Cards, Recommend, or Transactions, the page shows an empty state with no error message.
 - **No pagination or date-range control on transactions** — Loads the entire current year. Will become slow with very high transaction volumes.
-- **Combined-cap modelling** — Some cards (e.g. UOB Visa Signature) have a single shared cap across multiple categories. The app models these as identical per-category caps, which overstates available earning headroom if the user charges different categories.
 - **No push notifications or reminders** — Users must actively open the app; there is no proactive "cap almost reached" alert.
 - **No export** — No way to export transaction history to CSV or another format.
 

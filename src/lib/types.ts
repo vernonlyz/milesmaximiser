@@ -51,8 +51,11 @@ export interface Transaction {
   amount: number
   description: string | null
   transaction_date: string
+  computed_mpd: number | null   // engine-calculated MPD at save time
+  manual_mpd: number | null     // user override; null = no override
+  override_note: string | null  // reason for override
+  effective_mpd: number | null  // COALESCE(manual_mpd, computed_mpd) — final applied value
   miles_earned: number | null
-  effective_mpd: number | null
   created_at: string
 }
 
