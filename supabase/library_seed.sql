@@ -1,5 +1,5 @@
 -- MilesMaximiser — card library seed data
--- Run AFTER 004_library_model.sql.
+-- Run AFTER all migrations.
 -- Managed by admin. Users cannot edit these rates or caps.
 -- To update a rate: INSERT a new row with a later effective_from date.
 -- To remove a cap: INSERT a new row with spend_limit = NULL.
@@ -13,102 +13,107 @@
 -- travel:         00000000-0000-0000-0000-000000000006
 -- entertainment:  00000000-0000-0000-0000-000000000007
 -- transport:      00000000-0000-0000-0000-000000000008
+-- fashion:        00000000-0000-0000-0000-000000000009
+-- beauty:         00000000-0000-0000-0000-000000000010
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Card Library
 -- ─────────────────────────────────────────────────────────────────────────────
 INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_validity, remarks) VALUES
-  ('00000000-0000-0000-0001-000000000001', 'Altitude Visa Signature',  'DBS',               'Visa',       1.2,  '#E31E35', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000002', 'Woman''s World Card',       'DBS',               'Mastercard', 0.4,  '#C0162E', '12 months',  NULL),
-  ('00000000-0000-0000-0001-000000000003', 'PRVI Miles Visa',           'UOB',               'Visa',       1.4,  '#00427E', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000004', 'Journey Credit Card',       'Standard Chartered','Visa',       1.2,  '#00854A', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000005', 'PremierMiles Visa',         'Citibank',          'Visa',       1.2,  '#003882', 'No expiry',  ARRAY['2 free lounge visits per year', '7.2 mpd on Agoda, 10 mpd on Kaligo']),
-  ('00000000-0000-0000-0001-000000000006', '90°N Visa',                 'OCBC',              'Visa',       1.2,  '#BE1833', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000007', 'TravelOne Visa',            'HSBC',              'Visa',       1.2,  '#DB0011', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000008', 'Horizon Visa Signature',    'Maybank',           'Visa',       0.4,  '#F7A900', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000009', 'PRVI Miles Amex',           'UOB',               'Amex',       1.4,  '#00427E', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000010', 'Lady''s Card',              'UOB',               'Mastercard', 0.4,  '#C2185B', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000011', 'Lady''s Solitaire Card',    'UOB',               'Mastercard', 0.4,  '#880E4F', '24 months',  NULL),
-  ('00000000-0000-0000-0001-000000000012', 'Visa Signature',            'UOB',               'Visa',       0.4,  '#1A237E', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000013', 'Preferred Platinum Visa',   'UOB',               'Visa',       0.4,  '#1565C0', NULL,         NULL),
-  ('00000000-0000-0000-0001-000000000014', 'KrisFlyer Visa',            'UOB',               'Visa',       1.2,  '#003580', NULL,         NULL)
+  ('00000000-0000-0000-0001-000000000001', 'Altitude Visa Signature',  'DBS',               'Visa',       1.3,  '#E31E35', 'No expiry',
+     ARRAY['2 complimentary Priority Pass lounge visits per year']),
+  ('00000000-0000-0000-0001-000000000002', 'Woman''s World Card',       'DBS',               'Mastercard', 0.4,  '#C0162E', '12 months',
+     ARRAY['4 mpd covers all online purchases (SGD and FCY)', 'S$1,000/month cap on 4 mpd rate; excess earns base rate']),
+  ('00000000-0000-0000-0001-000000000003', 'PRVI Miles Visa',           'UOB',               'Visa',       1.4,  '#00427E', '2 years',
+     ARRAY['4 complimentary Priority Pass lounge visits per year', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)', '3 mpd on IDR/MYR/THB/VND foreign currency spend']),
+  ('00000000-0000-0000-0001-000000000004', 'Journey Credit Card',       'Standard Chartered','Visa',       1.2,  '#00854A', 'No expiry',
+     ARRAY['2 complimentary Priority Pass lounge visits per year', '3 mpd applies to online SGD transactions (dining, groceries, food delivery, transport)', 'S$1,000/month combined cap across ALL 3 mpd bonus categories', 'Complimentary travel insurance via Allianz']),
+  ('00000000-0000-0000-0001-000000000005', 'PremierMiles Visa',         'Citibank',          'Visa',       1.2,  '#003882', 'No expiry',
+     ARRAY['2 complimentary Priority Pass lounge visits per year', '10 mpd on Kaligo hotel bookings', '7.2 mpd (FCY) / 6.2 mpd (SGD) on Agoda via Citi portal']),
+  ('00000000-0000-0000-0001-000000000006', '90°N Visa',                 'OCBC',              'Visa',       1.3,  '#BE1833', 'No expiry',
+     ARRAY['9 transfer partners; 1:1 ratio for KrisFlyer, Flying Blue, Marriott Bonvoy, IHG', 'No minimum spend requirement; no spending cap', 'No lounge access']),
+  ('00000000-0000-0000-0001-000000000007', 'TravelOne Visa',            'HSBC',              'Visa',       1.2,  '#DB0011', '37 months',
+     ARRAY['4 complimentary lounge visits per year (DragonPass/Mastercard Travel Pass)', '20 transfer partners — transfers instant and free of charge', 'Effective MPD varies by partner: 1.2/2.4 mpd (most partners), 1.0/2.0 mpd (KrisFlyer from Jan 2025)']),
+  ('00000000-0000-0000-0001-000000000008', 'Horizon Visa Signature',    'Maybank',           'Visa',       0.4,  '#F7A900', '12 months',
+     ARRAY['2.8 mpd on all foreign currency spend (no minimum spend, uncapped)', '2.8 mpd on air tickets, 1.2 mpd on dining/petrol/transport — both require S$800/month total spend', 'Miles expiry waived with S$24,000 annual spend (Rewards Infinite Programme)']),
+  ('00000000-0000-0000-0001-000000000009', 'PRVI Miles Amex',           'UOB',               'Amex',       1.4,  '#00427E', '2 years',
+     ARRAY['2 complimentary airport transfers per quarter (requires S$1,000 FCY spend to unlock)', 'Annual fee waived + 20,000 bonus miles when annual spend reaches S$50,000', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)']),
+  ('00000000-0000-0000-0001-000000000010', 'Lady''s Card',              'UOB',               'Mastercard', 0.4,  '#C2185B', '2 years',
+     ARRAY['Choose 1 bonus category: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$1,000/month cap on chosen bonus category']),
+  ('00000000-0000-0000-0001-000000000011', 'Lady''s Solitaire Card',    'UOB',               'Mastercard', 0.4,  '#880E4F', '24 months',
+     ARRAY['Choose 2 bonus categories: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$750/month cap per chosen category (S$1,500/month combined)']),
+  ('00000000-0000-0000-0001-000000000012', 'Visa Signature',            'UOB',               'Visa',       0.4,  '#1A237E', '2 years',
+     ARRAY['Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise', 'Contactless + petrol share a combined S$1,200/month cap']),
+  ('00000000-0000-0000-0001-000000000013', 'Preferred Platinum Visa',   'UOB',               'Visa',       0.4,  '#1565C0', '2 years',
+     NULL),
+  ('00000000-0000-0000-0001-000000000014', 'KrisFlyer Visa',            'UOB',               'Visa',       1.2,  '#003580', '3 years',
+     ARRAY['Miles credited directly to KrisFlyer — no bank points currency, no transfer needed', '3 mpd on Singapore Airlines, Scoot, KrisShop, Kris+ and Pelago', '2.4 mpd on dining, online shopping, online travel, transport (requires S$800 SIA Group spend/year to unlock)'])
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Bonus rates (effective from 2000-01-01 = "since launch")
 -- ─────────────────────────────────────────────────────────────────────────────
 INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
-  -- DBS Altitude Visa
-  ('00000000-0000-0000-0001-000000000001','00000000-0000-0000-0000-000000000005', 2.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000001','00000000-0000-0000-0000-000000000006', 3.0, '2000-01-01'),
-  -- DBS Woman's World
+  -- DBS Altitude Visa — FCY 2.2 mpd; travel bonus removed Aug 2023
+  ('00000000-0000-0000-0001-000000000001','00000000-0000-0000-0000-000000000005', 2.2, '2000-01-01'),
+  -- DBS Woman's World — Online Shopping 4.0 mpd; FCY 1.2 mpd
   ('00000000-0000-0000-0001-000000000002','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000002','00000000-0000-0000-0000-000000000005', 1.2, '2000-01-01'),
-  -- UOB PRVI Miles Visa
+  -- UOB PRVI Miles Visa — FCY 2.4 mpd (no general travel rate; portal rates in remarks)
   ('00000000-0000-0000-0001-000000000003','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000003','00000000-0000-0000-0000-000000000006', 3.0, '2000-01-01'),
-  -- SC Journey
+  -- SC Journey — Dining, Groceries, Transport 3.0 mpd (online SGD); FCY 2.0 mpd
   ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000001', 3.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000002', 3.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000003', 3.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000005', 2.0, '2000-01-01'),
-  -- Citi PremierMiles
+  ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000008', 3.0, '2000-01-01'),
+  -- Citi PremierMiles — FCY 2.2 mpd (portal bonuses in remarks)
   ('00000000-0000-0000-0001-000000000005','00000000-0000-0000-0000-000000000005', 2.2, '2000-01-01'),
-  -- OCBC 90°N
+  -- OCBC 90°N — FCY 2.1 mpd
   ('00000000-0000-0000-0001-000000000006','00000000-0000-0000-0000-000000000005', 2.1, '2000-01-01'),
-  -- HSBC TravelOne
+  -- HSBC TravelOne — FCY 2.4 mpd (effective MPD varies by partner; see remarks)
   ('00000000-0000-0000-0001-000000000007','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
-  -- Maybank Horizon
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000001', 2.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000003', 3.2, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000005', 2.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000006', 2.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000008', 2.0, '2000-01-01'),
-  -- UOB PRVI Miles Amex
+  -- Maybank Horizon — FCY 2.8 mpd (uncapped); Travel (air tickets) 2.8 mpd (S$800/month threshold)
+  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000005', 2.8, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000006', 2.8, '2000-01-01'),
+  -- UOB PRVI Miles Amex — FCY 2.4 mpd (no general travel rate; portal rates in remarks)
   ('00000000-0000-0000-0001-000000000009','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000009','00000000-0000-0000-0000-000000000006', 3.0, '2000-01-01'),
-  -- UOB Lady's Card (4 mpd on chosen category — default Dining; user should note their chosen category)
+  -- UOB Lady's Card — 4 mpd on chosen category (default Dining; user sets override)
   ('00000000-0000-0000-0001-000000000010','00000000-0000-0000-0000-000000000001', 4.0, '2000-01-01'),
-  -- UOB Lady's Solitaire (same bonus, higher cap)
+  -- UOB Lady's Solitaire — 4 mpd on 2 chosen categories (default Dining; user sets override)
   ('00000000-0000-0000-0001-000000000011','00000000-0000-0000-0000-000000000001', 4.0, '2000-01-01'),
-  -- UOB Visa Signature (4 mpd on overseas/petrol/contactless; requires min S$1,000/month spend)
+  -- UOB Visa Signature — 4 mpd on overseas/petrol/contactless (requires S$1,000/month min spend)
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000005', 4.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000003', 4.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000008', 4.0, '2000-01-01'),
-  -- UOB Preferred Platinum Visa (4 mpd on online + contactless)
+  -- UOB Preferred Platinum Visa — 4 mpd on online shopping + contactless
   ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000008', 4.0, '2000-01-01'),
-  -- UOB KrisFlyer Visa
-  ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000006', 3.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000005', 1.2, '2000-01-01')
+  -- UOB KrisFlyer Visa — 3.0 mpd on SIA Group; no FCY bonus (overseas earns base 1.2 mpd)
+  ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000006', 3.0, '2000-01-01')
 ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Spending caps
 -- ─────────────────────────────────────────────────────────────────────────────
 INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, effective_from) VALUES
-  -- DBS Altitude — Travel S$5,000/month
-  ('00000000-0000-0000-0001-000000000001','00000000-0000-0000-0000-000000000006','monthly', 5000.00,'2000-01-01'),
+  -- DBS Altitude — no caps
   -- DBS Woman's World — Online Shopping S$1,000/month
   ('00000000-0000-0000-0001-000000000002','00000000-0000-0000-0000-000000000004','monthly', 1000.00,'2000-01-01'),
-  -- SC Journey — S$1,000/month per category (actual card has combined cap — adjust as needed)
+  -- SC Journey — S$1,000/month per modelled category (actual card has S$1,000 combined — see remarks)
   ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000001','monthly', 1000.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000002','monthly', 1000.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000003','monthly', 1000.00,'2000-01-01'),
-  -- Maybank Horizon
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000003','monthly',  200.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000001','monthly',  800.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000006','monthly',  800.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000008','monthly',  800.00,'2000-01-01'),
+  ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000008','monthly', 1000.00,'2000-01-01'),
+  -- Maybank Horizon — Travel (air tickets) S$10,000/month
+  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000006','monthly',10000.00,'2000-01-01'),
   -- UOB Lady's Card — S$1,000/month on chosen category
   ('00000000-0000-0000-0001-000000000010','00000000-0000-0000-0000-000000000001','monthly', 1000.00,'2000-01-01'),
   -- UOB Lady's Solitaire — S$750/month per chosen category
   ('00000000-0000-0000-0001-000000000011','00000000-0000-0000-0000-000000000001','monthly',  750.00,'2000-01-01'),
-  -- UOB Visa Signature — S$2,000/quarter combined (modelled per-category)
-  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000005','quarterly',2000.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000003','quarterly',2000.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000008','quarterly',2000.00,'2000-01-01'),
-  -- UOB Preferred Platinum — S$1,110/quarter combined (modelled per-category)
-  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000004','quarterly',1110.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000008','quarterly',1110.00,'2000-01-01')
+  -- UOB Visa Signature — FCY S$1,200/month; contactless+petrol combined S$1,200 (modelled per-category)
+  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000005','monthly', 1200.00,'2000-01-01'),
+  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000003','monthly',  600.00,'2000-01-01'),
+  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000008','monthly',  600.00,'2000-01-01'),
+  -- UOB Preferred Platinum — S$600/month per category (online and contactless are separate caps)
+  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000004','monthly',  600.00,'2000-01-01'),
+  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000008','monthly',  600.00,'2000-01-01')
 ON CONFLICT DO NOTHING;
