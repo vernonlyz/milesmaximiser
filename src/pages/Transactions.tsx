@@ -7,7 +7,7 @@ import StatusBadge from '../components/StatusBadge'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
 import { isoDate } from '../lib/utils'
-import { TransactionFormData, CardRecommendation } from '../lib/types'
+import { TransactionFormData, CardRecommendation, Transaction } from '../lib/types'
 
 const EMPTY_FORM: TransactionFormData = {
   card_id: '',
@@ -22,6 +22,7 @@ export default function Transactions() {
   const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<TransactionFormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,9 +69,32 @@ export default function Transactions() {
 
   function openAdd() {
     setForm(EMPTY_FORM)
+    setEditingId(null)
     setMpdOverrideActive(false)
     setManualMpd('')
     setOverrideNote('')
+    setError(null)
+    setShowModal(true)
+  }
+
+  function openEdit(t: Transaction) {
+    setForm({
+      card_id: t.card_id ?? '',
+      category_id: t.category_id ?? '',
+      amount: t.amount.toString(),
+      description: t.description ?? '',
+      transaction_date: t.transaction_date,
+    })
+    if (t.manual_mpd != null) {
+      setMpdOverrideActive(true)
+      setManualMpd(t.manual_mpd.toString())
+      setOverrideNote(t.override_note ?? '')
+    } else {
+      setMpdOverrideActive(false)
+      setManualMpd('')
+      setOverrideNote('')
+    }
+    setEditingId(t.id)
     setError(null)
     setShowModal(true)
   }
@@ -103,7 +127,7 @@ export default function Transactions() {
     const hasValidOverride = mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0
     const finalMpd = hasValidOverride ? parsedManual : engineMpd
 
-    const { error: dbErr } = await supabase.from('transactions').insert({
+    const payload = {
       card_id: form.card_id,
       category_id: form.category_id,
       amount,
@@ -114,8 +138,14 @@ export default function Transactions() {
       override_note: hasValidOverride && overrideNote.trim() ? overrideNote.trim() : null,
       effective_mpd: parseFloat(finalMpd.toFixed(4)),
       miles_earned: Math.round(amount * finalMpd),
-      user_id: user!.id,
-    })
+    }
+
+    let dbErr
+    if (editingId) {
+      ;({ error: dbErr } = await supabase.from('transactions').update(payload).eq('id', editingId))
+    } else {
+      ;({ error: dbErr } = await supabase.from('transactions').insert({ ...payload, user_id: user!.id }))
+    }
 
     setSaving(false)
     if (dbErr) { setError(dbErr.message); return }
@@ -257,7 +287,7 @@ export default function Transactions() {
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: card.color }}
                           />
-                          <span className="text-gray-700 truncate max-w-[140px]">{card.bank} {card.name}</span>
+                          <span className="text-gray-700">{card.bank} {card.name}</span>
                         </span>
                       ) : '—'}
                     </td>
@@ -288,13 +318,22 @@ export default function Transactions() {
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleDelete(t.id)}
-                        className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(t)}
+                          className="text-gray-300 hover:text-indigo-500 transition-colors p-1 rounded"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(t.id)}
+                          className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -304,9 +343,12 @@ export default function Transactions() {
         )}
       </div>
 
-      {/* Add modal */}
+      {/* Add / Edit modal */}
       {showModal && (
-        <Modal title="Log Transaction" onClose={() => setShowModal(false)}>
+        <Modal
+          title={editingId ? 'Edit Transaction' : 'Log Transaction'}
+          onClose={() => setShowModal(false)}
+        >
           <div>
             <label className="label">Date</label>
             <input type="date" className="input" value={form.transaction_date}
@@ -336,8 +378,8 @@ export default function Transactions() {
               value={form.amount} onChange={e => setField('amount', e.target.value)} />
           </div>
 
-          {/* Live recommendation */}
-          {recs.length > 0 && (
+          {/* Live recommendation — only show when adding, not editing */}
+          {!editingId && recs.length > 0 && (
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1.5">
               <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
                 <Sparkles size={12} /> Recommendation
@@ -467,7 +509,7 @@ export default function Transactions() {
           <div className="flex gap-3 pt-2">
             <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
-              {saving ? 'Saving…' : 'Save Transaction'}
+              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
             </button>
           </div>
         </Modal>

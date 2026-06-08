@@ -27,8 +27,8 @@ export default function CapUsageBar({ label, spent, limit, period }: Props) {
         />
       </div>
       <div className="flex justify-between mt-1 text-xs text-gray-500">
-        <span>S${spent.toFixed(0)} spent</span>
-        <span>{pct >= 100 ? 'Cap reached' : `S${remaining.toFixed(0)} left`}</span>
+        <span>S${spent.toFixed(2)} spent</span>
+        <span>{pct >= 100 ? 'Cap reached' : `S$${remaining.toFixed(2)} left`}</span>
       </div>
     </div>
   )
