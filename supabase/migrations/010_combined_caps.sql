@@ -36,5 +36,5 @@ DELETE FROM library_rates
 WHERE card_id = '00000000-0000-0000-0001-000000000017'
   AND category_id NOT IN (
     '00000000-0000-0000-0000-000000000004',  -- online shopping
-    '00000000-0000-0000-0000-000000000009'   -- fashion
+    '00000000-0000-0000-0000-000000000011'   -- fashion (011 — not 009 which is Utilities & Bills)
   );

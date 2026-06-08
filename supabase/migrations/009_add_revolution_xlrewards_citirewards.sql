@@ -4,6 +4,22 @@
 --   HSBC Revolution:         00000000-0000-0000-0001-000000000015
 --   Maybank XL Rewards:      00000000-0000-0000-0001-000000000016
 --   Citi Rewards Mastercard: 00000000-0000-0000-0001-000000000017
+--
+-- Category IDs used:
+--   dining:         ...000001  groceries: ...000002  petrol:    ...000003
+--   online shopping:...000004  overseas:  ...000005  travel:    ...000006
+--   entertainment:  ...000007  transport: ...000008
+--   fashion:        ...000011  beauty:    ...000012  (added in migration 011)
+--   NOTE: 009 = Utilities & Bills, 010 = Others — do NOT use for fashion/beauty
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 0. Ensure Fashion and Beauty categories exist (idempotent)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+INSERT INTO categories (id, name, icon) VALUES
+  ('00000000-0000-0000-0000-000000000011', 'Fashion', '👗'),
+  ('00000000-0000-0000-0000-000000000012', 'Beauty',  '💄')
+ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. Card library entries
@@ -77,7 +93,7 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   ('00000000-0000-0000-0001-000000000016', '00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),  -- online shopping
   -- Citi Rewards Mastercard — 4 mpd on online shopping and fashion
   ('00000000-0000-0000-0001-000000000017', '00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),  -- online shopping
-  ('00000000-0000-0000-0001-000000000017', '00000000-0000-0000-0000-000000000009', 4.0, '2000-01-01')   -- fashion
+  ('00000000-0000-0000-0001-000000000017', '00000000-0000-0000-0000-000000000011', 4.0, '2000-01-01')   -- fashion (011)
 ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -100,5 +116,5 @@ INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, effecti
   ('00000000-0000-0000-0001-000000000016', '00000000-0000-0000-0000-000000000004', 'monthly', 1000.00, '2000-01-01'),
   -- Citi Rewards Mastercard — S$1,000/month combined across online shopping and fashion
   ('00000000-0000-0000-0001-000000000017', '00000000-0000-0000-0000-000000000004', 'monthly', 1000.00, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000017', '00000000-0000-0000-0000-000000000009', 'monthly', 1000.00, '2000-01-01')
+  ('00000000-0000-0000-0001-000000000017', '00000000-0000-0000-0000-000000000011', 'monthly', 1000.00, '2000-01-01')  -- fashion (011)
 ON CONFLICT DO NOTHING;
