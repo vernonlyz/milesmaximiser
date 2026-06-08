@@ -15,6 +15,8 @@ export interface CreditCard {
   active: boolean
   selectable_category: boolean  // true = user picks their bonus category
   max_selectable: number        // how many categories the user may choose (1 or 2)
+  mile_validity: string | null  // e.g. "No expiry", "12 months", "24 months"
+  remarks: string[] | null      // bullet-point notes shown in the UI
   created_at: string
 }
 

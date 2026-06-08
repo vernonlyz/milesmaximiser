@@ -131,6 +131,11 @@ export default function Cards() {
                         <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                           {card.card_network}
                         </span>
+                        {card.mile_validity && (
+                          <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                            Miles: {card.mile_validity}
+                          </span>
+                        )}
                         {inWallet && (
                           <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Check size={10} /> In Wallet
@@ -207,6 +212,18 @@ export default function Cards() {
                             )
                           })}
                         </div>
+                      )}
+
+                      {/* Remarks */}
+                      {card.remarks && card.remarks.length > 0 && (
+                        <ul className="mt-2 space-y-0.5">
+                          {card.remarks.map((r, i) => (
+                            <li key={i} className="text-xs text-gray-500 flex items-start gap-1.5">
+                              <span className="text-gray-300 shrink-0 mt-px">•</span>
+                              {r}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
 
