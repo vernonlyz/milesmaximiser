@@ -66,7 +66,7 @@ export function resolveOverride(
 // Replaces the library's default bonus slot for a selectable card with the
 // user's chosen category/categories. The template rate and cap are cloned
 // with the new category_id; all other cards are left untouched.
-function applySelectableOverride(
+export function applySelectableOverride(
   resolvedRates: CardRate[],
   resolvedCaps: SpendingCap[],
   cardId: string,
@@ -136,19 +136,41 @@ export function buildPeriodSpending(
     if (cap.cap_period === 'per_transaction') continue
 
     const periodStart = getPeriodStart(cap.cap_period, now)
-    const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
 
-    if (result.has(key)) continue
+    if (cap.cap_group) {
+      // Combined cap: sum spending for ALL categories in this group
+      const groupKey = `${cap.card_id}:group:${cap.cap_group}`
+      if (result.has(groupKey)) continue
 
-    const spent = transactions
-      .filter(t => {
-        if (t.card_id !== cap.card_id) return false
-        if (cap.category_id !== null && t.category_id !== cap.category_id) return false
-        return new Date(t.transaction_date) >= periodStart
-      })
-      .reduce((sum, t) => sum + t.amount, 0)
+      const groupCatIds = resolvedCaps
+        .filter(c => c.card_id === cap.card_id && c.cap_group === cap.cap_group && c.category_id !== null)
+        .map(c => c.category_id as string)
 
-    result.set(key, spent)
+      const spent = transactions
+        .filter(t =>
+          t.card_id === cap.card_id &&
+          t.category_id !== null &&
+          groupCatIds.includes(t.category_id) &&
+          new Date(t.transaction_date) >= periodStart
+        )
+        .reduce((sum, t) => sum + t.amount, 0)
+
+      result.set(groupKey, spent)
+    } else {
+      // Individual cap: sum spending for this specific category
+      const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
+      if (result.has(key)) continue
+
+      const spent = transactions
+        .filter(t => {
+          if (t.card_id !== cap.card_id) return false
+          if (cap.category_id !== null && t.category_id !== cap.category_id) return false
+          return new Date(t.transaction_date) >= periodStart
+        })
+        .reduce((sum, t) => sum + t.amount, 0)
+
+      result.set(key, spent)
+    }
   }
 
   return result
@@ -206,7 +228,9 @@ function getEffectiveForCard(
     }
   }
 
-  const spentKey = `${cap.card_id}:${cap.category_id ?? 'global'}`
+  const spentKey = cap.cap_group
+    ? `${cap.card_id}:group:${cap.cap_group}`
+    : `${cap.card_id}:${cap.category_id ?? 'global'}`
   const alreadySpent = periodSpending.get(spentKey) ?? 0
   const remaining = cap.spend_limit - alreadySpent
 

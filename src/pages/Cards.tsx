@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Check, Plus, Minus, Info, Pencil, CalendarDays } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import { resolveRates, resolveCaps, resolveOverride } from '../lib/recommendations'
+import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } from '../lib/recommendations'
 import { capPeriodLabel, isoDate } from '../lib/utils'
-import { CreditCard } from '../lib/types'
+import { CreditCard, SpendingCap } from '../lib/types'
 import Modal from '../components/Modal'
 
 export default function Cards() {
@@ -111,6 +111,21 @@ export default function Cards() {
                 ? (resolveOverride(overrides, card.id, today) ?? null)
                 : null
 
+              // Apply selectable override so Solitaire (2 chosen categories) shows 2 cap chips
+              const displayedCaps: SpendingCap[] =
+                card.selectable_category && activeOverrideCatIds?.length
+                  ? applySelectableOverride(cardRates, cardCaps, card.id, activeOverrideCatIds).caps
+                  : cardCaps
+
+              // Group caps: combined-cap cards collapse into one chip per group
+              const capGroupMap = new Map<string, SpendingCap[]>()
+              for (const cap of displayedCaps) {
+                const key = cap.cap_group ? `group:${cap.cap_group}` : `single:${cap.id}`
+                const list = capGroupMap.get(key) ?? []
+                list.push(cap)
+                capGroupMap.set(key, list)
+              }
+
               return (
                 <div
                   key={card.id}
@@ -193,20 +208,33 @@ export default function Cards() {
                       )}
 
                       {/* Caps */}
-                      {cardCaps.length > 0 && (
+                      {capGroupMap.size > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {cardCaps.map(c => {
-                            const capCat = c.category_id ? categories.find(cat => cat.id === c.category_id) : null
-                            // For selectable cards, show cap against the active override category name if set
-                            const displayCat = card.selectable_category && activeOverrideCatIds?.length
-                              ? categories.find(cat => cat.id === activeOverrideCatIds[0])
-                              : capCat
+                          {Array.from(capGroupMap.values()).map(groupCaps => {
+                            const firstCap = groupCaps[0]
+                            if (firstCap.cap_group !== null) {
+                              // Combined cap — show one chip listing all category names
+                              const catNames = groupCaps
+                                .map(c => categories.find(cat => cat.id === c.category_id)?.name ?? '')
+                                .filter(Boolean).join(', ')
+                              return (
+                                <span
+                                  key={`${firstCap.card_id}:${firstCap.cap_group}`}
+                                  className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg"
+                                >
+                                  Combined cap: S${firstCap.spend_limit?.toLocaleString()}/{capPeriodLabel(firstCap.cap_period).toLowerCase()}
+                                  {catNames && ` (${catNames})`}
+                                </span>
+                              )
+                            }
+                            // Individual cap (includes Solitaire's per-chosen-category caps)
+                            const capCat = firstCap.category_id ? categories.find(c => c.id === firstCap.category_id) : null
                             return (
-                              <span key={c.id} className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
-                                Cap: S${c.spend_limit?.toLocaleString()}/{capPeriodLabel(c.cap_period).toLowerCase()}
-                                {displayCat ? ` (${displayCat.name})` : ' (all)'}
+                              <span key={firstCap.id} className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
+                                Cap: S${firstCap.spend_limit?.toLocaleString()}/{capPeriodLabel(firstCap.cap_period).toLowerCase()}
+                                {capCat ? ` (${capCat.name})` : ' (all)'}
                                 {!card.selectable_category && (
-                                  <span className="text-amber-400 ml-1 text-[10px]">since {c.effective_from}</span>
+                                  <span className="text-amber-400 ml-1 text-[10px]">since {firstCap.effective_from}</span>
                                 )}
                               </span>
                             )

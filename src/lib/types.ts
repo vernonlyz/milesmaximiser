@@ -29,13 +29,17 @@ export interface CardRate {
   effective_from: string
 }
 
-// Spending cap for a library card — spend_limit null = cap removed
+// Spending cap for a library card — spend_limit null = cap removed.
+// cap_group: when non-null, all caps for this card sharing the same cap_group
+// draw from a single combined spending limit (e.g. HSBC Revolution's S$1,000
+// pool shared across dining, shopping, transport and travel).
 export interface SpendingCap {
   id: string
   card_id: string
   category_id: string | null
   cap_period: 'monthly' | 'quarterly' | 'annual' | 'per_transaction'
   spend_limit: number | null
+  cap_group: string | null
   effective_from: string
 }
 

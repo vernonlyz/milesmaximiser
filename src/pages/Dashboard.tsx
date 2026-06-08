@@ -4,6 +4,7 @@ import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle } from 'lucide-re
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
+import { SpendingCap } from '../lib/types'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel } from '../lib/utils'
 import { isOnboarded } from './Onboarding'
@@ -52,23 +53,50 @@ export default function Dashboard() {
   // Build per-card summary
   const cardSummaries = useMemo(() => {
     return cards.map(card => {
-      // Cap bars — use effective caps so selectable cards show correct categories
-      const capRows = effectiveCaps
-        .filter(c => c.card_id === card.id && c.cap_period !== 'per_transaction' && (c.spend_limit ?? 0) > 0)
-        .map(cap => {
-          const cat = cap.category_id ? categories.find(c => c.id === cap.category_id) : null
-          const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
-          const spent = periodSpending.get(key) ?? 0
+      // Cap bars — use effective caps so selectable cards show correct categories.
+      // Combined-cap cards (cap_group != null) are collapsed into one bar per group.
+      const rawCardCaps = effectiveCaps.filter(
+        c => c.card_id === card.id && c.cap_period !== 'per_transaction' && (c.spend_limit ?? 0) > 0
+      )
+
+      const capGroupMap = new Map<string, SpendingCap[]>()
+      for (const cap of rawCardCaps) {
+        const key = cap.cap_group ? `group:${cap.cap_group}` : `single:${cap.id}`
+        const list = capGroupMap.get(key) ?? []
+        list.push(cap)
+        capGroupMap.set(key, list)
+      }
+
+      const capRows = Array.from(capGroupMap.values()).map(groupCaps => {
+        const firstCap = groupCaps[0]
+        if (firstCap.cap_group) {
+          // Combined cap: sum spending across all group categories
+          const groupSpentKey = `${firstCap.card_id}:group:${firstCap.cap_group}`
+          const spent = periodSpending.get(groupSpentKey) ?? 0
+          const icons = groupCaps
+            .map(c => (c.category_id ? categories.find(cat => cat.id === c.category_id)?.icon ?? '' : ''))
+            .join(' ')
           return {
-            key: cap.id,
-            label: cat ? `${cat.icon} ${cat.name}` : 'All spend',
+            key: groupSpentKey,
+            label: `${icons} Combined cap`.trim(),
             spent,
-            limit: cap.spend_limit ?? 0,
-            period: getPeriodLabel(cap.cap_period),
-            catId: cap.category_id as string | null,
+            limit: firstCap.spend_limit ?? 0,
+            period: getPeriodLabel(firstCap.cap_period),
+            catIds: groupCaps.map(c => c.category_id).filter(Boolean) as string[],
           }
-        })
-        .sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
+        }
+        const cat = firstCap.category_id ? categories.find(c => c.id === firstCap.category_id) : null
+        const spentKey = `${firstCap.card_id}:${firstCap.category_id ?? 'global'}`
+        const spent = periodSpending.get(spentKey) ?? 0
+        return {
+          key: firstCap.id,
+          label: cat ? `${cat.icon} ${cat.name}` : 'All spend',
+          spent,
+          limit: firstCap.spend_limit ?? 0,
+          period: getPeriodLabel(firstCap.cap_period),
+          catIds: firstCap.category_id ? [firstCap.category_id] : [],
+        }
+      }).sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
 
       const monthlySpent = monthTxns
         .filter(t => t.card_id === card.id)
@@ -80,7 +108,7 @@ export default function Dashboard() {
 
       // Uncapped spend breakdown — all categories used this month that don't already
       // have a cap bar. For selectable cards, the chosen categories appear first.
-      const coveredCatIds = new Set(capRows.map(r => r.catId).filter(Boolean))
+      const coveredCatIds = new Set(capRows.flatMap(r => r.catIds))
 
       // Tally per-category spend for this card this month
       const catTotals = new Map<string, number>()
