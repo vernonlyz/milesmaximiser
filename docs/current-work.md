@@ -12,7 +12,12 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-07  Dashboard fixes and polish (5 commits)
 2026-06-08  Per-user selectable bonus category for Lady's Card + Solitaire
 2026-06-08  Fix Dashboard: apply selectable-category overrides to cap bars
-2026-06-08  (HEAD) Dashboard: proportional spend bars for uncapped categories
+2026-06-08  Dashboard: proportional spend bars for uncapped categories
+2026-06-08  Manual MPD override on transactions; transaction editing; card name fix; S$1800 display fix (migrations 006–007)
+2026-06-08  mile_validity and remarks on card library; comprehensive card data corrections (migration 008)
+2026-06-09  Add HSBC Revolution, Maybank XL Rewards, Citi Rewards Mastercard (migration 009)
+2026-06-09  Combined cap modelling with cap_group (migration 010); combined bars on Dashboard and My Cards
+2026-06-09  (HEAD) Fix Fashion/Beauty categories (migration 011); remove Utilities bug from Citi Rewards
 ```
 
 ---
@@ -34,21 +39,22 @@ Everything listed below is in a working, committed state:
 - **Responsive layout** — Mobile sidebar overlay and hamburger menu
 - **Per-user selectable bonus category** — UOB Lady's Card (1 choice) and Lady's Solitaire (2 choices) let users set their bonus category in My Cards. Stored in `user_category_overrides` with `effective_from` for history preservation. Engine substitutes the choice into the library's bonus slot at query time — existing rate data is unchanged. Recommendations, miles calculation, and Dashboard cap bars all apply overrides correctly.
 - **Dashboard spend breakdown for uncapped categories** — Cards with no cap (or spend outside capped categories) show a proportional bar per category (h-1.5, indigo-200), scaled to the card's monthly total. Chosen categories on selectable cards are pinned at the top even if S$0 spent.
+- **Transaction editing** — Pencil icon per row in the transaction table opens the modal pre-populated; handles MPD override state. Single `handleSave` branches on `editingId` (null = insert, non-null = update).
+- **Manual MPD override** — At transaction save time, the engine computes `computed_mpd`. Users can override with `manual_mpd` and an `override_note`. `effective_mpd = COALESCE(manual_mpd, computed_mpd)`. Both values stored; amber pencil badge shown on overridden rows. "↺ Reset" restores to computed. (migration 006)
+- **Mile validity and remarks on cards** — `mile_validity TEXT` and `remarks TEXT[]` added to `card_library` (migration 007). Displayed as chips and bullet lists in My Cards.
+- **Comprehensive card data corrections** — All 14 cards updated per milelion.com: Altitude base 1.3, FCY 2.2 (travel rate removed Aug 2023); OCBC 90°N base 1.3; Maybank Horizon FCY 2.8/travel 2.8; UOB Visa Sig and Preferred Plat caps now monthly; SC Journey adds transport, removes petrol; UOB KrisFlyer no FCY bonus. (migration 008)
+- **3 new cards** — HSBC Revolution (4 mpd dining/shopping/transport/travel, no annual fee), Maybank XL Rewards (4 mpd dining/FCY/travel/entertainment/shopping, age 21–39), Citi Rewards Mastercard (4 mpd online shopping/fashion). (migration 009)
+- **Combined cap modelling** — `cap_group TEXT` added to `library_caps` (migration 010). Caps sharing a group draw from one pool. Engine (`buildPeriodSpending`, `getEffectiveForCard`) sums across the group. Dashboard collapses to one bar labelled with icons + "Combined cap". My Cards shows one chip listing all categories. Affects SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards.
+- **Lady's Solitaire 2 cap chips** — `Cards.tsx` now calls `applySelectableOverride` before rendering caps, producing one chip per chosen category (each at S$750/month independently).
+- **Fashion (011) and Beauty (012) categories fixed** — Migration 005 silently failed to add these because IDs 009/010 were already Utilities & Bills and Others. Migration 011 adds them at new IDs 011/012, fixes Lady's Card/Solitaire selectable categories, and removes the Utilities bonus from Citi Rewards.
 
 ---
 
 ## Partially completed
 
-### 1. Combined spending caps (known inaccuracy)
+### 1. UOB Visa Signature combined petrol+transport cap
 
-Some cards have a single shared cap across multiple categories (e.g. UOB Visa Signature: S$2,000/quarter across Dining, Groceries, and Petrol combined). The current model stores these as three independent per-category caps. The engine therefore treats each category as having its own S$2,000 limit, which overstates available headroom.
-
-Fixing this requires:
-1. A `cap_group_id` nullable UUID on `library_caps` linking rows that share a combined cap.
-2. `buildPeriodSpending` to aggregate spend across grouped rows before comparing against `spend_limit`.
-3. `getEffectiveForCard` to check group-level spend, not just per-category spend.
-4. Library seed updated to tag the relevant rows with matching group IDs.
-5. Dashboard `CapUsageBar` to render grouped caps as a single bar.
+UOB Visa Signature's petrol and transport categories share a combined S$1,200/month cap. Currently modelled as S$600 each (conservative approximation). A proper `cap_group` assignment (same approach used for HSBC Revolution etc.) would let users spend up to S$1,200 on either category. Deferred because the approximation is safe (never overstates headroom).
 
 ### 2. Error handling outside Dashboard
 
@@ -62,6 +68,8 @@ The card library (rates, caps, new cards) is updated via manual SQL in the Supab
 
 ## Likely next task
 
-The most impactful outstanding accuracy issue is **fixing the combined spending cap model** (item 1 above). UOB Visa Signature and UOB Preferred Platinum both have combined caps currently modelled incorrectly. A user relying on the app to manage these cards will be shown incorrect remaining headroom, undermining the app's core value proposition.
+The core recommendation and tracking features are now complete and accurate. The most likely next candidates are:
 
-The second most likely candidate is **adding a unit test suite** for `recommendations.ts`, which has complex branching logic (four cap types, blended MPD, selectable overrides) and is currently entirely untested.
+1. **Unit test suite for `recommendations.ts`** — Complex branching logic (four cap types, blended MPD, selectable overrides, cap groups) is entirely untested. A regression in any of these paths is invisible without tests.
+2. **UOB Visa Signature petrol+transport cap_group** — Small accuracy improvement; straightforward with the existing `cap_group` infrastructure.
+3. **Error handling on Cards/Recommend/Transactions pages** — Currently shows silent empty states on Supabase failures.

@@ -30,12 +30,12 @@ Browser (React + Vite + TypeScript)
 Supabase (Postgres + Auth + RLS)
     ├─ card_library                   — Admin-managed list of SG credit cards
     ├─ library_rates                  — Bonus MPD per (card, category, effective_from)
-    ├─ library_caps                   — Spending caps per (card, category, period, effective_from)
+    ├─ library_caps                   — Spending caps per (card, category, period, effective_from, cap_group)
     ├─ library_selectable_categories  — Valid bonus-category choices per selectable card
     ├─ user_card_selections           — Per-user wallet (join table)
     ├─ user_category_overrides        — Per-user chosen bonus category for selectable cards
-    ├─ transactions                   — Per-user transaction log
-    └─ categories                     — Shared lookup table (includes Fashion, Beauty)
+    ├─ transactions                   — Per-user transaction log (includes computed_mpd, manual_mpd, override_note)
+    └─ categories                     — Shared lookup table (ids 001–008 from seed; 011=Fashion, 012=Beauty from migration 011)
 
 Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 ```
@@ -71,7 +71,13 @@ Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 | [src/pages/Onboarding.tsx](../src/pages/Onboarding.tsx) | First-run card selection flow |
 | [supabase/migrations/004_library_model.sql](../supabase/migrations/004_library_model.sql) | Library + user_card_selections schema |
 | [supabase/migrations/005_selectable_categories.sql](../supabase/migrations/005_selectable_categories.sql) | Per-user selectable bonus category schema and seed |
-| [supabase/library_seed.sql](../supabase/library_seed.sql) | 14-card SG library seed (run after migration 004) |
+| [supabase/migrations/006_manual_mpd.sql](../supabase/migrations/006_manual_mpd.sql) | Adds computed_mpd, manual_mpd, override_note to transactions |
+| [supabase/migrations/007_mile_validity_remarks.sql](../supabase/migrations/007_mile_validity_remarks.sql) | Adds mile_validity and remarks columns to card_library |
+| [supabase/migrations/008_card_data_corrections.sql](../supabase/migrations/008_card_data_corrections.sql) | Comprehensive rate/cap corrections for all 14 cards (per milelion.com) |
+| [supabase/migrations/009_add_revolution_xlrewards_citirewards.sql](../supabase/migrations/009_add_revolution_xlrewards_citirewards.sql) | Adds HSBC Revolution, Maybank XL Rewards, Citi Rewards Mastercard |
+| [supabase/migrations/010_combined_caps.sql](../supabase/migrations/010_combined_caps.sql) | Adds cap_group column; sets combined groups for SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards |
+| [supabase/migrations/011_fix_fashion_beauty_categories.sql](../supabase/migrations/011_fix_fashion_beauty_categories.sql) | Adds Fashion (011) and Beauty (012) categories; fixes Lady's Card/Solitaire selectable refs and Citi Rewards |
+| [supabase/library_seed.sql](../supabase/library_seed.sql) | 17-card SG library seed (run after all migrations) |
 
 ---
 
@@ -95,14 +101,22 @@ The app is a functional MVP. All core features are implemented:
 | Responsive mobile layout | Complete |
 | Per-user selectable bonus category (Lady's Card, Solitaire) | Complete |
 | Dashboard proportional spend bars for uncapped categories | Complete |
+| Transaction editing (edit logged transactions, not just add/delete) | Complete |
+| Manual MPD override on transactions (computed_mpd + manual_mpd stored separately) | Complete |
+| Mile validity and remarks fields on card library | Complete |
+| Comprehensive card data corrections from milelion.com | Complete |
+| 3 new cards: HSBC Revolution, Maybank XL Rewards, Citi Rewards Mastercard | Complete |
+| Combined cap modelling (cap_group; engine, Dashboard, My Cards all handle correctly) | Complete |
+| Lady's Solitaire shows 2 independent cap chips in My Cards | Complete |
 
-**Card library (14 cards):**
-DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), UOB Lady's Card, UOB Lady's Solitaire, UOB Visa Signature, UOB Preferred Platinum Visa, Standard Chartered Journey, Citi PremierMiles, OCBC 90°N, HSBC TravelOne, Maybank Horizon, Singapore Airlines KrisFlyer Visa.
+**Card library (17 cards):**
+DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), UOB Lady's Card, UOB Lady's Solitaire, UOB Visa Signature, UOB Preferred Platinum Visa, Standard Chartered Journey, Citi PremierMiles, Citi Rewards Mastercard, OCBC 90°N, HSBC TravelOne, HSBC Revolution, Maybank Horizon, Maybank XL Rewards, Singapore Airlines KrisFlyer Visa.
 
 **Recommendation engine capabilities:**
 - Handles monthly, quarterly, annual, and per-transaction cap types
 - Correctly blends effective MPD when a transaction partially exhausts a cap
 - Falls back to `base_mpd` when a cap is fully exhausted
+- Handles combined caps (`cap_group`): sums spending across all grouped categories against one shared limit
 - Returns a status (`optimal` / `partial` / `capped` / `base`) and plain-English reason for each card
 
 ---
@@ -110,9 +124,9 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 ## 5. Outstanding Work
 
 ### Missing but impactful
-- **Test suite** — No tests exist. The recommendation engine has complex cap-splitting logic that would benefit significantly from unit tests covering edge cases (period boundaries, partial caps, per-transaction caps).
+- **Test suite** — No tests exist. The recommendation engine has complex cap-splitting logic that would benefit significantly from unit tests covering edge cases (period boundaries, partial caps, per-transaction caps, cap groups).
 - **Admin interface for library updates** — Currently, updating card rates/caps requires manual SQL against Supabase. There is no UI for maintaining the library.
-- **Combined-cap modelling** — Some cards (e.g. UOB Visa Signature) have a single shared cap across multiple categories. The app models these as independent per-category caps, which overstates available headroom.
+- **UOB Visa Signature combined cap** — Petrol and transport share a S$1,200/month combined cap on UOB Visa Signature. Currently modelled as S$600 each (conservative approximation). A proper `cap_group` fix would allow the user to allocate the full S$1,200 across either category.
 
 ### Missing but lower priority
 - **No `.env.example`** — Onboarding a new developer requires inspecting the code to know which env vars are needed.
@@ -128,7 +142,7 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 
 ### Data accuracy
 - **Rates are indicative.** The app shows a footer disclaimer ("Rates are indicative — verify with your bank"). Bank terms change; the library is manually maintained and may lag real-world changes.
-- **Combined caps are approximated.** Where a card's cap covers multiple categories together (e.g. UOB Visa Signature's S$2,000/quarter across three categories), the app tracks each category independently. A user who exhausts the shared cap via one category will still see the other categories as uncapped.
+- **Combined caps are now modelled** via `cap_group` on `library_caps`. Cards with a shared pool (SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards) show one combined bar/chip and the engine correctly tracks combined spend. UOB Visa Signature petrol+transport remains a conservative approximation (S$600 each instead of S$1,200 shared) — the only remaining known inaccuracy.
 
 ### User experience
 - **Post-migration empty wallet.** Migration 004 dropped all per-user card data. Existing users who had already selected cards before the migration see an empty wallet and an empty dashboard rather than a prompt to re-select cards. The redirect to onboarding only fires for users who have *never* been onboarded (`isOnboarded` flag in localStorage). Users who were onboarded before the migration must navigate to Cards manually to rebuild their wallet.
