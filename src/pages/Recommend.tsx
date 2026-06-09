@@ -1,26 +1,45 @@
 import { useState, useMemo } from 'react'
-import { Sparkles, Trophy, ChevronDown } from 'lucide-react'
+import { Sparkles, Trophy, ChevronDown, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import StatusBadge from '../components/StatusBadge'
+import VendorInput from '../components/VendorInput'
 import { recommendCards } from '../lib/recommendations'
 import { formatSGD } from '../lib/utils'
-import { CardRecommendation } from '../lib/types'
+import { CardRecommendation, Vendor } from '../lib/types'
 
 export default function Recommend() {
-  const { cards, categories, rates, caps, transactions, overrides } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides, mccCatalogue, vendorCatalogue } = useApp()
 
   const [categoryId, setCategoryId] = useState('')
   const [amountStr, setAmountStr] = useState('')
+
+  // Vendor / MCC state
+  const [vendorName, setVendorName] = useState('')
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
+  const [mcc, setMcc] = useState('')
 
   const amount = parseFloat(amountStr) || 0
 
   const recs = useMemo<CardRecommendation[]>(() => {
     if (!categoryId || amount <= 0) return []
-    // recommendCards now resolves effective rates/caps and period spending internally
     return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides)
   }, [cards, rates, caps, categoryId, amount, transactions, overrides])
 
   const cat = categories.find(c => c.id === categoryId)
+  const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
+
+  function handleVendorSelect(vendor: Vendor) {
+    setVendorName(vendor.name)
+    setSelectedVendor(vendor)
+    if (vendor.default_category_id) setCategoryId(vendor.default_category_id)
+    setMcc(vendor.default_mcc ?? '')
+  }
+
+  function handleVendorClear() {
+    setVendorName('')
+    setSelectedVendor(null)
+    setMcc('')
+  }
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -32,7 +51,39 @@ export default function Recommend() {
       </div>
 
       {/* Inputs */}
-      <div className="card p-5">
+      <div className="card p-5 space-y-4">
+        {/* Vendor typeahead */}
+        <div>
+          <label className="label">Vendor <span className="text-gray-400 font-normal text-xs">(optional — auto-fills category)</span></label>
+          <VendorInput
+            vendorName={vendorName}
+            isVendorSelected={selectedVendor !== null}
+            vendors={vendorCatalogue}
+            onNameChange={name => { setVendorName(name); setSelectedVendor(null); setMcc('') }}
+            onSelect={handleVendorSelect}
+            onClear={handleVendorClear}
+          />
+          {/* MCC chip — informational only in the recommender */}
+          {mcc && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <span className="font-mono text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                {mcc}
+              </span>
+              <span className="text-xs text-gray-500">
+                {mccDescription ?? 'Unknown MCC'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMcc('')}
+                className="text-gray-300 hover:text-gray-500 transition-colors ml-0.5"
+                title="Dismiss"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="label">Spending Category</label>
@@ -135,7 +186,7 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
         </div>
       </div>
 
-      {/* Cap progress bar (only if this category has a cap) */}
+      {/* Cap progress bar */}
       {rec.capAmount !== null && rec.capPeriod !== 'per_transaction' && (
         <div className="mt-3 ml-10">
           <div className="flex justify-between text-xs text-gray-400 mb-1">
