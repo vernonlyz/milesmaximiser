@@ -55,7 +55,7 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000016', 'XL Rewards',               'Maybank',           'Visa',       0.4,  '#FF8F00', '12 months',
      ARRAY['Age restriction: applicants must be 21–39 at time of application', 'S$500/month minimum spend required to unlock 4 mpd bonus rates', 'S$1,000/month combined cap on all bonus categories', '4 mpd on ALL foreign currency spend (no MCC restrictions)', 'Annual fee waived first 2 years, then waivable with S$6,000 annual spend'], 'calendar', 5),
   ('00000000-0000-0000-0001-000000000017', 'Rewards Mastercard',       'Citibank',          'Mastercard', 0.4,  '#0288D1', '5 years',
-     ARRAY['4 mpd on all online purchases and in-store fashion (bags, shoes, clothing)', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month combined cap on bonus categories', 'No lounge access'], 'statement', 1)
+     ARRAY['4 mpd on all online purchases (any category) and in-store fashion', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month cap on online purchases; S$1,000/month cap on in-store fashion (tracked separately)', 'No lounge access'], 'statement', 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -64,8 +64,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   -- DBS Altitude Visa — FCY 2.2 mpd; travel bonus removed Aug 2023
   ('00000000-0000-0000-0001-000000000001','00000000-0000-0000-0000-000000000005', 2.2, '2000-01-01'),
-  -- DBS Woman's World — Online Shopping 4.0 mpd; FCY 1.2 mpd
-  ('00000000-0000-0000-0001-000000000002','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),
+  -- DBS Woman's World — FCY 1.2 mpd (wildcard online 4 mpd added separately below)
   ('00000000-0000-0000-0001-000000000002','00000000-0000-0000-0000-000000000005', 1.2, '2000-01-01'),
   -- UOB PRVI Miles Visa — FCY 2.4 mpd (no general travel rate; portal rates in remarks)
   ('00000000-0000-0000-0001-000000000003','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
@@ -108,8 +107,7 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000006', 4.0, '2000-01-01'),  -- travel
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000007', 4.0, '2000-01-01'),  -- entertainment
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),  -- online shopping
-  -- Citi Rewards Mastercard — 4 mpd on online shopping and fashion
-  ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),  -- online shopping
+  -- Citi Rewards Mastercard — 4 mpd on fashion in-store (wildcard online 4 mpd added separately below)
   ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000011', 4.0, '2000-01-01')   -- fashion (011)
 ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
 
@@ -118,8 +116,7 @@ ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
 -- ─────────────────────────────────────────────────────────────────────────────
 INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, effective_from) VALUES
   -- DBS Altitude — no caps
-  -- DBS Woman's World — Online Shopping S$1,000/month
-  ('00000000-0000-0000-0001-000000000002','00000000-0000-0000-0000-000000000004','monthly', 1000.00,'2000-01-01'),
+  -- DBS Woman's World — S$1,000/month online channel cap added separately below
   -- SC Journey — S$1,000/month per modelled category (actual card has S$1,000 combined — see remarks)
   ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000001','monthly', 1000.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000004','00000000-0000-0000-0000-000000000002','monthly', 1000.00,'2000-01-01'),
@@ -146,9 +143,8 @@ INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, effecti
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000006','monthly', 1000.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000007','monthly', 1000.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000004','monthly', 1000.00,'2000-01-01'),
-  -- Citi Rewards Mastercard — S$1,000/month combined across online shopping and fashion
-  ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000004','monthly', 1000.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000011','monthly', 1000.00,'2000-01-01')  -- fashion (011)
+  -- Citi Rewards Mastercard — S$1,000/month online channel cap added below; fashion cap separate
+  ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000011','monthly', 1000.00,'2000-01-01')  -- fashion (011) in-store cap
 ON CONFLICT DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +156,7 @@ ON CONFLICT DO NOTHING;
 UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-0001-000000000004';  -- SC Journey
 UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-0001-000000000015';  -- HSBC Revolution
 UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-0001-000000000016';  -- Maybank XL Rewards
-UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-0001-000000000017';  -- Citi Rewards
+-- Citi Rewards: no cap_group — online channel cap and fashion category cap track separately
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Minimum spend thresholds
@@ -178,11 +174,6 @@ UPDATE library_caps SET min_spend = 500  WHERE card_id = '00000000-0000-0000-000
 -- 'contactless' = must tap to pay; 'online' = must be an online purchase.
 -- NULL (default) = any payment method earns the bonus.
 -- ─────────────────────────────────────────────────────────────────────────────
-
--- DBS Woman's World: online shopping bonus requires online purchase
-UPDATE library_rates SET payment_channel = 'online'
-WHERE card_id = '00000000-0000-0000-0001-000000000002'
-  AND category_id = '00000000-0000-0000-0000-000000000004';
 
 -- SC Journey: dining/groceries/transport bonus applies to online SGD transactions only
 UPDATE library_rates SET payment_channel = 'online'
@@ -206,6 +197,7 @@ UPDATE card_library SET default_payment_channel = 'contactless' WHERE id = '0000
 UPDATE card_library SET default_payment_channel = 'contactless' WHERE id = '00000000-0000-0000-0001-000000000013';
 UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000002';
 UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000004';
+UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000017';  -- Citi Rewards
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Wildcard contactless rates (null category = any category earns bonus when tapped)
@@ -253,6 +245,59 @@ WHERE card_id = '00000000-0000-0000-0001-000000000012'
 INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
 SELECT '00000000-0000-0000-0001-000000000013', NULL, 'monthly', 600.00, 'contactless', '2000-01-01'
 WHERE NOT EXISTS (SELECT 1 FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id IS NULL AND cap_payment_channel = 'contactless');
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Wildcard online rates (null category = any category earns bonus when paid online)
+-- DBS Woman's World and Citi Rewards grant 4 mpd on ALL online purchases.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- DBS Woman's World: 4 mpd on all online purchases (any category)
+DELETE FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000002'
+  AND category_id = '00000000-0000-0000-0000-000000000004';  -- remove stale Online Shopping rate if present
+
+INSERT INTO library_rates (card_id, category_id, mpd, payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000002', NULL, 4.0, 'online', '2000-01-01'
+WHERE NOT EXISTS (
+  SELECT 1 FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000002'
+    AND category_id IS NULL AND payment_channel = 'online'
+);
+
+-- Citi Rewards Mastercard: 4 mpd on all online purchases (any category)
+DELETE FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000017'
+  AND category_id = '00000000-0000-0000-0000-000000000004';  -- remove stale Online Shopping rate if present
+
+INSERT INTO library_rates (card_id, category_id, mpd, payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000017', NULL, 4.0, 'online', '2000-01-01'
+WHERE NOT EXISTS (
+  SELECT 1 FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000017'
+    AND category_id IS NULL AND payment_channel = 'online'
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Online channel caps (tracks all online spend regardless of category)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- DBS Woman's World: S$1,000/month on all online purchases
+DELETE FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000002'
+  AND category_id = '00000000-0000-0000-0000-000000000004';  -- remove stale Online Shopping cap if present
+
+INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000002', NULL, 'monthly', 1000.00, 'online', '2000-01-01'
+WHERE NOT EXISTS (
+  SELECT 1 FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000002'
+    AND category_id IS NULL AND cap_payment_channel = 'online'
+);
+
+-- Citi Rewards: S$1,000/month on all online purchases (fashion in-store has separate $1,000/month cap)
+DELETE FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000017'
+  AND category_id = '00000000-0000-0000-0000-000000000004';  -- remove stale Online Shopping cap if present
+
+INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000017', NULL, 'monthly', 1000.00, 'online', '2000-01-01'
+WHERE NOT EXISTS (
+  SELECT 1 FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000017'
+    AND category_id IS NULL AND cap_payment_channel = 'online'
+);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Earn increment corrections (idempotent — re-running applies updates)

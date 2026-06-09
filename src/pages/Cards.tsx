@@ -43,9 +43,16 @@ export default function Cards() {
 
   function openEditModal(card: CreditCard) {
     const current = resolveOverride(overrides, card.id, today) ?? []
+    const cardOverrides = overrides.filter(o => o.card_id === card.id)
+    // Treat as first-time if no overrides exist, or all existing overrides are from today
+    // (i.e. the user just set it up today and it doesn't cover past transactions yet).
+    const todayStr = isoDate()
+    const isFirstSetup = cardOverrides.length === 0 || cardOverrides.every(o => o.effective_from >= todayStr)
     setEditCard(card)
     setEditChoices(current)
-    setEditDate(isoDate())
+    // First-time setup: apply to all transactions (past and future).
+    // Changing an existing override: default to today to preserve category history.
+    setEditDate(isFirstSetup ? '2000-01-01' : isoDate())
     setEditError(null)
     setEditSaving(false)
   }
@@ -447,7 +454,9 @@ export default function Cards() {
                 className="input text-sm"
               />
               <p className="text-xs text-gray-400 mt-1">
-                Transactions before this date keep their original bonus category for accurate history.
+                {editDate === '2000-01-01'
+                  ? 'Applies to all transactions (past and future) — change only if you had a different category before.'
+                  : 'Transactions before this date keep their previous category choice for accurate history.'}
               </p>
             </div>
 
