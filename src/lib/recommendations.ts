@@ -11,7 +11,6 @@ export function resolveRates(allRates: CardRate[], date: Date = new Date()): Car
   const dateStr = date.toISOString().slice(0, 10)
   const map = new Map<string, CardRate>()
 
-  // Sort ascending so later dates overwrite earlier ones in the map
   const eligible = [...allRates]
     .filter(r => r.effective_from <= dateStr)
     .sort((a, b) => a.effective_from.localeCompare(b.effective_from))
@@ -42,15 +41,8 @@ export function resolveCaps(allCaps: SpendingCap[], date: Date = new Date()): Sp
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Selectable-category overrides
-// Cards like UOB Lady's Card let the holder choose their bonus category.
-// The library stores one "bonus slot" row (Dining → 4mpd). When an override
-// exists, the engine substitutes the chosen category into that slot so the
-// rest of the logic runs unchanged. effective_from means old transactions
-// resolve the override that was active at their date, preserving history.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Returns the active chosen category IDs for a selectable card as of `date`,
-// or null if the user has not set an override (keep library default).
 export function resolveOverride(
   overrides: CategoryOverride[],
   cardId: string,
@@ -63,9 +55,6 @@ export function resolveOverride(
   return eligible[0]?.category_ids ?? null
 }
 
-// Replaces the library's default bonus slot for a selectable card with the
-// user's chosen category/categories. The template rate and cap are cloned
-// with the new category_id; all other cards are left untouched.
 export function applySelectableOverride(
   resolvedRates: CardRate[],
   resolvedCaps: SpendingCap[],
@@ -96,8 +85,6 @@ export function applySelectableOverride(
   return { rates: [...otherRates, ...newRates], caps: [...otherCaps, ...newCaps] }
 }
 
-// Applies all per-user selectable overrides for every card in the wallet.
-// Used by the Dashboard (and anywhere that needs substituted caps outside of recommendCards).
 export function applyAllSelectableOverrides(
   cards: CreditCard[],
   resolvedRates: CardRate[],
@@ -121,13 +108,12 @@ export function applyAllSelectableOverrides(
 // ─────────────────────────────────────────────────────────────────────────────
 // Period spending
 // Sums actual spend for each (card, category) combination within the cap period.
-// Uses the cap's effective_from to determine which period definition to use
-// — so a quarterly cap is compared against quarterly totals, etc.
+// Also computes total card spend per period for min_spend threshold checks.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function buildPeriodSpending(
   transactions: Transaction[],
-  resolvedCaps: SpendingCap[],   // already resolved for the target date
+  resolvedCaps: SpendingCap[],
   now: Date = new Date()
 ): Map<string, number> {
   const result = new Map<string, number>()
@@ -138,7 +124,6 @@ export function buildPeriodSpending(
     const periodStart = getPeriodStart(cap.cap_period, now)
 
     if (cap.cap_group) {
-      // Combined cap: sum spending for ALL categories in this group
       const groupKey = `${cap.card_id}:group:${cap.cap_group}`
       if (result.has(groupKey)) continue
 
@@ -157,7 +142,6 @@ export function buildPeriodSpending(
 
       result.set(groupKey, spent)
     } else {
-      // Individual cap: sum spending for this specific category
       const key = `${cap.card_id}:${cap.category_id ?? 'global'}`
       if (result.has(key)) continue
 
@@ -173,12 +157,38 @@ export function buildPeriodSpending(
     }
   }
 
+  // Compute total card spend per period for min_spend threshold checks.
+  // Key: `${card_id}:total:${cap_period}` — all transactions on this card in the period.
+  const seenTotalKeys = new Set<string>()
+  for (const cap of resolvedCaps) {
+    if (cap.min_spend == null || cap.cap_period === 'per_transaction') continue
+    const totalKey = `${cap.card_id}:total:${cap.cap_period}`
+    if (seenTotalKeys.has(totalKey)) continue
+    seenTotalKeys.add(totalKey)
+    const periodStart = getPeriodStart(cap.cap_period, now)
+    const total = transactions
+      .filter(t => t.card_id === cap.card_id && new Date(t.transaction_date) >= periodStart)
+      .reduce((sum, t) => sum + t.amount, 0)
+    result.set(totalKey, total)
+  }
+
   return result
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core effective-MPD calculation for one card on a specific date
 // ─────────────────────────────────────────────────────────────────────────────
+
+type EffResult = {
+  effectiveMpd: number
+  milesEarned: number
+  capRemaining: number | null
+  capAmount: number | null
+  capPeriod: string | null
+  status: CardRecommendation['status']
+  minSpendRequired: number | null
+  totalCardSpent: number | null
+}
 
 function getEffectiveForCard(
   card: CreditCard,
@@ -187,14 +197,7 @@ function getEffectiveForCard(
   categoryId: string,
   amount: number,
   periodSpending: Map<string, number>
-): {
-  effectiveMpd: number
-  milesEarned: number
-  capRemaining: number | null
-  capAmount: number | null
-  capPeriod: string | null
-  status: CardRecommendation['status']
-} {
+): EffResult {
   const rateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
   const bonusMpd = rateRow?.mpd ?? card.base_mpd
 
@@ -202,14 +205,34 @@ function getEffectiveForCard(
     resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId) ??
     resolvedCaps.find(c => c.card_id === card.id && c.category_id === null)
 
-  if (!cap || cap.spend_limit === null) {
-    return {
-      effectiveMpd: bonusMpd,
-      milesEarned: amount * bonusMpd,
-      capRemaining: null,
-      capAmount: null,
-      capPeriod: null,
-      status: bonusMpd === card.base_mpd ? 'base' : 'optimal',
+  const noCapResult = (status: CardRecommendation['status'] = bonusMpd === card.base_mpd ? 'base' : 'optimal'): EffResult => ({
+    effectiveMpd: bonusMpd,
+    milesEarned: amount * bonusMpd,
+    capRemaining: null,
+    capAmount: null,
+    capPeriod: null,
+    status,
+    minSpendRequired: null,
+    totalCardSpent: null,
+  })
+
+  if (!cap || cap.spend_limit === null) return noCapResult()
+
+  // Min spend threshold: check total card spend for the period before any bonus.
+  if (cap.min_spend != null && cap.cap_period !== 'per_transaction') {
+    const totalKey = `${cap.card_id}:total:${cap.cap_period}`
+    const totalSpent = periodSpending.get(totalKey) ?? 0
+    if (totalSpent < cap.min_spend) {
+      return {
+        effectiveMpd: card.base_mpd,
+        milesEarned: amount * card.base_mpd,
+        capRemaining: null,
+        capAmount: cap.spend_limit,
+        capPeriod: cap.cap_period,
+        status: 'locked',
+        minSpendRequired: cap.min_spend,
+        totalCardSpent: totalSpent,
+      }
     }
   }
 
@@ -225,6 +248,8 @@ function getEffectiveForCard(
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
       status: overflow > 0 ? 'partial' : 'optimal',
+      minSpendRequired: null,
+      totalCardSpent: null,
     }
   }
 
@@ -242,6 +267,8 @@ function getEffectiveForCard(
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
       status: 'capped',
+      minSpendRequired: null,
+      totalCardSpent: null,
     }
   }
 
@@ -253,6 +280,8 @@ function getEffectiveForCard(
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
       status: 'optimal',
+      minSpendRequired: null,
+      totalCardSpent: null,
     }
   }
 
@@ -266,6 +295,8 @@ function getEffectiveForCard(
     capAmount: cap.spend_limit,
     capPeriod: cap.cap_period,
     status: 'partial',
+    minSpendRequired: null,
+    totalCardSpent: null,
   }
 }
 
@@ -273,10 +304,6 @@ function getEffectiveForCard(
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Rank all active cards for a given category, amount and transaction date.
- * Automatically resolves the effective rates and caps for that date.
- */
 export function recommendCards(
   cards: CreditCard[],
   allRates: CardRate[],
@@ -292,9 +319,6 @@ export function recommendCards(
   let resolved = resolveRates(allRates, transactionDate)
   let resolvedCaps = resolveCaps(allCaps, transactionDate)
 
-  // Apply per-user selectable-category overrides before computing period spending.
-  // For each selectable card with an active override, substitute the library's
-  // default bonus slot with the user's chosen category/categories.
   for (const card of cards) {
     if (!card.selectable_category) continue
     const chosen = resolveOverride(overrides, card.id, transactionDate)
@@ -329,6 +353,12 @@ export function recommendCards(
         case 'base':
           reason = `${bonusMpd} mpd base rate (no category bonus)`
           break
+        case 'locked': {
+          const needed = eff.minSpendRequired! - eff.totalCardSpent!
+          const period = eff.capPeriod?.replace('ly', '') ?? 'month'
+          reason = `Spend ${formatSGD(needed)} more this ${period} to unlock ${bonusMpd} mpd (need ${formatSGD(eff.minSpendRequired!)} total · ${formatSGD(eff.totalCardSpent!)} so far)`
+          break
+        }
       }
 
       return {
@@ -340,6 +370,8 @@ export function recommendCards(
         capPeriod: eff.capPeriod,
         status: eff.status,
         reason,
+        minSpendRequired: eff.minSpendRequired,
+        totalCardSpent: eff.totalCardSpent,
       } satisfies CardRecommendation
     })
     .sort((a, b) => {
@@ -349,9 +381,6 @@ export function recommendCards(
     })
 }
 
-/**
- * Calculate miles for a single transaction on a specific date.
- */
 export function calcMiles(
   card: CreditCard,
   allRates: CardRate[],

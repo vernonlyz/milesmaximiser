@@ -1,9 +1,10 @@
 -- MilesMaximiser — MCC catalogue seed
 -- Run after migration 012. Idempotent (ON CONFLICT DO NOTHING).
 --
--- Categories: 001=Dining 002=Groceries 003=Petrol 004=Online Shopping
---             005=Travel 006=Transport 007=Entertainment 008=Shopping
---             009=Utilities & Bills 010=Others 011=Fashion 012=Beauty
+-- Category IDs (from initial seed + migrations):
+--   001=Dining  002=Groceries  003=Petrol  004=Online Shopping
+--   005=Overseas/FCY  006=Travel  007=Entertainment  008=Transport
+--   009=Utilities & Bills  010=Others  011=Fashion  012=Beauty
 
 INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 
@@ -33,23 +34,25 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 ('5817', 'Digital Goods: Applications',           '00000000-0000-0000-0000-000000000004'),
 ('5818', 'Digital Goods: Large Merchants',        '00000000-0000-0000-0000-000000000004'),
 
--- ── Travel (005) ─────────────────────────────────────────────────────────────
-('4411', 'Cruise Lines',                          '00000000-0000-0000-0000-000000000005'),
-('4511', 'Airlines, Air Carriers',                '00000000-0000-0000-0000-000000000005'),
-('4722', 'Travel Agencies, Tour Operators',       '00000000-0000-0000-0000-000000000005'),
-('4723', 'Package Tour Operators',                '00000000-0000-0000-0000-000000000005'),
-('7011', 'Hotels, Motels, Resorts',               '00000000-0000-0000-0000-000000000005'),
-('7012', 'Timeshares',                            '00000000-0000-0000-0000-000000000005'),
-('7032', 'Sporting and Recreational Camps',       '00000000-0000-0000-0000-000000000005'),
-('7033', 'Trailer Parks and Campgrounds',         '00000000-0000-0000-0000-000000000005'),
+-- ── Travel (006) ─────────────────────────────────────────────────────────────
+-- Note: 005 = Overseas/FCY (currency-based, not merchant-type based)
+-- Use 006 for travel MCCs (airlines, hotels, travel agencies)
+('4411', 'Cruise Lines',                          '00000000-0000-0000-0000-000000000006'),
+('4511', 'Airlines, Air Carriers',                '00000000-0000-0000-0000-000000000006'),
+('4722', 'Travel Agencies, Tour Operators',       '00000000-0000-0000-0000-000000000006'),
+('4723', 'Package Tour Operators',                '00000000-0000-0000-0000-000000000006'),
+('7011', 'Hotels, Motels, Resorts',               '00000000-0000-0000-0000-000000000006'),
+('7012', 'Timeshares',                            '00000000-0000-0000-0000-000000000006'),
+('7032', 'Sporting and Recreational Camps',       '00000000-0000-0000-0000-000000000006'),
+('7033', 'Trailer Parks and Campgrounds',         '00000000-0000-0000-0000-000000000006'),
 
--- ── Transport (006) ──────────────────────────────────────────────────────────
-('4111', 'Local and Suburban Commuter Transport', '00000000-0000-0000-0000-000000000006'),
-('4121', 'Taxicabs and Ride-hailing Services',    '00000000-0000-0000-0000-000000000006'),
-('4131', 'Bus Lines',                             '00000000-0000-0000-0000-000000000006'),
-('4789', 'Transportation Services',               '00000000-0000-0000-0000-000000000006'),
-('7512', 'Automobile Rental Agency',              '00000000-0000-0000-0000-000000000006'),
-('7513', 'Truck and Utility Trailer Rentals',     '00000000-0000-0000-0000-000000000006'),
+-- ── Transport (008) ──────────────────────────────────────────────────────────
+('4111', 'Local and Suburban Commuter Transport', '00000000-0000-0000-0000-000000000008'),
+('4121', 'Taxicabs and Ride-hailing Services',    '00000000-0000-0000-0000-000000000008'),
+('4131', 'Bus Lines',                             '00000000-0000-0000-0000-000000000008'),
+('4789', 'Transportation Services',               '00000000-0000-0000-0000-000000000008'),
+('7512', 'Automobile Rental Agency',              '00000000-0000-0000-0000-000000000008'),
+('7513', 'Truck and Utility Trailer Rentals',     '00000000-0000-0000-0000-000000000008'),
 
 -- ── Entertainment (007) ──────────────────────────────────────────────────────
 ('5945', 'Hobby, Toy and Game Shops',             '00000000-0000-0000-0000-000000000007'),
@@ -65,22 +68,6 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 ('7997', 'Membership Clubs, Sports and Recreation','00000000-0000-0000-0000-000000000007'),
 ('7999', 'Recreation Services',                   '00000000-0000-0000-0000-000000000007'),
 
--- ── Shopping (008) ───────────────────────────────────────────────────────────
-('5200', 'Home Supply Warehouse Stores',          '00000000-0000-0000-0000-000000000008'),
-('5251', 'Hardware Stores',                       '00000000-0000-0000-0000-000000000008'),
-('5311', 'Department Stores',                     '00000000-0000-0000-0000-000000000008'),
-('5331', 'Variety Stores',                        '00000000-0000-0000-0000-000000000008'),
-('5399', 'Misc General Merchandise Stores',       '00000000-0000-0000-0000-000000000008'),
-('5712', 'Furniture, Home Furnishings Stores',    '00000000-0000-0000-0000-000000000008'),
-('5732', 'Electronics Stores',                    '00000000-0000-0000-0000-000000000008'),
-('5912', 'Drug Stores and Pharmacies',            '00000000-0000-0000-0000-000000000008'),
-('5940', 'Sporting Goods Stores',                 '00000000-0000-0000-0000-000000000008'),
-('5941', 'Sporting Goods and Athletic Shops',     '00000000-0000-0000-0000-000000000008'),
-('5942', 'Book Stores',                           '00000000-0000-0000-0000-000000000008'),
-('5943', 'Stationery, Office and School Supplies','00000000-0000-0000-0000-000000000008'),
-('5944', 'Jewelry, Watch, Clock and Silverware',  '00000000-0000-0000-0000-000000000008'),
-('5999', 'Misc and Specialty Retail Stores',      '00000000-0000-0000-0000-000000000008'),
-
 -- ── Utilities & Bills (009) ──────────────────────────────────────────────────
 ('4811', 'Telephone Communications',              '00000000-0000-0000-0000-000000000009'),
 ('4812', 'Telephone Equipment',                   '00000000-0000-0000-0000-000000000009'),
@@ -94,7 +81,22 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 ('9311', 'Tax Payments',                          '00000000-0000-0000-0000-000000000009'),
 ('9399', 'Government Services',                   '00000000-0000-0000-0000-000000000009'),
 
--- ── Others (010) ─────────────────────────────────────────────────────────────
+-- ── Others (010) — general retail, healthcare, education, insurance ───────────
+-- No generic "Shopping" category exists; non-food retail defaults to Others.
+('5200', 'Home Supply Warehouse Stores',          '00000000-0000-0000-0000-000000000010'),
+('5251', 'Hardware Stores',                       '00000000-0000-0000-0000-000000000010'),
+('5311', 'Department Stores',                     '00000000-0000-0000-0000-000000000010'),
+('5331', 'Variety Stores',                        '00000000-0000-0000-0000-000000000010'),
+('5399', 'Misc General Merchandise Stores',       '00000000-0000-0000-0000-000000000010'),
+('5712', 'Furniture, Home Furnishings Stores',    '00000000-0000-0000-0000-000000000010'),
+('5732', 'Electronics Stores',                    '00000000-0000-0000-0000-000000000010'),
+('5912', 'Drug Stores and Pharmacies',            '00000000-0000-0000-0000-000000000010'),
+('5940', 'Sporting Goods Stores',                 '00000000-0000-0000-0000-000000000010'),
+('5941', 'Sporting Goods and Athletic Shops',     '00000000-0000-0000-0000-000000000010'),
+('5942', 'Book Stores',                           '00000000-0000-0000-0000-000000000010'),
+('5943', 'Stationery, Office and School Supplies','00000000-0000-0000-0000-000000000010'),
+('5944', 'Jewelry, Watch, Clock and Silverware',  '00000000-0000-0000-0000-000000000010'),
+('5999', 'Misc and Specialty Retail Stores',      '00000000-0000-0000-0000-000000000010'),
 ('6300', 'Insurance Sales and Premiums',          '00000000-0000-0000-0000-000000000010'),
 ('6381', 'Insurance Premiums',                    '00000000-0000-0000-0000-000000000010'),
 ('7372', 'Computer Programming and Data Processing','00000000-0000-0000-0000-000000000010'),

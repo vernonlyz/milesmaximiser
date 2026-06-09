@@ -164,3 +164,14 @@ UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-
 UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-0001-000000000015';  -- HSBC Revolution
 UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-0001-000000000016';  -- Maybank XL Rewards
 UPDATE library_caps SET cap_group = 'bonus' WHERE card_id = '00000000-0000-0000-0001-000000000017';  -- Citi Rewards
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Minimum spend thresholds
+-- Bonus rates are locked until total card spend for the period reaches min_spend.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- UOB Visa Signature: S$1,000/month total card spend required to unlock 4 mpd
+UPDATE library_caps SET min_spend = 1000 WHERE card_id = '00000000-0000-0000-0001-000000000012';
+
+-- Maybank XL Rewards: S$500/month total card spend required to unlock 4 mpd
+UPDATE library_caps SET min_spend = 500  WHERE card_id = '00000000-0000-0000-0001-000000000016';

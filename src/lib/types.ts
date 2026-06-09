@@ -33,6 +33,8 @@ export interface CardRate {
 // cap_group: when non-null, all caps for this card sharing the same cap_group
 // draw from a single combined spending limit (e.g. HSBC Revolution's S$1,000
 // pool shared across dining, shopping, transport and travel).
+// min_spend: when non-null, the card's total period spend must reach this
+// threshold before the bonus rate activates (e.g. UOB Visa Sig S$1,000/month).
 export interface SpendingCap {
   id: string
   card_id: string
@@ -40,6 +42,7 @@ export interface SpendingCap {
   cap_period: 'monthly' | 'quarterly' | 'annual' | 'per_transaction'
   spend_limit: number | null
   cap_group: string | null
+  min_spend: number | null
   effective_from: string
 }
 
@@ -91,7 +94,10 @@ export interface CardRecommendation {
   capRemaining: number | null
   capAmount: number | null
   capPeriod: string | null
-  status: 'optimal' | 'partial' | 'capped' | 'base'
+  status: 'optimal' | 'partial' | 'capped' | 'base' | 'locked'
+  // Present only when status === 'locked' (min spend threshold not yet met)
+  minSpendRequired: number | null
+  totalCardSpent: number | null
   reason: string
 }
 

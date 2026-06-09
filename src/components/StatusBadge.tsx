@@ -5,6 +5,7 @@ const config: Record<CardRecommendation['status'], { label: string; className: s
   partial:  { label: 'Partial bonus', className: 'bg-amber-100 text-amber-700'    },
   capped:   { label: 'Cap reached',   className: 'bg-red-100 text-red-700'         },
   base:     { label: 'Base rate',     className: 'bg-gray-100 text-gray-500'       },
+  locked:   { label: 'Threshold',     className: 'bg-indigo-100 text-indigo-600'   },
 }
 
 export default function StatusBadge({ status }: { status: CardRecommendation['status'] }) {
