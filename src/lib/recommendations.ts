@@ -247,9 +247,13 @@ function getEffectiveForCard(
 
   const bonusMpd = (rateRow && !channelBlocked) ? rateRow.mpd : card.base_mpd
 
+  // Banks award miles on the amount rounded down to their earning block ($1 for HSBC/Citi, $5 for most).
+  // Cap tracking always uses the real transaction amount; only miles calculations use milesAmount.
+  const milesAmount = Math.floor(amount / card.earn_increment) * card.earn_increment
+
   const noCapResult = (status: CardRecommendation['status'] = bonusMpd === card.base_mpd ? 'base' : 'optimal'): EffResult => ({
-    effectiveMpd: bonusMpd,
-    milesEarned: amount * bonusMpd,
+    effectiveMpd: amount > 0 ? (milesAmount * bonusMpd) / amount : 0,
+    milesEarned: milesAmount * bonusMpd,
     capRemaining: null,
     capAmount: null,
     capPeriod: null,
@@ -290,8 +294,8 @@ function getEffectiveForCard(
         : `${cap.card_id}:${cap.category_id ?? 'global'}`
     const alreadySpent = periodSpending.get(lockedSpentKey) ?? 0
     return {
-      effectiveMpd: card.base_mpd,
-      milesEarned: amount * card.base_mpd,
+      effectiveMpd: amount > 0 ? (milesAmount * card.base_mpd) / amount : 0,
+      milesEarned: milesAmount * card.base_mpd,
       capRemaining: Math.max(0, cap.spend_limit - alreadySpent),
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
@@ -304,11 +308,11 @@ function getEffectiveForCard(
 
   // Per-transaction cap
   if (cap.cap_period === 'per_transaction') {
-    const eligible = Math.min(amount, cap.spend_limit)
-    const overflow = amount - eligible
+    const eligible = Math.min(milesAmount, cap.spend_limit)
+    const overflow = milesAmount - eligible
     const miles = eligible * bonusMpd + overflow * card.base_mpd
     return {
-      effectiveMpd: miles / amount,
+      effectiveMpd: amount > 0 ? miles / amount : 0,
       milesEarned: miles,
       capRemaining: cap.spend_limit,
       capAmount: cap.spend_limit,
@@ -332,8 +336,8 @@ function getEffectiveForCard(
 
   if (remaining <= 0) {
     return {
-      effectiveMpd: card.base_mpd,
-      milesEarned: amount * card.base_mpd,
+      effectiveMpd: amount > 0 ? (milesAmount * card.base_mpd) / amount : 0,
+      milesEarned: milesAmount * card.base_mpd,
       capRemaining: 0,
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
@@ -346,8 +350,8 @@ function getEffectiveForCard(
 
   if (amount <= remaining) {
     return {
-      effectiveMpd: bonusMpd,
-      milesEarned: amount * bonusMpd,
+      effectiveMpd: amount > 0 ? (milesAmount * bonusMpd) / amount : 0,
+      milesEarned: milesAmount * bonusMpd,
       capRemaining: remaining,
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
@@ -358,11 +362,11 @@ function getEffectiveForCard(
     }
   }
 
-  const bonusMiles = remaining * bonusMpd
-  const baseMiles = (amount - remaining) * card.base_mpd
+  const bonusMiles = Math.min(milesAmount, remaining) * bonusMpd
+  const baseMiles = Math.max(0, milesAmount - remaining) * card.base_mpd
   const milesEarned = bonusMiles + baseMiles
   return {
-    effectiveMpd: milesEarned / amount,
+    effectiveMpd: amount > 0 ? milesEarned / amount : 0,
     milesEarned,
     capRemaining: remaining,
     capAmount: cap.spend_limit,

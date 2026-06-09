@@ -19,6 +19,7 @@ export interface CreditCard {
   remarks: string[] | null      // bullet-point notes shown in the UI
   default_payment_channel: 'contactless' | 'online' | null  // pre-fills payment method in the log form
   cap_cycle: 'calendar' | 'statement'  // whether caps reset on statement date or calendar month
+  earn_increment: number  // miles awarded per $N block: 1 for HSBC/Citi, 5 for most other banks
   created_at: string
 }
 
