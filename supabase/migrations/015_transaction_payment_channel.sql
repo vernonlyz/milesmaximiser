@@ -7,7 +7,7 @@
 --
 -- Changes:
 --   transactions           → add payment_channel ('contactless'|'online'|'chip')
---   library_cards          → add default_payment_channel for smart form defaults
+--   card_library          → add default_payment_channel for smart form defaults
 --   library_caps           → add cap_payment_channel: when set, only transactions
 --                            with this method count toward the cap
 --   library_rates          → make category_id nullable for wildcard rates
@@ -18,21 +18,21 @@ ALTER TABLE transactions
   ADD COLUMN IF NOT EXISTS payment_channel TEXT NULL
     CHECK (payment_channel IN ('contactless', 'online', 'chip'));
 
--- ── library_cards ─────────────────────────────────────────────────────────────
-ALTER TABLE library_cards
+-- ── card_library ─────────────────────────────────────────────────────────────
+ALTER TABLE card_library
   ADD COLUMN IF NOT EXISTS default_payment_channel TEXT NULL
     CHECK (default_payment_channel IN ('contactless', 'online'));
 
-UPDATE library_cards SET default_payment_channel = 'contactless'
+UPDATE card_library SET default_payment_channel = 'contactless'
 WHERE id = '00000000-0000-0000-0001-000000000012';  -- UOB Visa Signature
 
-UPDATE library_cards SET default_payment_channel = 'contactless'
+UPDATE card_library SET default_payment_channel = 'contactless'
 WHERE id = '00000000-0000-0000-0001-000000000013';  -- UOB Preferred Platinum Visa
 
-UPDATE library_cards SET default_payment_channel = 'online'
+UPDATE card_library SET default_payment_channel = 'online'
 WHERE id = '00000000-0000-0000-0001-000000000002';  -- DBS Woman's World
 
-UPDATE library_cards SET default_payment_channel = 'online'
+UPDATE card_library SET default_payment_channel = 'online'
 WHERE id = '00000000-0000-0000-0001-000000000004';  -- SC Journey
 
 -- ── library_caps ─────────────────────────────────────────────────────────────

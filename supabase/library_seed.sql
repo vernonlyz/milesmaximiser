@@ -205,10 +205,10 @@ WHERE card_id = '00000000-0000-0000-0001-000000000013'
 -- Default payment channel per card (pre-fills the transaction log form)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-UPDATE library_cards SET default_payment_channel = 'contactless' WHERE id = '00000000-0000-0000-0001-000000000012';
-UPDATE library_cards SET default_payment_channel = 'contactless' WHERE id = '00000000-0000-0000-0001-000000000013';
-UPDATE library_cards SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000002';
-UPDATE library_cards SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000004';
+UPDATE card_library SET default_payment_channel = 'contactless' WHERE id = '00000000-0000-0000-0001-000000000012';
+UPDATE card_library SET default_payment_channel = 'contactless' WHERE id = '00000000-0000-0000-0001-000000000013';
+UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000002';
+UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000004';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Wildcard contactless rates (null category = any category earns bonus when tapped)
