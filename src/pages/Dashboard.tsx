@@ -116,12 +116,16 @@ export default function Dashboard() {
           // Combined cap: sum spending across all group categories
           const groupSpentKey = `${firstCap.card_id}:group:${firstCap.cap_group}`
           const spent = periodSpending.get(groupSpentKey) ?? 0
-          const icons = groupCaps
-            .map(c => (c.category_id ? categories.find(cat => cat.id === c.category_id)?.icon ?? '' : ''))
-            .join(' ')
+          const catLabels = groupCaps
+            .map(c => {
+              const cat = c.category_id ? categories.find(cat => cat.id === c.category_id) : null
+              return cat ? `${cat.icon} ${cat.name}` : ''
+            })
+            .filter(Boolean)
+            .join(' · ')
           return {
             key: groupSpentKey,
-            label: `${icons} Combined cap`.trim(),
+            label: catLabels || 'Combined cap',
             spent,
             limit: firstCap.spend_limit ?? 0,
             period: getPeriodLabel(firstCap.cap_period),
