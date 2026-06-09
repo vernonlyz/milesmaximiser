@@ -170,6 +170,17 @@ export default function Cards() {
                             Miles: {card.mile_validity}
                           </span>
                         )}
+                        {card.cap_cycle === 'calendar' ? (
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                            Calendar month
+                          </span>
+                        ) : (
+                          <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                            {inWallet && statementDays.has(card.id)
+                              ? `Statement: day ${statementDays.get(card.id)}`
+                              : 'Statement cycle'}
+                          </span>
+                        )}
                         {inWallet && (
                           <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Check size={10} /> In Wallet
