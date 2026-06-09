@@ -1,5 +1,5 @@
 -- MilesMaximiser — vendor catalogue seed
--- Run after migration 012 and mcc_seed.sql. Idempotent (ON CONFLICT DO NOTHING).
+-- Run after migration 012 and mcc_seed.sql. Idempotent — re-running applies corrections.
 --
 -- Category IDs (from initial seed + migrations):
 --   001=Dining  002=Groceries  003=Petrol  004=Online Shopping
@@ -184,4 +184,6 @@ INSERT INTO vendor_catalogue (name, default_mcc, default_category_id) VALUES
 ('Innisfree',                      '5977', '00000000-0000-0000-0000-000000000012'),
 ('Benefit Cosmetics',              '5977', '00000000-0000-0000-0000-000000000012')
 
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET
+  default_mcc         = EXCLUDED.default_mcc,
+  default_category_id = EXCLUDED.default_category_id;

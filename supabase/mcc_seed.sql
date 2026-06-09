@@ -1,5 +1,5 @@
 -- MilesMaximiser — MCC catalogue seed
--- Run after migration 012. Idempotent (ON CONFLICT DO NOTHING).
+-- Run after migration 012. Idempotent — re-running applies corrections.
 --
 -- Category IDs (from initial seed + migrations):
 --   001=Dining  002=Groceries  003=Petrol  004=Online Shopping
@@ -123,4 +123,6 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 ('7230', 'Beauty Salons and Barber Shops',        '00000000-0000-0000-0000-000000000012'),
 ('7297', 'Massage Parlors',                       '00000000-0000-0000-0000-000000000012')
 
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO UPDATE SET
+  description         = EXCLUDED.description,
+  default_category_id = EXCLUDED.default_category_id;
