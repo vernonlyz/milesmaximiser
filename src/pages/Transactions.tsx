@@ -356,7 +356,8 @@ export default function Transactions() {
         {filtered.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">No transactions found.</div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[480px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                 <SortTh col="date"   label="Date"   active={sortBy} dir={sortDir} onSort={toggleSort} align="left" />
@@ -482,6 +483,7 @@ export default function Transactions() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
