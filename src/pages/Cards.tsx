@@ -172,13 +172,11 @@ export default function Cards() {
                         )}
                         {card.cap_cycle === 'calendar' ? (
                           <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                            Calendar month
+                            Calendar Cycle
                           </span>
                         ) : (
                           <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-                            {inWallet && statementDays.has(card.id)
-                              ? `Statement: day ${statementDays.get(card.id)}`
-                              : 'Statement cycle'}
+                            Statement Cycle
                           </span>
                         )}
                         {inWallet && (

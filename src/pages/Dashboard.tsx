@@ -332,11 +332,9 @@ export default function Dashboard() {
                       {card.bank} {card.name}
                     </span>
                     <span className="ml-auto text-xs text-gray-400 shrink-0">
-                      {card.cap_cycle === 'calendar'
-                        ? 'Cal month'
-                        : statementDays.has(card.id)
-                          ? `Stmt day ${statementDays.get(card.id)}`
-                          : 'Stmt (not set)'}
+                      {card.cap_cycle === 'statement' && statementDays.has(card.id)
+                        ? `Stmt day ${statementDays.get(card.id)}`
+                        : 'Calendar Mth'}
                     </span>
                   </div>
                   <div className="pl-7 space-y-3">
