@@ -16,7 +16,12 @@ export function resolveRates(allRates: CardRate[], date: Date = new Date()): Car
     .sort((a, b) => a.effective_from.localeCompare(b.effective_from))
 
   for (const rate of eligible) {
-    map.set(`${rate.card_id}:${rate.category_id}`, rate)
+    // Null-category wildcard rates are keyed by payment_channel to avoid
+    // collisions when a card has both contactless and online wildcard rates.
+    const key = rate.category_id === null
+      ? `${rate.card_id}:wildcard:${rate.payment_channel ?? 'any'}`
+      : `${rate.card_id}:${rate.category_id}`
+    map.set(key, rate)
   }
 
   return Array.from(map.values())
@@ -31,11 +36,14 @@ export function resolveCaps(allCaps: SpendingCap[], date: Date = new Date()): Sp
     .sort((a, b) => a.effective_from.localeCompare(b.effective_from))
 
   for (const cap of eligible) {
-    const key = `${cap.card_id}:${cap.category_id ?? 'global'}:${cap.cap_period}`
+    // Channel caps (cap_payment_channel set) get a distinct key so they don't
+    // collide with regular global caps (category_id null, no channel filter).
+    const key = cap.cap_payment_channel
+      ? `${cap.card_id}:channel:${cap.cap_payment_channel}:${cap.cap_period}`
+      : `${cap.card_id}:${cap.category_id ?? 'global'}:${cap.cap_period}`
     map.set(key, cap)
   }
 
-  // Exclude caps that were explicitly removed (spend_limit = null)
   return Array.from(map.values()).filter(c => c.spend_limit !== null)
 }
 
@@ -61,7 +69,9 @@ export function applySelectableOverride(
   cardId: string,
   chosenCategoryIds: string[]
 ): { rates: CardRate[]; caps: SpendingCap[] } {
-  const templateRate = resolvedRates.find(r => r.card_id === cardId)
+  // Only look at category-specific rates for selectable-card templates
+  // (wildcard null-category rates are not used as templates).
+  const templateRate = resolvedRates.find(r => r.card_id === cardId && r.category_id !== null)
   const templateCap  = resolvedCaps.find(c => c.card_id === cardId && c.category_id !== null)
 
   const otherRates = resolvedRates.filter(r => r.card_id !== cardId)
@@ -108,7 +118,7 @@ export function applyAllSelectableOverrides(
 // ─────────────────────────────────────────────────────────────────────────────
 // Period spending
 // Sums actual spend for each (card, category) combination within the cap period.
-// Also computes total card spend per period for min_spend threshold checks.
+// Also computes total card spend and channel-filtered spend for cap tracking.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function buildPeriodSpending(
@@ -123,7 +133,20 @@ export function buildPeriodSpending(
 
     const periodStart = getPeriodStart(cap.cap_period, now)
 
-    if (cap.cap_group) {
+    if (cap.cap_payment_channel) {
+      // Channel cap: sum only transactions paid via the specified payment method,
+      // regardless of category. Key: `${card_id}:channel:${channel}:${period}`.
+      const channelKey = `${cap.card_id}:channel:${cap.cap_payment_channel}:${cap.cap_period}`
+      if (result.has(channelKey)) continue
+      const spent = transactions
+        .filter(t =>
+          t.card_id === cap.card_id &&
+          t.payment_channel === cap.cap_payment_channel &&
+          new Date(t.transaction_date) >= periodStart
+        )
+        .reduce((sum, t) => sum + t.amount, 0)
+      result.set(channelKey, spent)
+    } else if (cap.cap_group) {
       const groupKey = `${cap.card_id}:group:${cap.cap_group}`
       if (result.has(groupKey)) continue
 
@@ -158,7 +181,6 @@ export function buildPeriodSpending(
   }
 
   // Compute total card spend per period for min_spend threshold checks.
-  // Key: `${card_id}:total:${cap_period}` — all transactions on this card in the period.
   const seenTotalKeys = new Set<string>()
   for (const cap of resolvedCaps) {
     if (cap.min_spend == null || cap.cap_period === 'per_transaction') continue
@@ -198,12 +220,25 @@ function getEffectiveForCard(
   categoryId: string,
   amount: number,
   periodSpending: Map<string, number>,
-  paymentChannel: 'contactless' | 'online' | null = null
+  paymentChannel: 'contactless' | 'online' | 'chip' | null = null
 ): EffResult {
-  const rateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
+  // Category-specific rate for this card
+  const categoryRateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
+
+  // Wildcard rate (null category): applies to any category via a specific payment channel.
+  // Only checked when the transaction has a real payment channel (not chip, which earns base).
+  const wildcardRateRow = (paymentChannel === 'contactless' || paymentChannel === 'online')
+    ? resolvedRates.find(r => r.card_id === card.id && r.category_id === null && r.payment_channel === paymentChannel)
+    : null
+
+  // Prefer the higher-earning applicable rate. Wildcard wins on tie (has specific channel info).
+  const rateRow = wildcardRateRow && (!categoryRateRow || wildcardRateRow.mpd >= categoryRateRow.mpd)
+    ? wildcardRateRow
+    : (categoryRateRow ?? null)
+
   const requiredChannel = rateRow?.payment_channel ?? null
 
-  // When a filter is active and the rate requires a different channel, earn base rate only.
+  // When a payment filter is active and the rate requires a different channel, earn base rate.
   const channelBlocked =
     requiredChannel !== null &&
     paymentChannel !== null &&
@@ -225,13 +260,22 @@ function getEffectiveForCard(
 
   if (channelBlocked) return noCapResult()
 
-  const cap =
-    resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId) ??
-    resolvedCaps.find(c => c.card_id === card.id && c.category_id === null)
+  // Channel cap: when paying by a specific method, check if a channel-level cap applies.
+  const channelCap = (paymentChannel === 'contactless' || paymentChannel === 'online')
+    ? resolvedCaps.find(c => c.card_id === card.id && c.cap_payment_channel === paymentChannel)
+    : null
+
+  // Category/global cap (no channel filter)
+  const nonChannelCap =
+    resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId && !c.cap_payment_channel) ??
+    resolvedCaps.find(c => c.card_id === card.id && c.category_id === null && !c.cap_payment_channel)
+
+  // Channel cap takes precedence when the wildcard rate is the active rate
+  const cap = (wildcardRateRow && channelCap) ? channelCap : (channelCap ?? nonChannelCap)
 
   if (!cap || cap.spend_limit === null) return noCapResult()
 
-  // Min spend threshold: check total card spend for the period before any bonus.
+  // Min spend threshold check
   if (cap.min_spend != null && cap.cap_period !== 'per_transaction') {
     const totalKey = `${cap.card_id}:total:${cap.cap_period}`
     const totalSpent = periodSpending.get(totalKey) ?? 0
@@ -268,9 +312,13 @@ function getEffectiveForCard(
     }
   }
 
-  const spentKey = cap.cap_group
-    ? `${cap.card_id}:group:${cap.cap_group}`
-    : `${cap.card_id}:${cap.category_id ?? 'global'}`
+  // Determine the spend key based on cap type
+  const spentKey = cap.cap_payment_channel
+    ? `${cap.card_id}:channel:${cap.cap_payment_channel}:${cap.cap_period}`
+    : cap.cap_group
+      ? `${cap.card_id}:group:${cap.cap_group}`
+      : `${cap.card_id}:${cap.category_id ?? 'global'}`
+
   const alreadySpent = periodSpending.get(spentKey) ?? 0
   const remaining = cap.spend_limit - alreadySpent
 
@@ -331,7 +379,7 @@ export function recommendCards(
   transactions: Transaction[],
   transactionDate: Date = new Date(),
   overrides: CategoryOverride[] = [],
-  paymentChannel: 'contactless' | 'online' | null = null
+  paymentChannel: 'contactless' | 'online' | 'chip' | null = null
 ): CardRecommendation[] {
   if (!categoryId || amount <= 0) return []
 
@@ -352,8 +400,14 @@ export function recommendCards(
   return cards
     .filter(c => c.active)
     .map(card => {
-      const rateRow = resolved.find(r => r.card_id === card.id && r.category_id === categoryId)
-      const bonusMpd = rateRow?.mpd ?? card.base_mpd
+      // Resolve the displayed "bonus mpd" for the reason string —
+      // check wildcard rate first, then category rate, then base.
+      const categoryRateRow = resolved.find(r => r.card_id === card.id && r.category_id === categoryId)
+      const wildcardRateRow = (paymentChannel === 'contactless' || paymentChannel === 'online')
+        ? resolved.find(r => r.card_id === card.id && r.category_id === null && r.payment_channel === paymentChannel)
+        : null
+      const bonusMpd = wildcardRateRow?.mpd ?? categoryRateRow?.mpd ?? card.base_mpd
+
       const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel)
 
       const channelNote = eff.requiredPaymentChannel === 'contactless' ? ' · tap to pay'
@@ -408,8 +462,6 @@ export function recommendCards(
       } satisfies CardRecommendation
     })
     .sort((a, b) => {
-      // Locked cards sort by their potential (bonusMpd), not current effectiveMpd,
-      // so a 4 mpd card behind a threshold isn't buried at 0.4 mpd in the list.
       const aSortMpd = a.status === 'locked' ? a.bonusMpd : a.effectiveMpd
       const bSortMpd = b.status === 'locked' ? b.bonusMpd : b.effectiveMpd
       if (bSortMpd !== aSortMpd) return bSortMpd - aSortMpd
@@ -426,7 +478,8 @@ export function calcMiles(
   amount: number,
   transactions: Transaction[],
   transactionDate: Date = new Date(),
-  overrides: CategoryOverride[] = []
+  overrides: CategoryOverride[] = [],
+  paymentChannel: 'contactless' | 'online' | 'chip' | null = null
 ): { miles: number; effectiveMpd: number } {
   let resolved = resolveRates(allRates, transactionDate)
   let resolvedCaps = resolveCaps(allCaps, transactionDate)
@@ -441,6 +494,6 @@ export function calcMiles(
   }
 
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate)
-  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending)
+  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel)
   return { miles: eff.milesEarned, effectiveMpd: eff.effectiveMpd }
 }

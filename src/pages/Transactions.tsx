@@ -34,6 +34,8 @@ export default function Transactions() {
   const [mcc, setMcc] = useState('')
   const [mccEditing, setMccEditing] = useState(false)
 
+  const [paymentChannel, setPaymentChannel] = useState<'contactless' | 'online' | 'chip' | null>(null)
+
   // MPD override state
   const [mpdOverrideActive, setMpdOverrideActive] = useState(false)
   const [manualMpd, setManualMpd] = useState('')
@@ -51,16 +53,16 @@ export default function Transactions() {
     const card = cards.find(c => c.id === form.card_id)
     if (!card) return null
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides).effectiveMpd
-  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides])
+    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel).effectiveMpd
+  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel])
 
   // Live recommendations while filling form
   const recs = useMemo<CardRecommendation[]>(() => {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate, overrides)
-  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides])
+    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel)
+  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel])
 
   const bestCardId = recs[0]?.card.id ?? ''
 
@@ -69,6 +71,11 @@ export default function Transactions() {
       setMpdOverrideActive(false)
       setManualMpd('')
       setOverrideNote('')
+    }
+    if (k === 'card_id') {
+      // Auto-set payment channel from the card's default when card changes
+      const newCard = cards.find(c => c.id === v)
+      setPaymentChannel(newCard?.default_payment_channel ?? null)
     }
     setForm(f => ({ ...f, [k]: v }))
   }
@@ -80,6 +87,7 @@ export default function Transactions() {
     setSelectedVendor(null)
     setMcc('')
     setMccEditing(false)
+    setPaymentChannel(null)
     setMpdOverrideActive(false)
     setManualMpd('')
     setOverrideNote('')
@@ -102,6 +110,7 @@ export default function Transactions() {
     setVendorName(t.vendor_name ?? '')
     setSelectedVendor(null)  // don't re-match — treat as free text on edit
     setMcc(t.mcc ?? '')
+    setPaymentChannel(t.payment_channel ?? null)
     setMccEditing(false)
     if (t.manual_mpd != null) {
       setMpdOverrideActive(true)
@@ -153,7 +162,7 @@ export default function Transactions() {
 
     const card = cards.find(c => c.id === form.card_id)!
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    const { effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides)
+    const { effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel)
 
     const parsedManual = parseFloat(manualMpd)
     const hasValidOverride = mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0
@@ -166,6 +175,7 @@ export default function Transactions() {
       description: form.description || null,
       vendor_name: vendorName.trim() || null,
       mcc: mcc.trim() || null,
+      payment_channel: paymentChannel,
       transaction_date: form.transaction_date,
       computed_mpd: parseFloat(engineMpd.toFixed(4)),
       manual_mpd: hasValidOverride ? parseFloat(parsedManual.toFixed(4)) : null,
@@ -336,6 +346,12 @@ export default function Transactions() {
                             style={{ backgroundColor: card.color }}
                           />
                           <span className="text-gray-700">{card.bank} {card.name}</span>
+                          {t.payment_channel === 'contactless' && (
+                            <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1 rounded">tap</span>
+                          )}
+                          {t.payment_channel === 'online' && (
+                            <span className="text-[10px] text-sky-500 bg-sky-50 px-1 rounded">online</span>
+                          )}
                         </span>
                       ) : '—'}
                     </td>
@@ -555,6 +571,30 @@ export default function Transactions() {
                 ))}
               </select>
               <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Payment method — auto-filled from card default; affects cap tracking */}
+          <div>
+            <label className="label">
+              Payment Method
+              <span className="text-gray-400 font-normal text-xs ml-1">(affects cap tracking)</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['chip', 'contactless', 'online'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPaymentChannel(paymentChannel === mode ? null : mode)}
+                  className={`py-1.5 text-xs rounded-lg border transition-colors ${
+                    paymentChannel === mode
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'
+                  }`}
+                >
+                  {mode === 'chip' ? 'Chip / Swipe' : mode === 'contactless' ? 'Tap to pay' : 'Online'}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -196,16 +196,48 @@ WHERE card_id = '00000000-0000-0000-0001-000000000004'
     '00000000-0000-0000-0000-000000000008'
   );
 
--- UOB Visa Signature: transport bonus via contactless tap only
-UPDATE library_rates SET payment_channel = 'contactless'
-WHERE card_id = '00000000-0000-0000-0001-000000000012'
-  AND category_id = '00000000-0000-0000-0000-000000000008';
-
--- UOB Preferred Platinum Visa: online shopping → online; transport → contactless
+-- UOB Preferred Platinum Visa: online shopping → online only
 UPDATE library_rates SET payment_channel = 'online'
 WHERE card_id = '00000000-0000-0000-0001-000000000013'
   AND category_id = '00000000-0000-0000-0000-000000000004';
 
-UPDATE library_rates SET payment_channel = 'contactless'
-WHERE card_id = '00000000-0000-0000-0001-000000000013'
-  AND category_id = '00000000-0000-0000-0000-000000000008';
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Default payment channel per card (pre-fills the transaction log form)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+UPDATE library_cards SET default_payment_channel = 'contactless' WHERE id = '00000000-0000-0000-0001-000000000012';
+UPDATE library_cards SET default_payment_channel = 'contactless' WHERE id = '00000000-0000-0000-0001-000000000013';
+UPDATE library_cards SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000002';
+UPDATE library_cards SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000004';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Wildcard contactless rates (null category = any category earns bonus when tapped)
+-- Supersedes the per-category contactless transport rates.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+DELETE FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000012' AND category_id = '00000000-0000-0000-0000-000000000008' AND payment_channel = 'contactless';
+DELETE FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id = '00000000-0000-0000-0000-000000000008' AND payment_channel = 'contactless';
+
+INSERT INTO library_rates (card_id, category_id, mpd, payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000012', NULL, 4.0, 'contactless', '2000-01-01'
+WHERE NOT EXISTS (SELECT 1 FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000012' AND category_id IS NULL AND payment_channel = 'contactless');
+
+INSERT INTO library_rates (card_id, category_id, mpd, payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000013', NULL, 4.0, 'contactless', '2000-01-01'
+WHERE NOT EXISTS (SELECT 1 FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id IS NULL AND payment_channel = 'contactless');
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Contactless channel caps (replace per-category transport caps)
+-- Only contactless-flagged transactions count toward these caps.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+DELETE FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000012' AND category_id = '00000000-0000-0000-0000-000000000008';
+DELETE FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id = '00000000-0000-0000-0000-000000000008';
+
+INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000012', NULL, 'monthly', 1200.00, 'contactless', '2000-01-01'
+WHERE NOT EXISTS (SELECT 1 FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000012' AND category_id IS NULL AND cap_payment_channel = 'contactless');
+
+INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000013', NULL, 'monthly', 600.00, 'contactless', '2000-01-01'
+WHERE NOT EXISTS (SELECT 1 FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id IS NULL AND cap_payment_channel = 'contactless');

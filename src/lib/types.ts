@@ -17,6 +17,7 @@ export interface CreditCard {
   max_selectable: number        // how many categories the user may choose (1 or 2)
   mile_validity: string | null  // e.g. "No expiry", "12 months", "24 months"
   remarks: string[] | null      // bullet-point notes shown in the UI
+  default_payment_channel: 'contactless' | 'online' | null  // pre-fills payment method in the log form
   created_at: string
 }
 
@@ -24,7 +25,7 @@ export interface CreditCard {
 export interface CardRate {
   id: string
   card_id: string
-  category_id: string
+  category_id: string | null  // null = wildcard: earns bonus on any category via the specified payment_channel
   mpd: number
   payment_channel: 'contactless' | 'online' | null  // null = any payment method earns the bonus
   effective_from: string
@@ -36,6 +37,8 @@ export interface CardRate {
 // pool shared across dining, shopping, transport and travel).
 // min_spend: when non-null, the card's total period spend must reach this
 // threshold before the bonus rate activates (e.g. UOB Visa Sig S$1,000/month).
+// cap_payment_channel: when non-null, only transactions with this payment method
+// count toward this cap (e.g. UOB Preferred Plat's S$600 contactless pool).
 export interface SpendingCap {
   id: string
   card_id: string
@@ -44,6 +47,7 @@ export interface SpendingCap {
   spend_limit: number | null
   cap_group: string | null
   min_spend: number | null
+  cap_payment_channel: 'contactless' | 'online' | null
   effective_from: string
 }
 
@@ -62,6 +66,7 @@ export interface Transaction {
   description: string | null
   vendor_name: string | null    // typed or selected from vendor_catalogue
   mcc: string | null            // informational; auto-filled from catalogue or manually entered
+  payment_channel: 'contactless' | 'online' | 'chip' | null  // how the transaction was paid
   transaction_date: string
   computed_mpd: number | null   // engine-calculated MPD at save time
   manual_mpd: number | null     // user override; null = no override
