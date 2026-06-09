@@ -336,14 +336,20 @@ export default function Transactions() {
                 const card = cards.find(c => c.id === t.card_id)
                 const cat = categories.find(c => c.id === t.category_id)
                 const isManual = t.manual_mpd != null
-                const displayLabel = t.vendor_name || t.description || cat?.name || '—'
+                // Show vendor name as primary label; fall back to description then category.
+                // Notes (description) appear as a second line when a vendor name is also present.
+                const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
+                const notesLine = t.vendor_name && t.description ? t.description : null
                 return (
                   <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.transaction_date}</td>
-                    <td className="px-4 py-3 text-gray-800 max-w-[180px]">
-                      <span className="block truncate">{displayLabel}</span>
+                    <td className="px-4 py-3 text-gray-800">
+                      <span className="block">{primaryLabel}</span>
+                      {notesLine && (
+                        <span className="block text-xs text-gray-500 mt-0.5">{notesLine}</span>
+                      )}
                       {t.mcc && (
-                        <span className="text-xs text-gray-400 font-mono">
+                        <span className="block text-xs text-gray-400 font-mono mt-0.5">
                           {t.mcc}
                           {mccCatalogue.find(m => m.code === t.mcc) && (
                             <span className="ml-1 not-italic font-sans">
