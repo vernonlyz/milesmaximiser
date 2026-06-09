@@ -356,112 +356,71 @@ export default function Transactions() {
         {filtered.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">No transactions found.</div>
         ) : (
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[480px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <SortTh col="date"   label="Date"   active={sortBy} dir={sortDir} onSort={toggleSort} align="left" />
-                <th className="text-left px-4 py-3">Vendor / Description</th>
-                <th className="text-left px-4 py-3 hidden sm:table-cell">Category</th>
-                <th className="text-left px-4 py-3 hidden md:table-cell">Card</th>
-                <SortTh col="amount" label="Amount" active={sortBy} dir={sortDir} onSort={toggleSort} align="right" />
-                <SortTh col="miles"  label="Miles"  active={sortBy} dir={sortDir} onSort={toggleSort} align="right" className="hidden sm:table-cell" />
-                <SortTh col="mpd"    label="MPD"    active={sortBy} dir={sortDir} onSort={toggleSort} align="right" className="hidden md:table-cell" />
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
+          <>
+            {/* ── Mobile: card list (hidden on sm+) ── */}
+            <div className="sm:hidden divide-y divide-gray-100">
               {filtered.map(t => {
                 const card = cards.find(c => c.id === t.card_id)
-                const cat = categories.find(c => c.id === t.category_id)
+                const cat  = categories.find(c => c.id === t.category_id)
                 const isManual = t.manual_mpd != null
-                // Show vendor name as primary label; fall back to description then category.
-                // Notes (description) appear as a second line when a vendor name is also present.
                 const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
                 const notesLine = t.vendor_name && t.description ? t.description : null
+                let nomMpd: number | null = null
+                if (t.effective_mpd != null) {
+                  if (isManual && t.manual_mpd != null) {
+                    nomMpd = t.manual_mpd
+                  } else {
+                    const earnAmt = card
+                      ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
+                      : t.amount
+                    nomMpd = card && earnAmt > 0
+                      ? parseFloat((t.effective_mpd * t.amount / earnAmt).toFixed(2))
+                      : t.effective_mpd
+                  }
+                }
                 return (
-                  <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.transaction_date}</td>
-                    <td className="px-4 py-3 text-gray-800">
-                      <span className="block">{primaryLabel}</span>
-                      {notesLine && (
-                        <span className="block text-xs text-gray-500 mt-0.5">{notesLine}</span>
-                      )}
-                      {t.mcc && (
-                        <span className="block text-xs text-gray-400 font-mono mt-0.5">
-                          {t.mcc}
-                          {mccCatalogue.find(m => m.code === t.mcc) && (
-                            <span className="ml-1 not-italic font-sans">
-                              · {mccCatalogue.find(m => m.code === t.mcc)!.description}
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell text-gray-500">
-                      {cat ? `${cat.icon} ${cat.name}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      {card ? (
-                        <span className="flex items-center gap-1.5">
+                  <div key={t.id} className="px-4 py-3">
+                    {/* Vendor + miles */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {card && (
                           <span
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: card.color }}
                           />
-                          <span className="text-gray-700">{card.bank} {card.name}</span>
-                          {t.payment_channel === 'contactless' && (
-                            <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1 rounded">tap</span>
-                          )}
-                          {t.payment_channel === 'online' && (
-                            <span className="text-[10px] text-sky-500 bg-sky-50 px-1 rounded">online</span>
-                          )}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-800">
-                      S${t.amount.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3 text-right hidden sm:table-cell">
-                      {t.miles_earned != null
-                        ? <span className="text-indigo-600 font-medium">+{Math.round(t.miles_earned).toLocaleString()}</span>
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right hidden md:table-cell text-gray-400 text-xs">
-                      {t.effective_mpd != null ? (() => {
-                        // Manual overrides: use stored manual_mpd as the nominal — it's exactly
-                        // what the user entered and avoids inflation from the reconstruction formula.
-                        // Computed transactions: reconstruct nominal from effective_mpd + block size.
-                        let nomMpd: number
-                        if (isManual && t.manual_mpd != null) {
-                          nomMpd = t.manual_mpd
-                        } else {
-                          const tEarnAmt = card
-                            ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
-                            : t.amount
-                          nomMpd = card && tEarnAmt > 0
-                            ? parseFloat((t.effective_mpd * t.amount / tEarnAmt).toFixed(2))
-                            : t.effective_mpd
-                        }
-                        return (
-                          <span className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
-                            {isManual && (
-                              <span
-                                title={
-                                  t.override_note
-                                    ? `Manual · ${t.override_note} (computed: ${t.computed_mpd} mpd)`
-                                    : `Manual override (computed: ${t.computed_mpd} mpd)`
-                                }
-                              >
-                                <Pencil size={10} className="text-amber-400" />
-                              </span>
-                            )}
+                        )}
+                        <span className="font-medium text-gray-800 truncate">{primaryLabel}</span>
+                      </div>
+                      <span className="text-indigo-600 font-medium text-sm shrink-0">
+                        {t.miles_earned != null ? `+${Math.round(t.miles_earned).toLocaleString()} mi` : '—'}
+                      </span>
+                    </div>
+                    {/* Notes */}
+                    {notesLine && (
+                      <p className="text-xs text-gray-500 mt-0.5 ml-3.5 truncate">{notesLine}</p>
+                    )}
+                    {/* Category · channel · date | amount */}
+                    <div className="flex items-center justify-between mt-1 ml-3.5">
+                      <span className="text-xs text-gray-500">
+                        {cat ? `${cat.icon} ${cat.name}` : ''}
+                        {t.payment_channel === 'contactless' && <span className="text-indigo-400"> · tap</span>}
+                        {t.payment_channel === 'online'      && <span className="text-sky-400"> · online</span>}
+                        <span className="text-gray-400"> · {t.transaction_date}</span>
+                      </span>
+                      <span className="font-medium text-gray-800 text-sm">S${t.amount.toFixed(2)}</span>
+                    </div>
+                    {/* Card name | mpd + actions */}
+                    <div className="flex items-center justify-between mt-0.5 ml-3.5">
+                      <span className="text-xs text-gray-400">
+                        {card ? `${card.bank} ${card.name}` : ''}
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        {nomMpd != null && (
+                          <span className="text-xs text-gray-400 mr-1 flex items-center gap-0.5">
+                            {isManual && <Pencil size={9} className="text-amber-400" />}
                             {nomMpd} mpd
                           </span>
-                        )
-                      })() : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                        )}
                         <button
                           onClick={() => openEdit(t)}
                           className="text-gray-300 hover:text-indigo-500 transition-colors p-1 rounded"
@@ -477,13 +436,140 @@ export default function Transactions() {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 )
               })}
-            </tbody>
-          </table>
-          </div>
+            </div>
+
+            {/* ── Desktop: table (hidden below sm) ── */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                    <SortTh col="date"   label="Date"   active={sortBy} dir={sortDir} onSort={toggleSort} align="left" />
+                    <th className="text-left px-4 py-3">Vendor / Description</th>
+                    <th className="text-left px-4 py-3">Category</th>
+                    <th className="text-left px-4 py-3 hidden md:table-cell">Card</th>
+                    <SortTh col="amount" label="Amount" active={sortBy} dir={sortDir} onSort={toggleSort} align="right" />
+                    <SortTh col="miles"  label="Miles"  active={sortBy} dir={sortDir} onSort={toggleSort} align="right" />
+                    <SortTh col="mpd"    label="MPD"    active={sortBy} dir={sortDir} onSort={toggleSort} align="right" className="hidden md:table-cell" />
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map(t => {
+                    const card = cards.find(c => c.id === t.card_id)
+                    const cat  = categories.find(c => c.id === t.category_id)
+                    const isManual = t.manual_mpd != null
+                    const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
+                    const notesLine = t.vendor_name && t.description ? t.description : null
+                    return (
+                      <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.transaction_date}</td>
+                        <td className="px-4 py-3 text-gray-800">
+                          <span className="block">{primaryLabel}</span>
+                          {notesLine && (
+                            <span className="block text-xs text-gray-500 mt-0.5">{notesLine}</span>
+                          )}
+                          {t.mcc && (
+                            <span className="block text-xs text-gray-400 font-mono mt-0.5">
+                              {t.mcc}
+                              {mccCatalogue.find(m => m.code === t.mcc) && (
+                                <span className="ml-1 not-italic font-sans">
+                                  · {mccCatalogue.find(m => m.code === t.mcc)!.description}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">
+                          {cat ? `${cat.icon} ${cat.name}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          {card ? (
+                            <span className="flex items-center gap-1.5">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: card.color }}
+                              />
+                              <span className="text-gray-700">{card.bank} {card.name}</span>
+                              {t.payment_channel === 'contactless' && (
+                                <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1 rounded">tap</span>
+                              )}
+                              {t.payment_channel === 'online' && (
+                                <span className="text-[10px] text-sky-500 bg-sky-50 px-1 rounded">online</span>
+                              )}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-800">
+                          S${t.amount.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {t.miles_earned != null
+                            ? <span className="text-indigo-600 font-medium">+{Math.round(t.miles_earned).toLocaleString()}</span>
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right hidden md:table-cell text-gray-400 text-xs">
+                          {t.effective_mpd != null ? (() => {
+                            // Manual overrides: use stored manual_mpd as the nominal — it's exactly
+                            // what the user entered and avoids inflation from the reconstruction formula.
+                            // Computed transactions: reconstruct nominal from effective_mpd + block size.
+                            let nomMpd: number
+                            if (isManual && t.manual_mpd != null) {
+                              nomMpd = t.manual_mpd
+                            } else {
+                              const tEarnAmt = card
+                                ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
+                                : t.amount
+                              nomMpd = card && tEarnAmt > 0
+                                ? parseFloat((t.effective_mpd * t.amount / tEarnAmt).toFixed(2))
+                                : t.effective_mpd
+                            }
+                            return (
+                              <span className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+                                {isManual && (
+                                  <span
+                                    title={
+                                      t.override_note
+                                        ? `Manual · ${t.override_note} (computed: ${t.computed_mpd} mpd)`
+                                        : `Manual override (computed: ${t.computed_mpd} mpd)`
+                                    }
+                                  >
+                                    <Pencil size={10} className="text-amber-400" />
+                                  </span>
+                                )}
+                                {nomMpd} mpd
+                              </span>
+                            )
+                          })() : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => openEdit(t)}
+                              className="text-gray-300 hover:text-indigo-500 transition-colors p-1 rounded"
+                              title="Edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(t.id)}
+                              className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
