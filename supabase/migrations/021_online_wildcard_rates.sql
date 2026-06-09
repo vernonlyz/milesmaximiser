@@ -73,10 +73,13 @@ WHERE NOT EXISTS (
     AND category_id IS NULL AND cap_payment_channel = 'online'
 );
 
--- The fashion (011) cap stays as a separate $1,000/month category cap.
--- Note: Citi's actual combined online+fashion cap ($1,000/month total) cannot be
--- modelled as a single shared limit when using mixed cap types; online and fashion
--- caps therefore track separately in the engine.
+-- Remove the fashion category cap too. The fashion rate still earns 4 mpd in-store,
+-- but showing two separate $1,000 bars on the dashboard implies $2,000 of headroom
+-- when Citi's actual limit is $1,000 combined. The online channel cap is the
+-- primary limit users need to track.
+DELETE FROM library_caps
+WHERE card_id    = '00000000-0000-0000-0001-000000000017'
+  AND category_id = '00000000-0000-0000-0000-000000000011';  -- fashion cap
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- default_payment_channel: auto-select "Online" in the log form for these cards

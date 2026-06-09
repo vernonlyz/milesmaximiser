@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
@@ -17,6 +17,8 @@ const EMPTY_FORM: TransactionFormData = {
   description: '',
   transaction_date: isoDate(),
 }
+
+type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 
 export default function Transactions() {
   const { cards, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, refreshTransactions } = useApp()
@@ -45,6 +47,16 @@ export default function Transactions() {
   const [filterMonth, setFilterMonth] = useState(isoDate().slice(0, 7))
   const [filterCat, setFilterCat] = useState('')
   const [filterCard, setFilterCard] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Sort
+  const [sortBy, setSortBy] = useState<SortCol>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  function toggleSort(col: SortCol) {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('desc') }
+  }
 
   // Engine-computed MPD for the current form selection
   const computedMpd = useMemo(() => {
@@ -207,15 +219,25 @@ export default function Transactions() {
     refreshTransactions()
   }
 
-  // Filtered transactions
+  // Filtered + sorted transactions
   const filtered = useMemo(() => {
-    return transactions.filter(t => {
+    const q = searchQuery.trim().toLowerCase()
+    const result = transactions.filter(t => {
       if (filterMonth && !t.transaction_date.startsWith(filterMonth)) return false
       if (filterCat && t.category_id !== filterCat) return false
       if (filterCard && t.card_id !== filterCard) return false
+      if (q && !t.vendor_name?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false
       return true
     })
-  }, [transactions, filterMonth, filterCat, filterCard])
+    return [...result].sort((a, b) => {
+      let v = 0
+      if (sortBy === 'date')   v = a.transaction_date.localeCompare(b.transaction_date)
+      if (sortBy === 'amount') v = a.amount - b.amount
+      if (sortBy === 'miles')  v = (a.miles_earned ?? 0) - (b.miles_earned ?? 0)
+      if (sortBy === 'mpd')    v = (a.effective_mpd ?? 0) - (b.effective_mpd ?? 0)
+      return sortDir === 'desc' ? -v : v
+    })
+  }, [transactions, filterMonth, filterCat, filterCard, searchQuery, sortBy, sortDir])
 
   const totalMiles = filtered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = filtered.reduce((s, t) => s + t.amount, 0)
@@ -307,7 +329,23 @@ export default function Transactions() {
           <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
 
-        <div className="ml-auto flex gap-4 items-center text-sm text-gray-500">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search vendor or notes…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="input pl-7 text-sm w-full"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        <div className="ml-auto flex gap-4 items-center text-sm text-gray-500 shrink-0">
           <span>S${totalSpent.toFixed(2)} spent</span>
           <span className="text-indigo-600 font-medium">+{Math.round(totalMiles).toLocaleString()} miles</span>
         </div>
@@ -321,13 +359,13 @@ export default function Transactions() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-4 py-3">Date</th>
+                <SortTh col="date"   label="Date"   active={sortBy} dir={sortDir} onSort={toggleSort} align="left" />
                 <th className="text-left px-4 py-3">Vendor / Description</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Category</th>
                 <th className="text-left px-4 py-3 hidden md:table-cell">Card</th>
-                <th className="text-right px-4 py-3">Amount</th>
-                <th className="text-right px-4 py-3 hidden sm:table-cell">Miles</th>
-                <th className="text-right px-4 py-3 hidden md:table-cell">MPD</th>
+                <SortTh col="amount" label="Amount" active={sortBy} dir={sortDir} onSort={toggleSort} align="right" />
+                <SortTh col="miles"  label="Miles"  active={sortBy} dir={sortDir} onSort={toggleSort} align="right" className="hidden sm:table-cell" />
+                <SortTh col="mpd"    label="MPD"    active={sortBy} dir={sortDir} onSort={toggleSort} align="right" className="hidden md:table-cell" />
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -727,5 +765,27 @@ export default function Transactions() {
         </Modal>
       )}
     </div>
+  )
+}
+
+function SortTh({
+  col, label, active, dir, onSort, align, className = '',
+}: {
+  col: SortCol; label: string; active: SortCol; dir: 'asc' | 'desc'
+  onSort: (col: SortCol) => void; align: 'left' | 'right'; className?: string
+}) {
+  const isActive = active === col
+  return (
+    <th
+      className={`px-4 py-3 cursor-pointer select-none whitespace-nowrap ${
+        align === 'right' ? 'text-right' : 'text-left'
+      } ${isActive ? 'text-indigo-600' : 'hover:text-gray-700'} ${className}`}
+      onClick={() => onSort(col)}
+    >
+      {label}
+      <span className="ml-1 inline-block w-3 text-center">
+        {isActive ? (dir === 'desc' ? '↓' : '↑') : '↕'}
+      </span>
+    </th>
   )
 }

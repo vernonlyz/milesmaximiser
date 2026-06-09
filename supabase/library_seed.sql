@@ -55,7 +55,7 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000016', 'XL Rewards',               'Maybank',           'Visa',       0.4,  '#FF8F00', '12 months',
      ARRAY['Age restriction: applicants must be 21–39 at time of application', 'S$500/month minimum spend required to unlock 4 mpd bonus rates', 'S$1,000/month combined cap on all bonus categories', '4 mpd on ALL foreign currency spend (no MCC restrictions)', 'Annual fee waived first 2 years, then waivable with S$6,000 annual spend'], 'calendar', 5),
   ('00000000-0000-0000-0001-000000000017', 'Rewards Mastercard',       'Citibank',          'Mastercard', 0.4,  '#0288D1', '5 years',
-     ARRAY['4 mpd on all online purchases (any category) and in-store fashion', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month cap on online purchases; S$1,000/month cap on in-store fashion (tracked separately)', 'No lounge access'], 'statement', 1)
+     ARRAY['4 mpd on all online purchases (any category) and in-store fashion', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month combined cap on 4 mpd spend (online + in-store fashion)', 'No lounge access'], 'statement', 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -143,8 +143,7 @@ INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, effecti
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000006','monthly', 1000.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000007','monthly', 1000.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000004','monthly', 1000.00,'2000-01-01'),
-  -- Citi Rewards Mastercard — S$1,000/month online channel cap added below; fashion cap separate
-  ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000011','monthly', 1000.00,'2000-01-01')  -- fashion (011) in-store cap
+  -- Citi Rewards Mastercard — S$1,000/month online channel cap added below; no fashion cap
 ON CONFLICT DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -288,9 +287,12 @@ WHERE NOT EXISTS (
     AND category_id IS NULL AND cap_payment_channel = 'online'
 );
 
--- Citi Rewards: S$1,000/month on all online purchases (fashion in-store has separate $1,000/month cap)
+-- Citi Rewards: S$1,000/month on all online purchases (fashion earns 4 mpd in-store with no separate cap)
 DELETE FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000017'
-  AND category_id = '00000000-0000-0000-0000-000000000004';  -- remove stale Online Shopping cap if present
+  AND category_id IN (
+    '00000000-0000-0000-0000-000000000004',  -- stale Online Shopping cap
+    '00000000-0000-0000-0000-000000000011'   -- fashion cap (removed — dashboard shows Online only)
+  );
 
 INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
 SELECT '00000000-0000-0000-0001-000000000017', NULL, 'monthly', 1000.00, 'online', '2000-01-01'
