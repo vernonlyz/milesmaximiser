@@ -211,7 +211,7 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
         ) : (
           <div className="text-right shrink-0">
             <p className="text-xl font-bold text-gray-900">
-              {rec.effectiveMpd.toFixed(2)}
+              {rec.bonusMpd.toFixed(2)}
               <span className="text-sm font-normal text-gray-400 ml-1">mpd</span>
             </p>
             <p className="text-xs text-indigo-600 font-medium">

@@ -231,6 +231,18 @@ export default function Transactions() {
     ? Math.round(parseFloat(form.amount) * previewMpd)
     : null
 
+  // Nominal MPD for the current form — strips out the rounding factor so we show "4 mpd"
+  // rather than the slightly-lower effective value (e.g. 3.96 mpd on a $13.80 / $5-block card).
+  // earnAmount is the amount the bank actually awards miles on.
+  const formCard = cards.find(c => c.id === form.card_id)
+  const formAmt = parseFloat(form.amount) || 0
+  const earnAmount = formCard && formAmt > 0
+    ? Math.floor(formAmt / formCard.earn_increment) * formCard.earn_increment
+    : formAmt
+  const nominalComputedMpd = computedMpd != null && earnAmount > 0
+    ? parseFloat((computedMpd * formAmt / earnAmount).toFixed(4))
+    : computedMpd
+
   // MCC display helper
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
 
@@ -364,22 +376,30 @@ export default function Transactions() {
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-right hidden md:table-cell text-gray-400 text-xs">
-                      {t.effective_mpd != null ? (
-                        <span className="inline-flex items-center justify-end gap-1">
-                          {isManual && (
-                            <span
-                              title={
-                                t.override_note
-                                  ? `Manual · ${t.override_note} (computed: ${t.computed_mpd} mpd)`
-                                  : `Manual override (computed: ${t.computed_mpd} mpd)`
-                              }
-                            >
-                              <Pencil size={10} className="text-amber-400" />
-                            </span>
-                          )}
-                          {t.effective_mpd} mpd
-                        </span>
-                      ) : '—'}
+                      {t.effective_mpd != null ? (() => {
+                        const tEarnAmt = card
+                          ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
+                          : t.amount
+                        const nomMpd = card && tEarnAmt > 0
+                          ? parseFloat((t.effective_mpd * t.amount / tEarnAmt).toFixed(2))
+                          : t.effective_mpd
+                        return (
+                          <span className="inline-flex items-center justify-end gap-1">
+                            {isManual && (
+                              <span
+                                title={
+                                  t.override_note
+                                    ? `Manual · ${t.override_note} (computed: ${t.computed_mpd} mpd)`
+                                    : `Manual override (computed: ${t.computed_mpd} mpd)`
+                                }
+                              >
+                                <Pencil size={10} className="text-amber-400" />
+                              </span>
+                            )}
+                            {nomMpd} mpd
+                          </span>
+                        )
+                      })() : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -545,7 +565,7 @@ export default function Transactions() {
                   </span>
                   <StatusBadge status={rec.status} />
                   <span className="font-semibold whitespace-nowrap">
-                    {rec.effectiveMpd.toFixed(2)} mpd
+                    {rec.bonusMpd.toFixed(2)} mpd
                   </span>
                 </button>
               ))}
@@ -617,15 +637,22 @@ export default function Transactions() {
                     onClick={resetOverride}
                     className="text-xs text-gray-400 hover:text-gray-600"
                   >
-                    ↺ Reset to computed ({computedMpd.toFixed(2)} mpd)
+                    ↺ Reset to computed ({nominalComputedMpd?.toFixed(2)} mpd)
                   </button>
                 )}
               </div>
 
               {!mpdOverrideActive ? (
-                <div className="input bg-gray-50 flex items-center justify-between text-gray-600 cursor-default select-none">
-                  <span>{computedMpd.toFixed(2)} mpd</span>
-                  <span className="text-xs text-gray-400">computed</span>
+                <div className="space-y-1">
+                  <div className="input bg-gray-50 flex items-center justify-between text-gray-600 cursor-default select-none">
+                    <span>{nominalComputedMpd?.toFixed(2)} mpd</span>
+                    <span className="text-xs text-gray-400">computed</span>
+                  </div>
+                  {formCard && earnAmount > 0 && earnAmount !== formAmt && (
+                    <p className="text-xs text-gray-400">
+                      earns on S${earnAmount.toFixed(2)} of S${formAmt.toFixed(2)} (rounded to ${formCard.earn_increment} block)
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -634,7 +661,7 @@ export default function Transactions() {
                       type="number"
                       step="0.1"
                       min="0"
-                      placeholder={computedMpd.toFixed(2)}
+                      placeholder={nominalComputedMpd?.toFixed(2)}
                       value={manualMpd}
                       onChange={e => setManualMpd(e.target.value)}
                       className="input flex-1"
