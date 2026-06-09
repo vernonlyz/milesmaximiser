@@ -129,11 +129,18 @@ export default function Dashboard() {
           }
         }
         const cat = firstCap.category_id ? categories.find(c => c.id === firstCap.category_id) : null
-        const spentKey = `${firstCap.card_id}:${firstCap.category_id ?? 'global'}`
+        const spentKey = firstCap.cap_payment_channel
+          ? `${firstCap.card_id}:channel:${firstCap.cap_payment_channel}:${firstCap.cap_period}`
+          : `${firstCap.card_id}:${firstCap.category_id ?? 'global'}`
+        const label = firstCap.cap_payment_channel === 'contactless'
+          ? 'Tap to pay'
+          : firstCap.cap_payment_channel === 'online'
+            ? 'Online'
+            : cat ? `${cat.icon} ${cat.name}` : 'All spend'
         const spent = periodSpending.get(spentKey) ?? 0
         return {
           key: firstCap.id,
-          label: cat ? `${cat.icon} ${cat.name}` : 'All spend',
+          label,
           spent,
           limit: firstCap.spend_limit ?? 0,
           period: getPeriodLabel(firstCap.cap_period),
