@@ -101,7 +101,7 @@ export interface CardRecommendation {
   capAmount: number | null
   capPeriod: string | null
   status: 'optimal' | 'partial' | 'capped' | 'base' | 'locked'
-  // Present only when status === 'locked' (min spend threshold not yet met)
+  // Non-null when the cap has a min_spend threshold (regardless of whether it's met)
   minSpendRequired: number | null
   totalCardSpent: number | null
   // Payment channel required to earn the bonus rate; null = no restriction

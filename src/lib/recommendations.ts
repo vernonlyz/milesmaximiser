@@ -275,22 +275,29 @@ function getEffectiveForCard(
 
   if (!cap || cap.spend_limit === null) return noCapResult()
 
-  // Min spend threshold check
-  if (cap.min_spend != null && cap.cap_period !== 'per_transaction') {
-    const totalKey = `${cap.card_id}:total:${cap.cap_period}`
-    const totalSpent = periodSpending.get(totalKey) ?? 0
-    if (totalSpent < cap.min_spend) {
-      return {
-        effectiveMpd: card.base_mpd,
-        milesEarned: amount * card.base_mpd,
-        capRemaining: null,
-        capAmount: cap.spend_limit,
-        capPeriod: cap.cap_period,
-        status: 'locked',
-        minSpendRequired: cap.min_spend,
-        totalCardSpent: totalSpent,
-        requiredPaymentChannel: requiredChannel,
-      }
+  // Min spend threshold: compute total period spend so it's available in all return paths
+  const hasMindSpend = cap.min_spend != null && cap.cap_period !== 'per_transaction'
+  const totalKey = hasMindSpend ? `${cap.card_id}:total:${cap.cap_period}` : null
+  const totalSpent: number | null = totalKey ? (periodSpending.get(totalKey) ?? 0) : null
+
+  if (hasMindSpend && totalSpent !== null && totalSpent < cap.min_spend!) {
+    // Card is locked: also expose cap headroom so RecCard can render both bars
+    const lockedSpentKey = cap.cap_payment_channel
+      ? `${cap.card_id}:channel:${cap.cap_payment_channel}:${cap.cap_period}`
+      : cap.cap_group
+        ? `${cap.card_id}:group:${cap.cap_group}`
+        : `${cap.card_id}:${cap.category_id ?? 'global'}`
+    const alreadySpent = periodSpending.get(lockedSpentKey) ?? 0
+    return {
+      effectiveMpd: card.base_mpd,
+      milesEarned: amount * card.base_mpd,
+      capRemaining: Math.max(0, cap.spend_limit - alreadySpent),
+      capAmount: cap.spend_limit,
+      capPeriod: cap.cap_period,
+      status: 'locked',
+      minSpendRequired: cap.min_spend,
+      totalCardSpent: totalSpent,
+      requiredPaymentChannel: requiredChannel,
     }
   }
 
@@ -330,8 +337,8 @@ function getEffectiveForCard(
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
       status: 'capped',
-      minSpendRequired: null,
-      totalCardSpent: null,
+      minSpendRequired: cap.min_spend ?? null,
+      totalCardSpent: totalSpent,
       requiredPaymentChannel: requiredChannel,
     }
   }
@@ -344,8 +351,8 @@ function getEffectiveForCard(
       capAmount: cap.spend_limit,
       capPeriod: cap.cap_period,
       status: 'optimal',
-      minSpendRequired: null,
-      totalCardSpent: null,
+      minSpendRequired: cap.min_spend ?? null,
+      totalCardSpent: totalSpent,
       requiredPaymentChannel: requiredChannel,
     }
   }
@@ -360,8 +367,8 @@ function getEffectiveForCard(
     capAmount: cap.spend_limit,
     capPeriod: cap.cap_period,
     status: 'partial',
-    minSpendRequired: null,
-    totalCardSpent: null,
+    minSpendRequired: cap.min_spend ?? null,
+    totalCardSpent: totalSpent,
     requiredPaymentChannel: requiredChannel,
   }
 }

@@ -221,18 +221,21 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
         )}
       </div>
 
-      {/* Threshold progress bar for locked cards */}
-      {rec.status === 'locked' && rec.minSpendRequired !== null && rec.totalCardSpent !== null && (
+      {/* Min-spend threshold bar — visible for any card with a threshold */}
+      {rec.minSpendRequired !== null && rec.totalCardSpent !== null && (
         <div className="mt-3 ml-10">
-          <div className="flex justify-between text-xs text-gray-400 mb-1">
-            <span>Min spend to unlock {rec.bonusMpd} mpd</span>
-            <span className="tabular-nums">
-              {formatSGD(rec.totalCardSpent)} / {formatSGD(rec.minSpendRequired)}
+          <div className="flex justify-between text-xs mb-1">
+            {rec.status === 'locked'
+              ? <span className="text-gray-400">Min spend to unlock {rec.bonusMpd} mpd</span>
+              : <span className="text-emerald-600">Threshold met ✓</span>
+            }
+            <span className="tabular-nums text-gray-400">
+              {formatSGD(Math.min(rec.totalCardSpent, rec.minSpendRequired))} / {formatSGD(rec.minSpendRequired)}
             </span>
           </div>
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-indigo-300"
+              className={`h-full rounded-full ${rec.status === 'locked' ? 'bg-indigo-300' : 'bg-emerald-400'}`}
               style={{
                 width: `${Math.min((rec.totalCardSpent / rec.minSpendRequired) * 100, 100)}%`,
               }}
@@ -241,26 +244,29 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
         </div>
       )}
 
-      {/* Cap progress bar */}
-      {rec.capAmount !== null && rec.capPeriod !== 'per_transaction' && rec.status !== 'locked' && (
+      {/* Cap usage bar — visible whenever we have cap data (including locked cards) */}
+      {rec.capAmount !== null && rec.capPeriod !== 'per_transaction' && rec.capRemaining !== null && (
         <div className="mt-3 ml-10">
           <div className="flex justify-between text-xs text-gray-400 mb-1">
-            <span>Cap usage this {rec.capPeriod?.replace('ly', '')}</span>
             <span>
-              {rec.capAmount !== null && rec.capRemaining !== null
-                ? `${formatSGD(rec.capAmount - rec.capRemaining)} / ${formatSGD(rec.capAmount)}`
-                : ''}
+              {rec.status === 'locked'
+                ? 'Cap tracker'
+                : `Cap usage this ${rec.capPeriod?.replace('ly', '')}`}
+            </span>
+            <span className="tabular-nums">
+              {`${formatSGD(rec.capAmount - rec.capRemaining)} / ${formatSGD(rec.capAmount)}`}
             </span>
           </div>
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full ${
+                rec.status === 'locked' ? 'bg-gray-300' :
                 rec.status === 'capped' ? 'bg-red-400' :
                 rec.status === 'partial' ? 'bg-amber-400' : 'bg-emerald-400'
               }`}
               style={{
                 width: rec.capAmount
-                  ? `${Math.min(((rec.capAmount - (rec.capRemaining ?? 0)) / rec.capAmount) * 100, 100)}%`
+                  ? `${Math.min(((rec.capAmount - rec.capRemaining) / rec.capAmount) * 100, 100)}%`
                   : '0%',
               }}
             />
