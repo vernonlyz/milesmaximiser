@@ -188,6 +188,7 @@ type EffResult = {
   status: CardRecommendation['status']
   minSpendRequired: number | null
   totalCardSpent: number | null
+  requiredPaymentChannel: 'contactless' | 'online' | null
 }
 
 function getEffectiveForCard(
@@ -196,14 +197,19 @@ function getEffectiveForCard(
   resolvedCaps: SpendingCap[],
   categoryId: string,
   amount: number,
-  periodSpending: Map<string, number>
+  periodSpending: Map<string, number>,
+  paymentChannel: 'contactless' | 'online' | null = null
 ): EffResult {
   const rateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
-  const bonusMpd = rateRow?.mpd ?? card.base_mpd
+  const requiredChannel = rateRow?.payment_channel ?? null
 
-  const cap =
-    resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId) ??
-    resolvedCaps.find(c => c.card_id === card.id && c.category_id === null)
+  // When a filter is active and the rate requires a different channel, earn base rate only.
+  const channelBlocked =
+    requiredChannel !== null &&
+    paymentChannel !== null &&
+    requiredChannel !== paymentChannel
+
+  const bonusMpd = (rateRow && !channelBlocked) ? rateRow.mpd : card.base_mpd
 
   const noCapResult = (status: CardRecommendation['status'] = bonusMpd === card.base_mpd ? 'base' : 'optimal'): EffResult => ({
     effectiveMpd: bonusMpd,
@@ -214,7 +220,14 @@ function getEffectiveForCard(
     status,
     minSpendRequired: null,
     totalCardSpent: null,
+    requiredPaymentChannel: requiredChannel,
   })
+
+  if (channelBlocked) return noCapResult()
+
+  const cap =
+    resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId) ??
+    resolvedCaps.find(c => c.card_id === card.id && c.category_id === null)
 
   if (!cap || cap.spend_limit === null) return noCapResult()
 
@@ -232,6 +245,7 @@ function getEffectiveForCard(
         status: 'locked',
         minSpendRequired: cap.min_spend,
         totalCardSpent: totalSpent,
+        requiredPaymentChannel: requiredChannel,
       }
     }
   }
@@ -250,6 +264,7 @@ function getEffectiveForCard(
       status: overflow > 0 ? 'partial' : 'optimal',
       minSpendRequired: null,
       totalCardSpent: null,
+      requiredPaymentChannel: requiredChannel,
     }
   }
 
@@ -269,6 +284,7 @@ function getEffectiveForCard(
       status: 'capped',
       minSpendRequired: null,
       totalCardSpent: null,
+      requiredPaymentChannel: requiredChannel,
     }
   }
 
@@ -282,6 +298,7 @@ function getEffectiveForCard(
       status: 'optimal',
       minSpendRequired: null,
       totalCardSpent: null,
+      requiredPaymentChannel: requiredChannel,
     }
   }
 
@@ -297,6 +314,7 @@ function getEffectiveForCard(
     status: 'partial',
     minSpendRequired: null,
     totalCardSpent: null,
+    requiredPaymentChannel: requiredChannel,
   }
 }
 
@@ -312,7 +330,8 @@ export function recommendCards(
   amount: number,
   transactions: Transaction[],
   transactionDate: Date = new Date(),
-  overrides: CategoryOverride[] = []
+  overrides: CategoryOverride[] = [],
+  paymentChannel: 'contactless' | 'online' | null = null
 ): CardRecommendation[] {
   if (!categoryId || amount <= 0) return []
 
@@ -335,28 +354,41 @@ export function recommendCards(
     .map(card => {
       const rateRow = resolved.find(r => r.card_id === card.id && r.category_id === categoryId)
       const bonusMpd = rateRow?.mpd ?? card.base_mpd
-      const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending)
+      const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel)
+
+      const channelNote = eff.requiredPaymentChannel === 'contactless' ? ' · tap to pay'
+        : eff.requiredPaymentChannel === 'online' ? ' · online only'
+        : ''
 
       let reason = ''
       switch (eff.status) {
         case 'optimal':
           reason = eff.capRemaining !== null
-            ? `${bonusMpd} mpd · ${formatSGD(eff.capRemaining)} cap remaining`
-            : `${bonusMpd} mpd · no cap`
+            ? `${bonusMpd} mpd · ${formatSGD(eff.capRemaining)} cap remaining${channelNote}`
+            : `${bonusMpd} mpd · no cap${channelNote}`
           break
         case 'partial':
-          reason = `${bonusMpd} mpd for first ${formatSGD(eff.capRemaining!)} · ${card.base_mpd} mpd after`
+          reason = `${bonusMpd} mpd for first ${formatSGD(eff.capRemaining!)} · ${card.base_mpd} mpd after${channelNote}`
           break
         case 'capped':
           reason = `Cap reached · falls back to ${card.base_mpd} mpd base rate`
           break
         case 'base':
-          reason = `${bonusMpd} mpd base rate (no category bonus)`
+          if (
+            eff.requiredPaymentChannel !== null &&
+            paymentChannel !== null &&
+            eff.requiredPaymentChannel !== paymentChannel
+          ) {
+            const channelLabel = eff.requiredPaymentChannel === 'contactless' ? 'tap to pay' : 'online purchase'
+            reason = `${card.base_mpd} mpd base rate · ${bonusMpd} mpd needs ${channelLabel}`
+          } else {
+            reason = `${bonusMpd} mpd base rate (no category bonus)`
+          }
           break
         case 'locked': {
           const needed = eff.minSpendRequired! - eff.totalCardSpent!
           const period = eff.capPeriod?.replace('ly', '') ?? 'month'
-          reason = `Spend ${formatSGD(needed)} more this ${period} to unlock ${bonusMpd} mpd (need ${formatSGD(eff.minSpendRequired!)} total · ${formatSGD(eff.totalCardSpent!)} so far)`
+          reason = `Spend ${formatSGD(needed)} more this ${period} to unlock ${bonusMpd} mpd (need ${formatSGD(eff.minSpendRequired!)} total · ${formatSGD(eff.totalCardSpent!)} so far)${channelNote}`
           break
         }
       }
@@ -372,6 +404,7 @@ export function recommendCards(
         reason,
         minSpendRequired: eff.minSpendRequired,
         totalCardSpent: eff.totalCardSpent,
+        requiredPaymentChannel: eff.requiredPaymentChannel,
       } satisfies CardRecommendation
     })
     .sort((a, b) => {

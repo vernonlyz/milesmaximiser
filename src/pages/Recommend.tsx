@@ -12,6 +12,7 @@ export default function Recommend() {
 
   const [categoryId, setCategoryId] = useState('')
   const [amountStr, setAmountStr] = useState('')
+  const [paymentChannel, setPaymentChannel] = useState<'contactless' | 'online' | null>(null)
 
   // Vendor / MCC state
   const [vendorName, setVendorName] = useState('')
@@ -22,8 +23,8 @@ export default function Recommend() {
 
   const recs = useMemo<CardRecommendation[]>(() => {
     if (!categoryId || amount <= 0) return []
-    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides)
-  }, [cards, rates, caps, categoryId, amount, transactions, overrides])
+    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides, paymentChannel)
+  }, [cards, rates, caps, categoryId, amount, transactions, overrides, paymentChannel])
 
   const cat = categories.find(c => c.id === categoryId)
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
@@ -113,6 +114,29 @@ export default function Recommend() {
               onChange={e => setAmountStr(e.target.value)}
               className="input"
             />
+          </div>
+        </div>
+
+        {/* Payment method filter */}
+        <div>
+          <label className="label">
+            Payment Method <span className="text-gray-400 font-normal text-xs">(optional — filters channel-specific bonuses)</span>
+          </label>
+          <div className="flex gap-2">
+            {([null, 'contactless', 'online'] as const).map(mode => (
+              <button
+                key={mode ?? 'any'}
+                type="button"
+                onClick={() => setPaymentChannel(mode)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  paymentChannel === mode
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                }`}
+              >
+                {mode === null ? 'Any' : mode === 'contactless' ? 'Tap to pay' : 'Online'}
+              </button>
+            ))}
           </div>
         </div>
       </div>

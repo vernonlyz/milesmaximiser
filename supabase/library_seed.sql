@@ -175,3 +175,37 @@ UPDATE library_caps SET min_spend = 1000 WHERE card_id = '00000000-0000-0000-000
 
 -- Maybank XL Rewards: S$500/month total card spend required to unlock 4 mpd
 UPDATE library_caps SET min_spend = 500  WHERE card_id = '00000000-0000-0000-0001-000000000016';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Payment channel requirements on bonus rates
+-- 'contactless' = must tap to pay; 'online' = must be an online purchase.
+-- NULL (default) = any payment method earns the bonus.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- DBS Woman's World: online shopping bonus requires online purchase
+UPDATE library_rates SET payment_channel = 'online'
+WHERE card_id = '00000000-0000-0000-0001-000000000002'
+  AND category_id = '00000000-0000-0000-0000-000000000004';
+
+-- SC Journey: dining/groceries/transport bonus applies to online SGD transactions only
+UPDATE library_rates SET payment_channel = 'online'
+WHERE card_id = '00000000-0000-0000-0001-000000000004'
+  AND category_id IN (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000008'
+  );
+
+-- UOB Visa Signature: transport bonus via contactless tap only
+UPDATE library_rates SET payment_channel = 'contactless'
+WHERE card_id = '00000000-0000-0000-0001-000000000012'
+  AND category_id = '00000000-0000-0000-0000-000000000008';
+
+-- UOB Preferred Platinum Visa: online shopping → online; transport → contactless
+UPDATE library_rates SET payment_channel = 'online'
+WHERE card_id = '00000000-0000-0000-0001-000000000013'
+  AND category_id = '00000000-0000-0000-0000-000000000004';
+
+UPDATE library_rates SET payment_channel = 'contactless'
+WHERE card_id = '00000000-0000-0000-0001-000000000013'
+  AND category_id = '00000000-0000-0000-0000-000000000008';

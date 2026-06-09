@@ -26,6 +26,7 @@ export interface CardRate {
   card_id: string
   category_id: string
   mpd: number
+  payment_channel: 'contactless' | 'online' | null  // null = any payment method earns the bonus
   effective_from: string
 }
 
@@ -98,6 +99,8 @@ export interface CardRecommendation {
   // Present only when status === 'locked' (min spend threshold not yet met)
   minSpendRequired: number | null
   totalCardSpent: number | null
+  // Payment channel required to earn the bonus rate; null = no restriction
+  requiredPaymentChannel: 'contactless' | 'online' | null
   reason: string
 }
 
