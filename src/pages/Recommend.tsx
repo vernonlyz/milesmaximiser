@@ -199,19 +199,50 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
         </div>
 
         {/* MPD + miles */}
-        <div className="text-right shrink-0">
-          <p className="text-xl font-bold text-gray-900">
-            {rec.effectiveMpd.toFixed(2)}
-            <span className="text-sm font-normal text-gray-400 ml-1">mpd</span>
-          </p>
-          <p className="text-xs text-indigo-600 font-medium">
-            +{Math.round(rec.milesEarned).toLocaleString()} miles
-          </p>
-        </div>
+        {rec.status === 'locked' ? (
+          <div className="text-right shrink-0">
+            <p className="text-xl font-bold text-indigo-400">
+              {rec.bonusMpd.toFixed(2)}
+              <span className="text-sm font-normal text-indigo-300 ml-1">mpd</span>
+            </p>
+            <p className="text-xs text-gray-400">potential</p>
+            <p className="text-xs text-gray-400 mt-0.5">{rec.card.base_mpd.toFixed(2)} mpd now</p>
+          </div>
+        ) : (
+          <div className="text-right shrink-0">
+            <p className="text-xl font-bold text-gray-900">
+              {rec.effectiveMpd.toFixed(2)}
+              <span className="text-sm font-normal text-gray-400 ml-1">mpd</span>
+            </p>
+            <p className="text-xs text-indigo-600 font-medium">
+              +{Math.round(rec.milesEarned).toLocaleString()} miles
+            </p>
+          </div>
+        )}
       </div>
 
+      {/* Threshold progress bar for locked cards */}
+      {rec.status === 'locked' && rec.minSpendRequired !== null && rec.totalCardSpent !== null && (
+        <div className="mt-3 ml-10">
+          <div className="flex justify-between text-xs text-gray-400 mb-1">
+            <span>Min spend to unlock {rec.bonusMpd} mpd</span>
+            <span className="tabular-nums">
+              {formatSGD(rec.totalCardSpent)} / {formatSGD(rec.minSpendRequired)}
+            </span>
+          </div>
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-indigo-300"
+              style={{
+                width: `${Math.min((rec.totalCardSpent / rec.minSpendRequired) * 100, 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Cap progress bar */}
-      {rec.capAmount !== null && rec.capPeriod !== 'per_transaction' && (
+      {rec.capAmount !== null && rec.capPeriod !== 'per_transaction' && rec.status !== 'locked' && (
         <div className="mt-3 ml-10">
           <div className="flex justify-between text-xs text-gray-400 mb-1">
             <span>Cap usage this {rec.capPeriod?.replace('ly', '')}</span>

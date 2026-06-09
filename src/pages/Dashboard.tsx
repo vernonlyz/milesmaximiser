@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle } from 'lucide-react'
+import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
 import { SpendingCap } from '../lib/types'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
-import { currentMonthLabel, getPeriodLabel } from '../lib/utils'
+import { currentMonthLabel, getPeriodLabel, formatSGD } from '../lib/utils'
 import { isOnboarded } from './Onboarding'
 
 export default function Dashboard() {
@@ -49,6 +49,49 @@ export default function Dashboard() {
     () => buildPeriodSpending(transactions, effectiveCaps, now),
     [transactions, effectiveCaps]
   )
+
+  // Min spend milestones — wallet cards that have a threshold requirement
+  const milestones = useMemo(() => {
+    const seen = new Set<string>()
+    const result: Array<{
+      card: typeof cards[number]
+      minSpend: number
+      totalSpent: number
+      capPeriod: string
+      daysLeft: number
+    }> = []
+
+    for (const cap of effectiveCaps) {
+      if (cap.min_spend == null || cap.cap_period === 'per_transaction') continue
+      const key = `${cap.card_id}:${cap.cap_period}`
+      if (seen.has(key)) continue
+      seen.add(key)
+
+      const card = cards.find(c => c.id === cap.card_id)
+      if (!card) continue
+
+      const totalSpent = periodSpending.get(`${cap.card_id}:total:${cap.cap_period}`) ?? 0
+
+      // Days left in the current period
+      const year = now.getFullYear()
+      const month = now.getMonth()
+      let periodEnd: Date
+      if (cap.cap_period === 'monthly') {
+        periodEnd = new Date(year, month + 1, 0)
+      } else if (cap.cap_period === 'quarterly') {
+        const quarterEndMonth = Math.ceil((month + 1) / 3) * 3 - 1
+        periodEnd = new Date(year, quarterEndMonth + 1, 0)
+      } else {
+        periodEnd = new Date(year, 11, 31)
+      }
+      const daysLeft = Math.max(1, Math.ceil((periodEnd.getTime() - now.getTime()) / 86400000))
+
+      result.push({ card, minSpend: cap.min_spend, totalSpent, capPeriod: cap.cap_period, daysLeft })
+    }
+
+    // Most progress (closest to threshold) first
+    return result.sort((a, b) => (b.totalSpent / b.minSpend) - (a.totalSpent / a.minSpend))
+  }, [effectiveCaps, cards, periodSpending])
 
   // Build per-card summary
   const cardSummaries = useMemo(() => {
@@ -207,6 +250,61 @@ export default function Dashboard() {
           bg="bg-amber-50"
         />
       </div>
+
+      {/* Spend milestones — cards with min spend thresholds */}
+      {milestones.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Target size={16} className="text-indigo-600" />
+            <h2 className="font-semibold text-gray-800">Spend Milestones</h2>
+            <span className="text-xs text-gray-400">unlock bonus miles by hitting min spend</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {milestones.map(m => {
+              const pct = Math.min((m.totalSpent / m.minSpend) * 100, 100)
+              const remaining = Math.max(0, m.minSpend - m.totalSpent)
+              const met = remaining === 0
+              const periodLabel = m.capPeriod.replace('ly', '')
+              return (
+                <div key={`${m.card.id}:${m.capPeriod}`} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-4 h-4 rounded text-white text-[8px] font-bold flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: m.card.color }}
+                    >
+                      {m.card.bank.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 truncate">
+                      {m.card.bank} {m.card.name}
+                    </span>
+                    {met ? (
+                      <span className="ml-auto text-xs font-medium text-emerald-600 shrink-0">Unlocked</span>
+                    ) : (
+                      <span className="ml-auto text-xs text-gray-400 shrink-0">{m.daysLeft}d left</span>
+                    )}
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${met ? 'bg-emerald-400' : 'bg-indigo-400'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className={met ? 'text-emerald-600 font-medium' : 'text-gray-500'}>
+                      {met
+                        ? `Bonus unlocked this ${periodLabel}`
+                        : `${formatSGD(remaining)} more to unlock bonus`}
+                    </span>
+                    <span className="text-gray-400 tabular-nums">
+                      {formatSGD(m.totalSpent)} / {formatSGD(m.minSpend)}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Wallet cards with cap usage */}

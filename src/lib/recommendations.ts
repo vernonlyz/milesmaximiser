@@ -408,7 +408,11 @@ export function recommendCards(
       } satisfies CardRecommendation
     })
     .sort((a, b) => {
-      if (b.effectiveMpd !== a.effectiveMpd) return b.effectiveMpd - a.effectiveMpd
+      // Locked cards sort by their potential (bonusMpd), not current effectiveMpd,
+      // so a 4 mpd card behind a threshold isn't buried at 0.4 mpd in the list.
+      const aSortMpd = a.status === 'locked' ? a.bonusMpd : a.effectiveMpd
+      const bSortMpd = b.status === 'locked' ? b.bonusMpd : b.effectiveMpd
+      if (bSortMpd !== aSortMpd) return bSortMpd - aSortMpd
       if (b.milesEarned !== a.milesEarned) return b.milesEarned - a.milesEarned
       return a.card.name.localeCompare(b.card.name)
     })
