@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
+import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
 import { isoDate } from '../lib/utils'
-import { TransactionFormData, CardRecommendation, Transaction } from '../lib/types'
+import { TransactionFormData, CardRecommendation, Transaction, Vendor } from '../lib/types'
 
 const EMPTY_FORM: TransactionFormData = {
   card_id: '',
@@ -18,7 +19,7 @@ const EMPTY_FORM: TransactionFormData = {
 }
 
 export default function Transactions() {
-  const { cards, categories, rates, caps, transactions, overrides, refreshTransactions } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides, mccCatalogue, vendorCatalogue, refreshTransactions } = useApp()
   const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
@@ -26,6 +27,12 @@ export default function Transactions() {
   const [form, setForm] = useState<TransactionFormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Vendor / MCC state
+  const [vendorName, setVendorName] = useState('')
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
+  const [mcc, setMcc] = useState('')
+  const [mccEditing, setMccEditing] = useState(false)
 
   // MPD override state
   const [mpdOverrideActive, setMpdOverrideActive] = useState(false)
@@ -37,7 +44,7 @@ export default function Transactions() {
   const [filterCat, setFilterCat] = useState('')
   const [filterCard, setFilterCard] = useState('')
 
-  // Engine-computed MPD for the current form selection (card + category + amount)
+  // Engine-computed MPD for the current form selection
   const computedMpd = useMemo(() => {
     const amt = parseFloat(form.amount)
     if (!form.card_id || !form.category_id || isNaN(amt) || amt <= 0) return null
@@ -47,7 +54,7 @@ export default function Transactions() {
     return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides).effectiveMpd
   }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides])
 
-  // Recommendations live while filling form
+  // Live recommendations while filling form
   const recs = useMemo<CardRecommendation[]>(() => {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
@@ -58,7 +65,6 @@ export default function Transactions() {
   const bestCardId = recs[0]?.card.id ?? ''
 
   function setField(k: keyof TransactionFormData, v: string) {
-    // Reset MPD override when card or category changes — computed value will differ
     if (k === 'card_id' || k === 'category_id') {
       setMpdOverrideActive(false)
       setManualMpd('')
@@ -67,13 +73,21 @@ export default function Transactions() {
     setForm(f => ({ ...f, [k]: v }))
   }
 
-  function openAdd() {
+  function resetModal() {
     setForm(EMPTY_FORM)
     setEditingId(null)
+    setVendorName('')
+    setSelectedVendor(null)
+    setMcc('')
+    setMccEditing(false)
     setMpdOverrideActive(false)
     setManualMpd('')
     setOverrideNote('')
     setError(null)
+  }
+
+  function openAdd() {
+    resetModal()
     setShowModal(true)
   }
 
@@ -85,6 +99,10 @@ export default function Transactions() {
       description: t.description ?? '',
       transaction_date: t.transaction_date,
     })
+    setVendorName(t.vendor_name ?? '')
+    setSelectedVendor(null)  // don't re-match — treat as free text on edit
+    setMcc(t.mcc ?? '')
+    setMccEditing(false)
     if (t.manual_mpd != null) {
       setMpdOverrideActive(true)
       setManualMpd(t.manual_mpd.toString())
@@ -97,6 +115,20 @@ export default function Transactions() {
     setEditingId(t.id)
     setError(null)
     setShowModal(true)
+  }
+
+  function handleVendorSelect(vendor: Vendor) {
+    setVendorName(vendor.name)
+    setSelectedVendor(vendor)
+    if (vendor.default_category_id) setField('category_id', vendor.default_category_id)
+    if (vendor.default_mcc) setMcc(vendor.default_mcc)
+    else setMcc('')
+  }
+
+  function handleVendorClear() {
+    setVendorName('')
+    setSelectedVendor(null)
+    setMcc('')
   }
 
   function activateOverride() {
@@ -132,6 +164,8 @@ export default function Transactions() {
       category_id: form.category_id,
       amount,
       description: form.description || null,
+      vendor_name: vendorName.trim() || null,
+      mcc: mcc.trim() || null,
       transaction_date: form.transaction_date,
       computed_mpd: parseFloat(engineMpd.toFixed(4)),
       manual_mpd: hasValidOverride ? parseFloat(parsedManual.toFixed(4)) : null,
@@ -186,6 +220,9 @@ export default function Transactions() {
   const previewMiles = previewMpd != null && parseFloat(form.amount) > 0
     ? Math.round(parseFloat(form.amount) * previewMpd)
     : null
+
+  // MCC display helper
+  const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -257,7 +294,7 @@ export default function Transactions() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Date</th>
-                <th className="text-left px-4 py-3">Description</th>
+                <th className="text-left px-4 py-3">Vendor / Description</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Category</th>
                 <th className="text-left px-4 py-3 hidden md:table-cell">Card</th>
                 <th className="text-right px-4 py-3">Amount</th>
@@ -271,11 +308,22 @@ export default function Transactions() {
                 const card = cards.find(c => c.id === t.card_id)
                 const cat = categories.find(c => c.id === t.category_id)
                 const isManual = t.manual_mpd != null
+                const displayLabel = t.vendor_name || t.description || cat?.name || '—'
                 return (
                   <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.transaction_date}</td>
-                    <td className="px-4 py-3 text-gray-800 max-w-[160px] truncate">
-                      {t.description || cat?.name || '—'}
+                    <td className="px-4 py-3 text-gray-800 max-w-[180px]">
+                      <span className="block truncate">{displayLabel}</span>
+                      {t.mcc && (
+                        <span className="text-xs text-gray-400 font-mono">
+                          {t.mcc}
+                          {mccCatalogue.find(m => m.code === t.mcc) && (
+                            <span className="ml-1 not-italic font-sans">
+                              · {mccCatalogue.find(m => m.code === t.mcc)!.description}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell text-gray-500">
                       {cat ? `${cat.icon} ${cat.name}` : '—'}
@@ -355,6 +403,23 @@ export default function Transactions() {
               onChange={e => setField('transaction_date', e.target.value)} />
           </div>
 
+          {/* Vendor typeahead */}
+          <div>
+            <label className="label">Vendor</label>
+            <VendorInput
+              vendorName={vendorName}
+              isVendorSelected={selectedVendor !== null}
+              vendors={vendorCatalogue}
+              onNameChange={name => {
+                setVendorName(name)
+                setSelectedVendor(null)
+              }}
+              onSelect={handleVendorSelect}
+              onClear={handleVendorClear}
+            />
+          </div>
+
+          {/* Category — auto-filled by vendor selection */}
           <div>
             <label className="label">Category</label>
             <div className="relative">
@@ -372,13 +437,73 @@ export default function Transactions() {
             </div>
           </div>
 
+          {/* MCC — auto-filled by vendor selection, always optional */}
+          <div>
+            <label className="label">
+              MCC{' '}
+              <span className="text-gray-400 font-normal text-xs">(optional)</span>
+            </label>
+            {mccEditing ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={mcc}
+                  onChange={e => setMcc(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  onBlur={() => setMccEditing(false)}
+                  placeholder="e.g. 5814"
+                  maxLength={4}
+                  className="input w-24 font-mono text-sm"
+                  autoFocus
+                />
+                {mcc.length === 4 && mccDescription ? (
+                  <span className="text-sm text-gray-600">{mccDescription}</span>
+                ) : mcc.length > 0 ? (
+                  <span className="text-xs text-gray-400 italic">Unknown MCC</span>
+                ) : null}
+              </div>
+            ) : mcc ? (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                  {mcc}
+                </span>
+                <span className="text-sm text-gray-600 flex-1">
+                  {mccDescription ?? 'Unknown MCC'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMccEditing(true)}
+                  className="text-gray-400 hover:text-indigo-600 transition-colors"
+                  title="Edit MCC"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMcc('')}
+                  className="text-gray-400 hover:text-red-500 transition-colors"
+                  title="Remove MCC"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMccEditing(true)}
+                className="text-xs text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+              >
+                + Add MCC
+              </button>
+            )}
+          </div>
+
           <div>
             <label className="label">Amount (S$)</label>
             <input type="number" min="0" step="0.01" placeholder="0.00" className="input"
               value={form.amount} onChange={e => setField('amount', e.target.value)} />
           </div>
 
-          {/* Live recommendation — only show when adding, not editing */}
+          {/* Live recommendation — only shown when adding */}
           {!editingId && recs.length > 0 && (
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1.5">
               <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
@@ -433,7 +558,7 @@ export default function Transactions() {
             </div>
           </div>
 
-          {/* MPD section — appears once card + category + amount are all set */}
+          {/* MPD section — appears once card + category + amount are set */}
           {computedMpd !== null && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -497,8 +622,8 @@ export default function Transactions() {
           )}
 
           <div>
-            <label className="label">Description (optional)</label>
-            <input type="text" placeholder="e.g. Grab Food, NTUC…" className="input"
+            <label className="label">Notes <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+            <input type="text" placeholder="Additional notes…" className="input"
               value={form.description} onChange={e => setField('description', e.target.value)} />
           </div>
 

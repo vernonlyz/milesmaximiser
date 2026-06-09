@@ -56,6 +56,8 @@ export interface Transaction {
   category_id: string | null
   amount: number
   description: string | null
+  vendor_name: string | null    // typed or selected from vendor_catalogue
+  mcc: string | null            // informational; auto-filled from catalogue or manually entered
   transaction_date: string
   computed_mpd: number | null   // engine-calculated MPD at save time
   manual_mpd: number | null     // user override; null = no override
@@ -63,6 +65,22 @@ export interface Transaction {
   effective_mpd: number | null  // COALESCE(manual_mpd, computed_mpd) — final applied value
   miles_earned: number | null
   created_at: string
+}
+
+// MCC (Merchant Category Code) catalogue — admin-seeded reference
+export interface MccEntry {
+  code: string
+  description: string
+  default_category_id: string | null
+}
+
+// Admin-seeded known vendor with default MCC and category
+export interface Vendor {
+  id: string
+  name: string
+  default_mcc: string | null
+  default_category_id: string | null
+  active: boolean
 }
 
 export interface CardRecommendation {
