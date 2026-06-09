@@ -389,14 +389,22 @@ export default function Transactions() {
                     </td>
                     <td className="px-4 py-3 text-right hidden md:table-cell text-gray-400 text-xs">
                       {t.effective_mpd != null ? (() => {
-                        const tEarnAmt = card
-                          ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
-                          : t.amount
-                        const nomMpd = card && tEarnAmt > 0
-                          ? parseFloat((t.effective_mpd * t.amount / tEarnAmt).toFixed(2))
-                          : t.effective_mpd
+                        // Manual overrides: use stored manual_mpd as the nominal — it's exactly
+                        // what the user entered and avoids inflation from the reconstruction formula.
+                        // Computed transactions: reconstruct nominal from effective_mpd + block size.
+                        let nomMpd: number
+                        if (isManual && t.manual_mpd != null) {
+                          nomMpd = t.manual_mpd
+                        } else {
+                          const tEarnAmt = card
+                            ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
+                            : t.amount
+                          nomMpd = card && tEarnAmt > 0
+                            ? parseFloat((t.effective_mpd * t.amount / tEarnAmt).toFixed(2))
+                            : t.effective_mpd
+                        }
                         return (
-                          <span className="inline-flex items-center justify-end gap-1">
+                          <span className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                             {isManual && (
                               <span
                                 title={
