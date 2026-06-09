@@ -45,7 +45,7 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000011', 'Lady''s Solitaire Card',    'UOB',               'Mastercard', 0.4,  '#880E4F', '24 months',
      ARRAY['Choose 2 bonus categories: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$750/month cap per chosen category (S$1,500/month combined)']),
   ('00000000-0000-0000-0001-000000000012', 'Visa Signature',            'UOB',               'Visa',       0.4,  '#1A237E', '2 years',
-     ARRAY['Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise', 'Contactless + petrol share a combined S$1,200/month cap']),
+     ARRAY['Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise', '4 mpd on all tap-to-pay spend (any category, incl. petrol) — S$1,200/month cap', '4 mpd on overseas FCY — S$1,200/month cap (separate from contactless pool)']),
   ('00000000-0000-0000-0001-000000000013', 'Preferred Platinum Visa',   'UOB',               'Visa',       0.4,  '#1565C0', '2 years',
      NULL),
   ('00000000-0000-0000-0001-000000000014', 'KrisFlyer Visa',            'UOB',               'Visa',       1.2,  '#003580', '3 years',
@@ -89,9 +89,8 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   ('00000000-0000-0000-0001-000000000010','00000000-0000-0000-0000-000000000001', 4.0, '2000-01-01'),
   -- UOB Lady's Solitaire — 4 mpd on 2 chosen categories (default Dining; user sets override)
   ('00000000-0000-0000-0001-000000000011','00000000-0000-0000-0000-000000000001', 4.0, '2000-01-01'),
-  -- UOB Visa Signature — 4 mpd on overseas/petrol/contactless (requires S$1,000/month min spend)
+  -- UOB Visa Signature — 4 mpd on overseas FCY; contactless wildcard handled separately below
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000005', 4.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000003', 4.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000008', 4.0, '2000-01-01'),
   -- UOB Preferred Platinum Visa — 4 mpd on online shopping + contactless
   ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),
@@ -131,10 +130,8 @@ INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, effecti
   ('00000000-0000-0000-0001-000000000010','00000000-0000-0000-0000-000000000001','monthly', 1000.00,'2000-01-01'),
   -- UOB Lady's Solitaire — S$750/month per chosen category
   ('00000000-0000-0000-0001-000000000011','00000000-0000-0000-0000-000000000001','monthly',  750.00,'2000-01-01'),
-  -- UOB Visa Signature — FCY S$1,200/month; contactless+petrol combined S$1,200 (modelled per-category)
+  -- UOB Visa Signature — FCY S$1,200/month; contactless S$1,200/month channel cap added below
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000005','monthly', 1200.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000003','monthly',  600.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000008','monthly',  600.00,'2000-01-01'),
   -- UOB Preferred Platinum — S$600/month per category (online and contactless are separate caps)
   ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000004','monthly',  600.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000008','monthly',  600.00,'2000-01-01'),
@@ -217,6 +214,16 @@ UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '0000
 
 DELETE FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000012' AND category_id = '00000000-0000-0000-0000-000000000008' AND payment_channel = 'contactless';
 DELETE FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id = '00000000-0000-0000-0000-000000000008' AND payment_channel = 'contactless';
+
+-- Petrol category rate/cap removed for UOB Visa Sig — petrol earns 4 mpd via
+-- contactless wildcard rate and draws from the shared S$1,200 contactless cap.
+DELETE FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000012' AND category_id = '00000000-0000-0000-0000-000000000003';
+DELETE FROM library_caps  WHERE card_id = '00000000-0000-0000-0001-000000000012' AND category_id = '00000000-0000-0000-0000-000000000003';
+UPDATE card_library SET remarks = ARRAY[
+  'Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise',
+  '4 mpd on all tap-to-pay spend (any category, incl. petrol) — S$1,200/month cap',
+  '4 mpd on overseas FCY — S$1,200/month cap (separate from contactless pool)'
+] WHERE id = '00000000-0000-0000-0001-000000000012';
 
 INSERT INTO library_rates (card_id, category_id, mpd, payment_channel, effective_from)
 SELECT '00000000-0000-0000-0001-000000000012', NULL, 4.0, 'contactless', '2000-01-01'
