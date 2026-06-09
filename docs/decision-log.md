@@ -138,3 +138,98 @@ Captures key architectural choices made during development — what was decided,
 **Why:** New IDs (011, 012) are a non-destructive, backward-compatible fix. Existing transactions tagged as "Utilities & Bills" (009) or "Others" (010) are untouched. Migration 011 adds the new categories, fixes all `library_selectable_categories` references for Lady's Card and Solitaire, and corrects Citi Rewards' fashion rate from 009 to 011.
 
 **Trade-off:** Any `user_category_overrides` rows that a user may have set for Lady's Card/Solitaire pointing to 009 or 010 become stale (they reference Utilities/Others, not Fashion/Beauty). The user needs to reset their selectable category choice after running migration 011. Since selectable category overrides are reset by visiting My Cards and re-selecting, this is low-friction.
+
+---
+
+## 2026-06-09 — Wildcard rate pattern for channel-based bonuses
+
+**Decision:** Model channel-restricted bonus rates as `category_id = NULL, payment_channel = 'contactless'|'online'` in `library_rates`. The engine (`getEffectiveForCard`) detects this wildcard when the transaction's payment channel matches and applies it over any per-category rate.
+
+**Alternatives considered:**
+- Duplicate the bonus rate row for every eligible category — every new category added to the app would require adding rows for every wildcard card; high maintenance burden.
+- Store a flag on the card ("earns bonus on all categories when contactless") — requires special-casing throughout the engine rather than having the rate table drive behaviour uniformly.
+
+**Why:** The wildcard row is transparent to all engine logic after `getEffectiveForCard` resolves it. No downstream code changes are needed — it just sees a rate with a category. Adding a new spending category automatically benefits from all existing wildcard rates.
+
+**Cards using this pattern:** UOB Visa Signature (contactless), UOB Preferred Platinum Visa (contactless), DBS Woman's World (online), Citi Rewards Mastercard (online).
+
+---
+
+## 2026-06-09 — Channel cap: null-category cap tracks all channel spend
+
+**Decision:** Channel caps use `category_id = NULL, cap_payment_channel = 'contactless'|'online'` in `library_caps`. The engine key is `card_id:channel:payment_channel:period`. All transactions on that card using that channel accumulate against this single cap regardless of spending category.
+
+**Alternatives considered:**
+- Duplicate the cap row for every eligible category — same maintenance problem as duplicating rates; and the limit would then be per-category rather than shared across all spend.
+- Store the channel limit on the card itself — simpler schema, but breaks the effective-date versioning and period-type flexibility that `library_caps` provides.
+
+**Why:** Mirrors the wildcard rate pattern so both rate and cap resolution follow the same null-category convention. The `cap_payment_channel` column already existed for restricting which transactions count toward a cap; using it on a null-category cap naturally produces a channel-wide spending pool.
+
+---
+
+## 2026-06-09 — Removing Citi Rewards fashion category cap when adding online channel cap
+
+**Decision:** When converting Citi Rewards to a wildcard online rate, remove the existing fashion `category_id` cap entirely from `library_caps`. The fashion *rate* (4 mpd in-store fashion) is retained, but no cap bar appears for it on the Dashboard.
+
+**Background:** Citi Rewards' actual cap is S$1,000/month combined across all bonus spend (online + in-store fashion). The engine cannot merge a channel cap and a category cap into a single shared limit — they are tracked on different keys. Keeping both would show two S$1,000 bars on the Dashboard, implying S$2,000 of headroom when the real limit is S$1,000.
+
+**Alternatives considered:**
+- Keep the fashion cap and show both bars — misleading; overstates available headroom.
+- Build a cap-merging mechanism in the engine — significant complexity for an edge case on one card; not worth it at this scale.
+- Remove the fashion rate too — would break in-store fashion earning for Citi Rewards, which is valid and real.
+
+**Why:** One honest bar (the online channel cap) is better than two misleading bars. In-store fashion spend that exceeds the online cap is tracked at base rate implicitly — the user can see when the online cap is exhausted and knows further spend earns base rate. This matches how most users will actually think about the card.
+
+---
+
+## 2026-06-09 — UOB Visa Signature: contactless wildcard model replaces petrol+transport
+
+**Decision:** Remove UOB Visa Signature's petrol rate and petrol cap entirely. Model the card's 4 mpd benefit as a contactless wildcard (`category_id = NULL, payment_channel = 'contactless'`) with a S$1,000/month channel cap.
+
+**Background:** UOB Visa Signature's bonus is "4 mpd on contactless spend up to S$1,000/month." The previous model approximated this as petrol (S$600 cap) + transport (S$600 cap), which was both inaccurate and required a `cap_group` workaround for the combined limit.
+
+**Alternatives considered:**
+- `cap_group` linking petrol + transport caps — would produce the correct combined limit, but still only covered two categories; any other contactless spend (e.g. dining tapped at a terminal) would earn base rate incorrectly.
+- Keep the approximation — safe (never overstates headroom) but increasingly misleading as users add more transaction types.
+
+**Why:** The contactless wildcard is the accurate model of the card's actual terms and is simpler to maintain. One rate row, one cap row. Any contactless transaction on any category earns 4 mpd (subject to the monthly cap), which is exactly what the bank offers.
+
+---
+
+## 2026-06-09 — Statement cycle support: per-card cycle type + per-user statement day
+
+**Decision:** Add `cap_cycle TEXT` (`'calendar'` | `'statement'`) to `card_library` and `statement_day INTEGER` to `user_card_selections`. The engine uses the user's statement day to compute the start of the current cap period when `cap_cycle = 'statement'`.
+
+**Alternatives considered:**
+- Always use calendar month — simple, but incorrect for statement-cycle cards (a purchase on the 5th of a month with a 15th statement date would count toward a different cap period than one on the 20th).
+- Store a statement date per transaction — accurate but requires the user to input a date they may not know; and the statement day is a property of the card relationship, not the transaction.
+
+**Why:** Most SG credit card caps reset on the statement date. Defaulting to calendar month silently overstates available headroom for users near their statement cutoff. The per-user `statement_day` field allows the correct period to be computed from any transaction date without querying the bank. All current cards default to calendar month for simplicity; switching a card to statement-cycle is a one-field update.
+
+---
+
+## 2026-06-09 — Block rounding via earn_increment on card_library
+
+**Decision:** Add `earn_increment INTEGER` to `card_library` (5 for most SG banks, 1 for HSBC and Citibank). Miles earned = `floor(spend / increment) * increment * mpd`. Applied consistently across the engine, transaction save, MPD preview, and My Cards display.
+
+**Alternatives considered:**
+- Round the total miles at display time only — the stored `miles_earned` would be inflated; the displayed value would differ from the stored value; confusing to users and makes cap-spend tracking harder.
+- Store the rounding rule per rate row — too granular; the rounding block is a property of the bank's processing system, not of individual spend categories.
+- Always round to S$1 — incorrect for most SG banks; overstates miles for small transactions.
+
+**Why:** Banks in Singapore award miles in discrete blocks — a S$14.99 spend at a 4 mpd card with S$5 blocks earns 40 miles (S$10 × 4), not 59.96 miles. Not modelling this makes the recommender look more precise than reality and creates discrepancies between what users see in the app and what appears on their statements. The field is on `card_library` because it is a bank-level rule that applies uniformly across all rates for that bank.
+
+---
+
+## 2026-06-10 — Smart effective_from default for first-time selectable category setup
+
+**Decision:** In `Cards.tsx openEditModal`, detect whether the user has any existing category overrides for the card. If none exist, or if all existing overrides were set today (i.e. the user just set up the card today), default `effective_from` to `'2000-01-01'` so the choice applies to all past transactions. If a prior override exists, default to today to preserve the category history.
+
+**Background:** `effective_from` on `user_category_overrides` uses `isoDate()` which returns the UTC date. If a user sets up their Lady's Solitaire categories today and then logs a past transaction from last month, `resolveOverride` correctly rejects the override (because `effective_from > transactionDate`). This is the right behaviour when *changing* a category — old transactions should keep their old category. But it is wrong for *first-time* setup, where the user's intent is "this is the category I've always used."
+
+**Alternatives considered:**
+- Always default to `'2000-01-01'` — changes to category choice would retroactively re-categorise all past transactions, breaking historical accuracy.
+- Always default to today — means first-time setup breaks for any past transactions (the bug reported).
+- Prompt the user to choose the date explicitly — adds friction to a flow that most users won't understand.
+
+**Why:** The heuristic (no overrides, or all overrides from today = first-time setup) is correct for the common case. A user who genuinely changed their category today and wants to preserve history can manually adjust the date field. The help text is context-sensitive: it explains either "applies to all transactions" or "transactions before this date keep their previous category" depending on the selected date.

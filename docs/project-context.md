@@ -77,6 +77,16 @@ Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 | [supabase/migrations/009_add_revolution_xlrewards_citirewards.sql](../supabase/migrations/009_add_revolution_xlrewards_citirewards.sql) | Adds HSBC Revolution, Maybank XL Rewards, Citi Rewards Mastercard |
 | [supabase/migrations/010_combined_caps.sql](../supabase/migrations/010_combined_caps.sql) | Adds cap_group column; sets combined groups for SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards |
 | [supabase/migrations/011_fix_fashion_beauty_categories.sql](../supabase/migrations/011_fix_fashion_beauty_categories.sql) | Adds Fashion (011) and Beauty (012) categories; fixes Lady's Card/Solitaire selectable refs and Citi Rewards |
+| [supabase/migrations/012_vendor_mcc_catalogue.sql](../supabase/migrations/012_vendor_mcc_catalogue.sql) | Adds mcc_catalogue and vendor_catalogue tables; adds vendor_name and mcc to transactions |
+| [supabase/migrations/013_min_spend_threshold.sql](../supabase/migrations/013_min_spend_threshold.sql) | Adds min_spend to library_caps; sets S$1,000 for UOB Visa Sig and S$500 for Maybank XL Rewards |
+| [supabase/migrations/014_payment_channel.sql](../supabase/migrations/014_payment_channel.sql) | Adds payment_channel to library_rates for contactless/online-restricted bonus rates |
+| [supabase/migrations/015_transaction_payment_channel.sql](../supabase/migrations/015_transaction_payment_channel.sql) | Adds payment_channel to transactions; adds cap_payment_channel and default_payment_channel to library |
+| [supabase/migrations/016_fix_visa_sig_contactless_min_spend.sql](../supabase/migrations/016_fix_visa_sig_contactless_min_spend.sql) | Fixes UOB Visa Sig contactless cap min_spend |
+| [supabase/migrations/017_visa_sig_remove_petrol_cap.sql](../supabase/migrations/017_visa_sig_remove_petrol_cap.sql) | Removes UOB Visa Sig petrol rate/cap; card uses contactless wildcard model only |
+| [supabase/migrations/018_statement_cycle.sql](../supabase/migrations/018_statement_cycle.sql) | Adds cap_cycle to card_library and statement_day to user_card_selections |
+| [supabase/migrations/019_cap_cycle_calendar_default.sql](../supabase/migrations/019_cap_cycle_calendar_default.sql) | Sets all cards to calendar cycle as the current default |
+| [supabase/migrations/020_earn_increment.sql](../supabase/migrations/020_earn_increment.sql) | Adds earn_increment to card_library (5 for most banks, 1 for HSBC/Citi) |
+| [supabase/migrations/021_online_wildcard_rates.sql](../supabase/migrations/021_online_wildcard_rates.sql) | Converts DBS Woman's World and Citi Rewards to wildcard online rates; removes Citi fashion cap |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | 17-card SG library seed (run after all migrations) |
 
 ---
@@ -108,6 +118,18 @@ The app is a functional MVP. All core features are implemented:
 | 3 new cards: HSBC Revolution, Maybank XL Rewards, Citi Rewards Mastercard | Complete |
 | Combined cap modelling (cap_group; engine, Dashboard, My Cards all handle correctly) | Complete |
 | Lady's Solitaire shows 2 independent cap chips in My Cards | Complete |
+| Vendor + MCC catalogue with typeahead in transaction form | Complete |
+| Min-spend threshold (locked status in recommender; progress bar toward threshold) | Complete |
+| Payment channel on rates + transactions (contactless/online-restricted bonuses) | Complete |
+| Wildcard rate pattern (null category + channel = earns bonus on any category) | Complete |
+| Channel cap pattern (null category + cap_payment_channel = tracks all channel spend) | Complete |
+| UOB Visa Signature contactless model (4 mpd any-category contactless, S$1,000/month) | Complete |
+| Statement cycle support (calendar vs statement day per card) | Complete |
+| earn_increment / block rounding (S$5 blocks for most banks, S$1 for HSBC/Citi) | Complete |
+| Nominal MPD shown in UI; earn block chip in My Cards | Complete |
+| DBS Woman's World + Citi Rewards wildcard online 4 mpd (any category, online) | Complete |
+| Transactions: sort by column header, wildcard search, mobile horizontal scroll | Complete |
+| Lady's Solitaire first-time setup: smart effective_from default (2000-01-01) | Complete |
 
 **Card library (17 cards):**
 DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), UOB Lady's Card, UOB Lady's Solitaire, UOB Visa Signature, UOB Preferred Platinum Visa, Standard Chartered Journey, Citi PremierMiles, Citi Rewards Mastercard, OCBC 90°N, HSBC TravelOne, HSBC Revolution, Maybank Horizon, Maybank XL Rewards, Singapore Airlines KrisFlyer Visa.
@@ -117,16 +139,19 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 - Correctly blends effective MPD when a transaction partially exhausts a cap
 - Falls back to `base_mpd` when a cap is fully exhausted
 - Handles combined caps (`cap_group`): sums spending across all grouped categories against one shared limit
-- Returns a status (`optimal` / `partial` / `capped` / `base`) and plain-English reason for each card
+- Wildcard rate: null-category rate with a payment channel beats any lower per-category rate for that channel
+- Channel cap: null-category cap with `cap_payment_channel` tracks all spend on that channel regardless of spending category
+- Min-spend threshold: bonus rate locked until total card spend for the period meets the minimum
+- Block rounding: miles floored to the nearest `earn_increment`-dollar block per card
+- Returns a status (`optimal` / `partial` / `capped` / `base` / `locked`) and plain-English reason for each card
 
 ---
 
 ## 5. Outstanding Work
 
 ### Missing but impactful
-- **Test suite** — No tests exist. The recommendation engine has complex cap-splitting logic that would benefit significantly from unit tests covering edge cases (period boundaries, partial caps, per-transaction caps, cap groups).
-- **Admin interface for library updates** — Currently, updating card rates/caps requires manual SQL against Supabase. There is no UI for maintaining the library.
-- **UOB Visa Signature combined cap** — Petrol and transport share a S$1,200/month combined cap on UOB Visa Signature. Currently modelled as S$600 each (conservative approximation). A proper `cap_group` fix would allow the user to allocate the full S$1,200 across either category.
+- **Test suite** — No tests exist. The recommendation engine has complex branching logic (cap types, blended MPD, wildcard rates, channel caps, selectable overrides, block rounding) that would benefit significantly from unit tests. A regression in any of these paths is currently invisible.
+- **Admin interface for library updates** — Updating card rates/caps requires manual SQL against Supabase. There is no UI for maintaining the library.
 
 ### Missing but lower priority
 - **No `.env.example`** — Onboarding a new developer requires inspecting the code to know which env vars are needed.
@@ -142,7 +167,7 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 
 ### Data accuracy
 - **Rates are indicative.** The app shows a footer disclaimer ("Rates are indicative — verify with your bank"). Bank terms change; the library is manually maintained and may lag real-world changes.
-- **Combined caps are now modelled** via `cap_group` on `library_caps`. Cards with a shared pool (SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards) show one combined bar/chip and the engine correctly tracks combined spend. UOB Visa Signature petrol+transport remains a conservative approximation (S$600 each instead of S$1,200 shared) — the only remaining known inaccuracy.
+- **Combined caps are modelled** via `cap_group` on `library_caps`. Cards with a shared pool (SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards) show one combined bar/chip and the engine correctly tracks combined spend. UOB Visa Signature previously had a petrol+transport approximation; it is now modelled as a contactless wildcard (any-category contactless earns 4 mpd up to S$1,000/month), which is accurate to the card's actual terms.
 
 ### User experience
 - **Post-migration empty wallet.** Migration 004 dropped all per-user card data. Existing users who had already selected cards before the migration see an empty wallet and an empty dashboard rather than a prompt to re-select cards. The redirect to onboarding only fires for users who have *never* been onboarded (`isOnboarded` flag in localStorage). Users who were onboarded before the migration must navigate to Cards manually to rebuild their wallet.
