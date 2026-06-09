@@ -65,8 +65,8 @@ DELETE FROM library_caps
 WHERE card_id = '00000000-0000-0000-0001-000000000012'
   AND category_id = '00000000-0000-0000-0000-000000000008';
 
-INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
-SELECT '00000000-0000-0000-0001-000000000012', NULL, 'monthly', 1200.00, 'contactless', '2000-01-01'
+INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, min_spend, effective_from)
+SELECT '00000000-0000-0000-0001-000000000012', NULL, 'monthly', 1200.00, 'contactless', 1000.00, '2000-01-01'
 WHERE NOT EXISTS (
   SELECT 1 FROM library_caps
   WHERE card_id = '00000000-0000-0000-0001-000000000012'
