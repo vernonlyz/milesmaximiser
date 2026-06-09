@@ -9,9 +9,28 @@ import Modal from '../components/Modal'
 export default function Cards() {
   const {
     allCards, selectedCardIds, categories, rates, caps,
-    selectableCategories, overrides,
-    addCardSelection, removeCardSelection, saveOverride,
+    selectableCategories, overrides, statementDays,
+    addCardSelection, removeCardSelection, saveOverride, saveStatementDay,
   } = useApp()
+
+  // Inline statement-day editing state — keyed by card id
+  const [editingStatementDay, setEditingStatementDay] = useState<string | null>(null)
+  const [statementDayInput, setStatementDayInput] = useState('')
+  const [savingStatementDay, setSavingStatementDay] = useState(false)
+
+  function openStatementDayEdit(cardId: string) {
+    setEditingStatementDay(cardId)
+    setStatementDayInput(String(statementDays.get(cardId) ?? ''))
+  }
+
+  async function handleSaveStatementDay(cardId: string) {
+    const parsed = parseInt(statementDayInput, 10)
+    const day = isNaN(parsed) || statementDayInput === '' ? null : Math.min(28, Math.max(1, parsed))
+    setSavingStatementDay(true)
+    await saveStatementDay(cardId, day)
+    setSavingStatementDay(false)
+    setEditingStatementDay(null)
+  }
 
   const today = useMemo(() => new Date(), [])
 
@@ -252,6 +271,56 @@ export default function Cards() {
                             </li>
                           ))}
                         </ul>
+                      )}
+
+                      {/* Statement date — only for wallet cards on statement cycle */}
+                      {inWallet && card.cap_cycle === 'statement' && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          {editingStatementDay === card.id ? (
+                            <div className="flex items-center gap-2">
+                              <CalendarDays size={13} className="text-gray-400 shrink-0" />
+                              <span className="text-xs text-gray-500">Statement closes day</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={28}
+                                placeholder="e.g. 15"
+                                value={statementDayInput}
+                                onChange={e => setStatementDayInput(e.target.value)}
+                                className="input text-xs w-16 py-1 px-2"
+                              />
+                              <span className="text-xs text-gray-400">of each month</span>
+                              <button
+                                onClick={() => handleSaveStatementDay(card.id)}
+                                disabled={savingStatementDay}
+                                className="text-xs text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded-lg transition-colors"
+                              >
+                                {savingStatementDay ? '…' : 'Save'}
+                              </button>
+                              <button
+                                onClick={() => setEditingStatementDay(null)}
+                                className="text-xs text-gray-400 hover:text-gray-600"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <CalendarDays size={13} className="text-gray-400 shrink-0" />
+                              <span className="text-xs text-gray-500">
+                                {statementDays.has(card.id)
+                                  ? `Statement closes day ${statementDays.get(card.id)} of each month`
+                                  : 'Statement date not set — using calendar month'}
+                              </span>
+                              <button
+                                onClick={() => openStatementDayEdit(card.id)}
+                                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 px-2 py-0.5 rounded-lg transition-colors"
+                              >
+                                <Pencil size={9} /> {statementDays.has(card.id) ? 'Change' : 'Set'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 

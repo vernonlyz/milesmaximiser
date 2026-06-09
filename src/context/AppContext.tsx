@@ -9,6 +9,7 @@ interface AppContextValue {
   allCards: CreditCard[]           // every card in the library
   cards: CreditCard[]              // only the user's selected cards (wallet)
   selectedCardIds: Set<string>
+  statementDays: Map<string, number>  // cardId → statement closing day (1–28)
   rates: CardRate[]                // all library rates (filter by card_id as needed)
   caps: SpendingCap[]              // all library caps
   selectableCategories: SelectableCategory[]  // valid choices per selectable card
@@ -23,6 +24,7 @@ interface AppContextValue {
   addCardSelection: (cardId: string) => Promise<void>
   removeCardSelection: (cardId: string) => Promise<void>
   saveOverride: (cardId: string, categoryIds: string[], effectiveFrom?: string) => Promise<void>
+  saveStatementDay: (cardId: string, day: number | null) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -33,6 +35,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories]                   = useState<Category[]>([])
   const [allCards, setAllCards]                       = useState<CreditCard[]>([])
   const [selectedCardIds, setSelectedCardIds]         = useState<Set<string>>(new Set())
+  const [statementDays, setStatementDays]             = useState<Map<string, number>>(new Map())
   const [rates, setRates]                             = useState<CardRate[]>([])
   const [caps, setCaps]                               = useState<SpendingCap[]>([])
   const [selectableCategories, setSelectableCategories] = useState<SelectableCategory[]>([])
@@ -72,12 +75,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadSelections = useCallback(async () => {
     if (!user) return
     const [selRes, overrideRes] = await Promise.all([
-      supabase.from('user_card_selections').select('card_id').eq('user_id', user.id),
+      supabase.from('user_card_selections').select('card_id, statement_day').eq('user_id', user.id),
       supabase.from('user_category_overrides').select('*').eq('user_id', user.id),
     ])
     if (selRes.error)      throw selRes.error
     if (overrideRes.error) throw overrideRes.error
-    setSelectedCardIds(new Set(selRes.data?.map(s => s.card_id) ?? []))
+    const sels = selRes.data ?? []
+    setSelectedCardIds(new Set(sels.map(s => s.card_id)))
+    const days = new Map<string, number>()
+    for (const s of sels) {
+      if (s.statement_day != null) days.set(s.card_id, s.statement_day)
+    }
+    setStatementDays(days)
     setOverrides(overrideRes.data ?? [])
   }, [user?.id])
 
@@ -123,6 +132,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await supabase.from('user_card_selections')
       .delete().eq('user_id', user.id).eq('card_id', cardId)
     setSelectedCardIds(prev => { const next = new Set(prev); next.delete(cardId); return next })
+    setStatementDays(prev => { const next = new Map(prev); next.delete(cardId); return next })
+  }
+
+  async function saveStatementDay(cardId: string, day: number | null) {
+    if (!user) return
+    await supabase.from('user_card_selections')
+      .update({ statement_day: day })
+      .eq('user_id', user.id)
+      .eq('card_id', cardId)
+    setStatementDays(prev => {
+      const next = new Map(prev)
+      if (day == null) next.delete(cardId)
+      else next.set(cardId, day)
+      return next
+    })
   }
 
   // Upsert a bonus-category override for a selectable card.
@@ -154,6 +178,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCategories([])
       setAllCards([])
       setSelectedCardIds(new Set())
+      setStatementDays(new Map())
       setRates([])
       setCaps([])
       setSelectableCategories([])
@@ -170,12 +195,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      categories, allCards, cards, selectedCardIds,
+      categories, allCards, cards, selectedCardIds, statementDays,
       rates, caps, selectableCategories, overrides,
       transactions, mccCatalogue, vendorCatalogue,
       loading, error,
       refresh, refreshTransactions,
-      addCardSelection, removeCardSelection, saveOverride,
+      addCardSelection, removeCardSelection, saveOverride, saveStatementDay,
     }}>
       {children}
     </AppContext.Provider>

@@ -18,6 +18,7 @@ export interface CreditCard {
   mile_validity: string | null  // e.g. "No expiry", "12 months", "24 months"
   remarks: string[] | null      // bullet-point notes shown in the UI
   default_payment_channel: 'contactless' | 'online' | null  // pre-fills payment method in the log form
+  cap_cycle: 'calendar' | 'statement'  // whether caps reset on statement date or calendar month
   created_at: string
 }
 
@@ -55,6 +56,7 @@ export interface SpendingCap {
 export interface UserCardSelection {
   user_id: string
   card_id: string
+  statement_day: number | null  // day of month the statement closes (1–28); null = use calendar month
   created_at: string
 }
 

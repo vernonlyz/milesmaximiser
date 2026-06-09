@@ -124,14 +124,15 @@ export function applyAllSelectableOverrides(
 export function buildPeriodSpending(
   transactions: Transaction[],
   resolvedCaps: SpendingCap[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  statementDays: Map<string, number> = new Map()
 ): Map<string, number> {
   const result = new Map<string, number>()
 
   for (const cap of resolvedCaps) {
     if (cap.cap_period === 'per_transaction') continue
 
-    const periodStart = getPeriodStart(cap.cap_period, now)
+    const periodStart = getPeriodStart(cap.cap_period, now, statementDays.get(cap.card_id))
 
     if (cap.cap_payment_channel) {
       // Channel cap: sum only transactions paid via the specified payment method,
@@ -187,7 +188,7 @@ export function buildPeriodSpending(
     const totalKey = `${cap.card_id}:total:${cap.cap_period}`
     if (seenTotalKeys.has(totalKey)) continue
     seenTotalKeys.add(totalKey)
-    const periodStart = getPeriodStart(cap.cap_period, now)
+    const periodStart = getPeriodStart(cap.cap_period, now, statementDays.get(cap.card_id))
     const total = transactions
       .filter(t => t.card_id === cap.card_id && new Date(t.transaction_date) >= periodStart)
       .reduce((sum, t) => sum + t.amount, 0)
@@ -386,7 +387,8 @@ export function recommendCards(
   transactions: Transaction[],
   transactionDate: Date = new Date(),
   overrides: CategoryOverride[] = [],
-  paymentChannel: 'contactless' | 'online' | 'chip' | null = null
+  paymentChannel: 'contactless' | 'online' | 'chip' | null = null,
+  statementDays: Map<string, number> = new Map()
 ): CardRecommendation[] {
   if (!categoryId || amount <= 0) return []
 
@@ -402,7 +404,7 @@ export function recommendCards(
     resolvedCaps = applied.caps
   }
 
-  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate)
+  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
 
   return cards
     .filter(c => c.active)
@@ -486,7 +488,8 @@ export function calcMiles(
   transactions: Transaction[],
   transactionDate: Date = new Date(),
   overrides: CategoryOverride[] = [],
-  paymentChannel: 'contactless' | 'online' | 'chip' | null = null
+  paymentChannel: 'contactless' | 'online' | 'chip' | null = null,
+  statementDays: Map<string, number> = new Map()
 ): { miles: number; effectiveMpd: number } {
   let resolved = resolveRates(allRates, transactionDate)
   let resolvedCaps = resolveCaps(allCaps, transactionDate)
@@ -500,7 +503,7 @@ export function calcMiles(
     }
   }
 
-  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate)
+  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
   const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel)
   return { miles: eff.milesEarned, effectiveMpd: eff.effectiveMpd }
 }

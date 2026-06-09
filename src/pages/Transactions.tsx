@@ -19,7 +19,7 @@ const EMPTY_FORM: TransactionFormData = {
 }
 
 export default function Transactions() {
-  const { cards, categories, rates, caps, transactions, overrides, mccCatalogue, vendorCatalogue, refreshTransactions } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, refreshTransactions } = useApp()
   const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
@@ -53,7 +53,7 @@ export default function Transactions() {
     const card = cards.find(c => c.id === form.card_id)
     if (!card) return null
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel).effectiveMpd
+    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel, statementDays).effectiveMpd
   }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel])
 
   // Live recommendations while filling form
@@ -162,7 +162,7 @@ export default function Transactions() {
 
     const card = cards.find(c => c.id === form.card_id)!
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    const { effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel)
+    const { effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel, statementDays)
 
     const parsedManual = parseFloat(manualMpd)
     const hasValidOverride = mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0

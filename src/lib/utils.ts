@@ -13,11 +13,22 @@ export function formatMpd(mpd: number): string {
   return `${mpd.toFixed(2)} mpd`
 }
 
-export function getPeriodStart(period: SpendingCap['cap_period'], date: Date = new Date()): Date {
+export function getPeriodStart(
+  period: SpendingCap['cap_period'],
+  date: Date = new Date(),
+  statementDay?: number
+): Date {
   const d = new Date(date)
   switch (period) {
-    case 'monthly':
-      return new Date(d.getFullYear(), d.getMonth(), 1)
+    case 'monthly': {
+      const sDay = statementDay && statementDay > 1 ? statementDay : 1
+      if (sDay === 1) return new Date(d.getFullYear(), d.getMonth(), 1)
+      // Statement cycle: if today >= sDay, period started on sDay this month;
+      // otherwise it started on sDay the previous month.
+      return d.getDate() >= sDay
+        ? new Date(d.getFullYear(), d.getMonth(), sDay)
+        : new Date(d.getFullYear(), d.getMonth() - 1, sDay)
+    }
     case 'quarterly': {
       const q = Math.floor(d.getMonth() / 3)
       return new Date(d.getFullYear(), q * 3, 1)
@@ -26,6 +37,32 @@ export function getPeriodStart(period: SpendingCap['cap_period'], date: Date = n
       return new Date(d.getFullYear(), 0, 1)
     case 'per_transaction':
       return new Date(0) // handled separately
+  }
+}
+
+export function getPeriodEnd(
+  period: SpendingCap['cap_period'],
+  date: Date = new Date(),
+  statementDay?: number
+): Date {
+  const d = new Date(date)
+  switch (period) {
+    case 'monthly': {
+      const sDay = statementDay && statementDay > 1 ? statementDay : null
+      if (!sDay) return new Date(d.getFullYear(), d.getMonth() + 1, 0)
+      // Period ends the day before the next statement date.
+      return d.getDate() >= sDay
+        ? new Date(d.getFullYear(), d.getMonth() + 1, sDay - 1)
+        : new Date(d.getFullYear(), d.getMonth(), sDay - 1)
+    }
+    case 'quarterly': {
+      const q = Math.floor(d.getMonth() / 3)
+      return new Date(d.getFullYear(), (q + 1) * 3, 0)
+    }
+    case 'annual':
+      return new Date(d.getFullYear(), 11, 31)
+    case 'per_transaction':
+      return d
   }
 }
 

@@ -6,11 +6,11 @@ import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
 import { SpendingCap } from '../lib/types'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
-import { currentMonthLabel, getPeriodLabel, formatSGD } from '../lib/utils'
+import { currentMonthLabel, getPeriodLabel, getPeriodEnd, formatSGD } from '../lib/utils'
 import { isOnboarded } from './Onboarding'
 
 export default function Dashboard() {
-  const { cards, selectedCardIds, categories, rates, caps, overrides, transactions, loading, error, refresh } = useApp()
+  const { cards, selectedCardIds, categories, rates, caps, overrides, transactions, statementDays, loading, error, refresh } = useApp()
   const { user } = useAuth()
 
   // Only redirect brand-new users who have never been through onboarding.
@@ -46,8 +46,8 @@ export default function Dashboard() {
   )
 
   const periodSpending = useMemo(
-    () => buildPeriodSpending(transactions, effectiveCaps, now),
-    [transactions, effectiveCaps]
+    () => buildPeriodSpending(transactions, effectiveCaps, now, statementDays),
+    [transactions, effectiveCaps, statementDays]
   )
 
   // Min spend milestones — wallet cards that have a threshold requirement
@@ -72,18 +72,8 @@ export default function Dashboard() {
 
       const totalSpent = periodSpending.get(`${cap.card_id}:total:${cap.cap_period}`) ?? 0
 
-      // Days left in the current period
-      const year = now.getFullYear()
-      const month = now.getMonth()
-      let periodEnd: Date
-      if (cap.cap_period === 'monthly') {
-        periodEnd = new Date(year, month + 1, 0)
-      } else if (cap.cap_period === 'quarterly') {
-        const quarterEndMonth = Math.ceil((month + 1) / 3) * 3 - 1
-        periodEnd = new Date(year, quarterEndMonth + 1, 0)
-      } else {
-        periodEnd = new Date(year, 11, 31)
-      }
+      const statementDay = statementDays.get(cap.card_id)
+      const periodEnd = getPeriodEnd(cap.cap_period, now, statementDay)
       const daysLeft = Math.max(1, Math.ceil((periodEnd.getTime() - now.getTime()) / 86400000))
 
       result.push({ card, minSpend: cap.min_spend, totalSpent, capPeriod: cap.cap_period, daysLeft })
