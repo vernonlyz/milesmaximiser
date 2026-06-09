@@ -142,7 +142,7 @@ export default function Transactions() {
 
   function activateOverride() {
     setMpdOverrideActive(true)
-    setManualMpd(computedMpd != null ? computedMpd.toFixed(2) : '')
+    setManualMpd(nominalComputedMpd != null ? nominalComputedMpd.toFixed(2) : '')
   }
 
   function resetOverride() {
@@ -166,7 +166,11 @@ export default function Transactions() {
 
     const parsedManual = parseFloat(manualMpd)
     const hasValidOverride = mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0
-    const finalMpd = hasValidOverride ? parsedManual : engineMpd
+
+    // Apply the same block rounding to manual overrides that the engine applies automatically.
+    const saveEarnAmount = Math.floor(amount / card.earn_increment) * card.earn_increment
+    const overrideMiles = Math.round(saveEarnAmount * parsedManual)
+    const overrideEffectiveMpd = amount > 0 ? overrideMiles / amount : 0
 
     const payload = {
       card_id: form.card_id,
@@ -180,8 +184,8 @@ export default function Transactions() {
       computed_mpd: parseFloat(engineMpd.toFixed(4)),
       manual_mpd: hasValidOverride ? parseFloat(parsedManual.toFixed(4)) : null,
       override_note: hasValidOverride && overrideNote.trim() ? overrideNote.trim() : null,
-      effective_mpd: parseFloat(finalMpd.toFixed(4)),
-      miles_earned: Math.round(amount * finalMpd),
+      effective_mpd: parseFloat((hasValidOverride ? overrideEffectiveMpd : engineMpd).toFixed(4)),
+      miles_earned: hasValidOverride ? overrideMiles : Math.round(amount * engineMpd),
     }
 
     let dbErr
@@ -222,15 +226,6 @@ export default function Transactions() {
     return Array.from(set).sort().reverse()
   }, [transactions])
 
-  // Live miles preview in modal
-  const parsedManualMpd = parseFloat(manualMpd)
-  const previewMpd = mpdOverrideActive && !isNaN(parsedManualMpd) && parsedManualMpd > 0
-    ? parsedManualMpd
-    : computedMpd
-  const previewMiles = previewMpd != null && parseFloat(form.amount) > 0
-    ? Math.round(parseFloat(form.amount) * previewMpd)
-    : null
-
   // Nominal MPD for the current form — strips out the rounding factor so we show "4 mpd"
   // rather than the slightly-lower effective value (e.g. 3.96 mpd on a $13.80 / $5-block card).
   // earnAmount is the amount the bank actually awards miles on.
@@ -242,6 +237,17 @@ export default function Transactions() {
   const nominalComputedMpd = computedMpd != null && earnAmount > 0
     ? parseFloat((computedMpd * formAmt / earnAmount).toFixed(4))
     : computedMpd
+
+  // Live miles preview in modal
+  const parsedManualMpd = parseFloat(manualMpd)
+  const previewMpd = mpdOverrideActive && !isNaN(parsedManualMpd) && parsedManualMpd > 0
+    ? parsedManualMpd
+    : computedMpd
+  const previewMiles = previewMpd != null && formAmt > 0
+    ? mpdOverrideActive
+      ? Math.round(earnAmount * previewMpd)   // manual: apply block rounding
+      : Math.round(formAmt * previewMpd)      // computed: effectiveMpd already has rounding baked in
+    : null
 
   // MCC display helper
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
