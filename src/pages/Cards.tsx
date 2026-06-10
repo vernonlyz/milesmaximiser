@@ -18,6 +18,34 @@ export default function Cards() {
   const [statementDayInput, setStatementDayInput] = useState('')
   const [savingStatementDay, setSavingStatementDay] = useState(false)
 
+  // Statement-day prompt when adding a statement-cycle card
+  const [pendingAddCard, setPendingAddCard] = useState<CreditCard | null>(null)
+  const [pendingDay, setPendingDay] = useState('')
+  const [addingSaving, setAddingSaving] = useState(false)
+
+  function handleAddClick(card: CreditCard) {
+    if (card.cap_cycle === 'statement') {
+      setPendingAddCard(card)
+      setPendingDay('')
+    } else {
+      addCardSelection(card.id)
+    }
+  }
+
+  async function confirmPendingAdd(skipDay: boolean) {
+    if (!pendingAddCard) return
+    setAddingSaving(true)
+    await addCardSelection(pendingAddCard.id)
+    if (!skipDay) {
+      const parsed = parseInt(pendingDay, 10)
+      const day = isNaN(parsed) ? null : Math.min(28, Math.max(1, parsed))
+      if (day) await saveStatementDay(pendingAddCard.id, day)
+    }
+    setAddingSaving(false)
+    setPendingAddCard(null)
+    setPendingDay('')
+  }
+
   function openStatementDayEdit(cardId: string) {
     setEditingStatementDay(cardId)
     setStatementDayInput(String(statementDays.get(cardId) ?? ''))
@@ -354,7 +382,7 @@ export default function Cards() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => addCardSelection(card.id)}
+                          onClick={() => handleAddClick(card)}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
                         >
                           <Plus size={13} /> Add
@@ -468,6 +496,50 @@ export default function Cards() {
               <button onClick={() => setEditCard(null)} className="btn-secondary flex-1">Cancel</button>
               <button onClick={handleSaveOverride} disabled={editSaving} className="btn-primary flex-1">
                 {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Statement-day prompt when adding a statement-cycle card */}
+      {pendingAddCard && (
+        <Modal title={`Add ${pendingAddCard.bank} ${pendingAddCard.name}`} onClose={() => setPendingAddCard(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              This card's bonus cap resets on your statement closing date, not the 1st of each month.
+              Setting your statement date ensures cap tracking is accurate.
+            </p>
+            <div>
+              <label className="label">Statement closing day</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={28}
+                  placeholder="e.g. 15"
+                  value={pendingDay}
+                  onChange={e => setPendingDay(e.target.value)}
+                  className="input w-24"
+                />
+                <span className="text-sm text-gray-500">of each month</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Enter the day your statement closes (1–28).</p>
+            </div>
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => confirmPendingAdd(false)}
+                disabled={!pendingDay.trim() || addingSaving}
+                className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {addingSaving ? 'Adding…' : 'Set & Add card'}
+              </button>
+              <button
+                onClick={() => confirmPendingAdd(true)}
+                disabled={addingSaving}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors text-center py-1"
+              >
+                Skip — use calendar month instead
               </button>
             </div>
           </div>

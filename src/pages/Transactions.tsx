@@ -219,6 +219,27 @@ export default function Transactions() {
     refreshTransactions()
   }
 
+  // Top 6 most-used vendors from transaction history (for quick-pick chips)
+  const frequentVendors = useMemo(() => {
+    const counts = new Map<string, { name: string; count: number; category_id: string | null }>()
+    for (const t of transactions) {
+      if (!t.vendor_name) continue
+      const key = t.vendor_name.toLowerCase()
+      const existing = counts.get(key)
+      if (existing) existing.count++
+      else counts.set(key, { name: t.vendor_name, count: 1, category_id: t.category_id })
+    }
+    return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 6)
+  }, [transactions])
+
+  function handleQuickVendor(v: { name: string; category_id: string | null }) {
+    setVendorName(v.name)
+    setSelectedVendor(null)
+    if (v.category_id) setField('category_id', v.category_id)
+    const catalogueMatch = vendorCatalogue.find(c => c.name.toLowerCase() === v.name.toLowerCase())
+    if (catalogueMatch?.default_mcc) setMcc(catalogueMatch.default_mcc)
+  }
+
   // Filtered + sorted transactions
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -588,6 +609,21 @@ export default function Transactions() {
           {/* Vendor typeahead */}
           <div>
             <label className="label">Vendor</label>
+            {/* Frequent vendor chips — only shown when field is empty and not editing */}
+            {!vendorName && !editingId && frequentVendors.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {frequentVendors.map(v => (
+                  <button
+                    key={v.name}
+                    type="button"
+                    onClick={() => handleQuickVendor(v)}
+                    className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                  >
+                    {v.name}
+                  </button>
+                ))}
+              </div>
+            )}
             <VendorInput
               vendorName={vendorName}
               isVendorSelected={selectedVendor !== null}
