@@ -52,7 +52,9 @@ Supabase (Postgres + Auth + RLS)
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
-Deployment: Cloudflare Pages (static hosting; env vars injected at build)
+Deployment: Cloudflare Workers (`wrangler.toml`; `[assets]` serves the Vite `dist/` output)
+  - `not_found_handling = "single-page-application"` ensures all unmatched routes serve index.html (SPA refresh fix)
+  - `npm run deploy` = `npm run build && wrangler deploy` (always rebuilds before uploading)
 ```
 
 **Data flow at login:**
@@ -166,6 +168,7 @@ The app is a functional MVP. All core features are implemented:
 | Dashboard wallet: Cash/Debit summary row when debit spend exists | Complete |
 | Transaction form: Cash/Debit always available in card dropdown (no wallet setup) | Complete |
 | Transaction filter: card dropdown includes Cash/Debit | Complete |
+| SPA deep-link refresh fix (Cloudflare Workers not_found_handling) | Complete |
 
 **Card library (23 cards):**
 

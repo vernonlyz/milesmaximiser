@@ -45,6 +45,8 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-11  Transactions: card filter dropdown includes Cash/Debit
 2026-06-11  Replace Citi Cash Back with Citi Cash Back+ (1.6% flat, remove category overrides)
 2026-06-11  Fix sidebar footer button alignment; enlarge Info icon  [tag: v3.0-expense-tracking]
+2026-06-11  Fix SPA deep-link refresh: add not_found_handling to wrangler.toml
+2026-06-11  Add npm run deploy script (build + wrangler deploy in one step)
 ```
 
 ---
@@ -94,6 +96,7 @@ Everything listed below is in a working, committed state on `main` (tagged `v3.0
 - **Cards page filters** — Type chip filter (Miles / Cashback) and bank chip filter; card type badge on each card. Debit cards hidden from library.
 - **Dashboard wallet filters** — Chip filters by type (Miles / Cashback / Cash/Debit) and by bank. Cash/Debit chip appears when debit spend exists; selecting it shows the debit-only summary row.
 - **Transaction form / list** — Cash/Debit always appears in card dropdown (injected from `allCards`). Card filter in transaction list includes Cash/Debit.
+- **SPA routing fix** — `not_found_handling = "single-page-application"` in `wrangler.toml` so refreshing on any route (e.g. `/recommend`, `/expenses`) serves `index.html` instead of a 404. `npm run deploy` added to `package.json` to always rebuild before uploading — prevents deploying a stale `dist`.
 
 ---
 
