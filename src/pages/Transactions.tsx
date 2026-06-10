@@ -21,7 +21,7 @@ const EMPTY_FORM: TransactionFormData = {
 type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 
 export default function Transactions() {
-  const { cards, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
+  const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
   const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
@@ -173,7 +173,7 @@ export default function Transactions() {
     setSaving(true)
     setError(null)
 
-    const card = cards.find(c => c.id === form.card_id)!
+    const card = (cards.find(c => c.id === form.card_id) ?? allCards.find(c => c.id === form.card_id))!
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
 
     // Cashback cards: compute cashback_earned; skip the miles engine entirely
@@ -284,7 +284,7 @@ export default function Transactions() {
   // Nominal MPD for the current form — strips out the rounding factor so we show "4 mpd"
   // rather than the slightly-lower effective value (e.g. 3.96 mpd on a $13.80 / $5-block card).
   // earnAmount is the amount the bank actually awards miles on.
-  const formCard = cards.find(c => c.id === form.card_id)
+  const formCard = cards.find(c => c.id === form.card_id) ?? allCards.find(c => c.id === form.card_id)
   const formAmt = parseFloat(form.amount) || 0
   const earnAmount = formCard && formAmt > 0
     ? Math.floor(formAmt / formCard.earn_increment) * formCard.earn_increment
@@ -833,6 +833,9 @@ export default function Transactions() {
                 <option value="">Select card…</option>
                 {cards.map(c => (
                   <option key={c.id} value={c.id}>{c.bank} {c.name}</option>
+                ))}
+                {allCards.filter(c => c.card_type === 'debit' && !selectedCardIds.has(c.id)).map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
               <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />

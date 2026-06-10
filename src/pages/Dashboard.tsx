@@ -494,7 +494,7 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {recent.map(t => {
-                const card = cards.find(c => c.id === t.card_id)
+                const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
                 const cat = categories.find(c => c.id === t.category_id)
                 const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
                 const notesLine = t.vendor_name && t.description ? t.description : null

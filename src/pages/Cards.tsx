@@ -108,7 +108,7 @@ export default function Cards() {
   // Group library cards by bank
   const grouped = useMemo(() => {
     const map = new Map<string, CreditCard[]>()
-    for (const card of allCards.filter(c => c.active)) {
+    for (const card of allCards.filter(c => c.active && c.card_type !== 'debit')) {
       const list = map.get(card.bank) ?? []
       list.push(card)
       map.set(card.bank, list)
