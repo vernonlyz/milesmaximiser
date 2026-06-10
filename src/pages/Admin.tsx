@@ -49,6 +49,7 @@ export default function Admin() {
     const next = row.status === 'open' ? 'resolved' : 'open'
     await supabase.from('feedback').update({ status: next }).eq('id', row.id)
     setRows(prev => prev.map(r => r.id === row.id ? { ...r, status: next } : r))
+    window.dispatchEvent(new Event('feedback-status-changed'))
     setToggling(null)
   }
 

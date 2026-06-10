@@ -36,7 +36,11 @@ export default function Layout() {
       .channel('feedback-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, fetchOpenCount)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    window.addEventListener('feedback-status-changed', fetchOpenCount)
+    return () => {
+      supabase.removeChannel(channel)
+      window.removeEventListener('feedback-status-changed', fetchOpenCount)
+    }
   }, [isAdmin])
 
   async function fetchOpenCount() {
