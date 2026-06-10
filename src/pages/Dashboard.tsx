@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Wallet, Percent } from 'lucide-react'
+import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
@@ -26,33 +26,10 @@ export default function Dashboard() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   const monthTxns = transactions.filter(t => t.transaction_date >= monthStart)
 
-  const totalSpent = monthTxns.reduce((s, t) => s + t.amount, 0)
-  const totalMiles = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+  const totalSpent    = monthTxns.reduce((s, t) => s + t.amount, 0)
+  const totalMiles    = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalCashback = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
-  const txnCount = monthTxns.length
-
-  // Spend by card type (look up from allCards so removed-wallet cards still resolve)
-  const cardTypeMap = useMemo(() => {
-    const m = new Map<string, 'miles' | 'cashback' | 'debit'>()
-    for (const c of allCards) m.set(c.id, c.card_type)
-    return m
-  }, [allCards])
-
-  const milesSpend    = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'miles')   .reduce((s, t) => s + t.amount, 0)
-  const cashbackSpend = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'cashback').reduce((s, t) => s + t.amount, 0)
-  const debitSpend    = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'debit')   .reduce((s, t) => s + t.amount, 0)
-
-  // Spend by category (calendar month, all card types)
-  const catSpend = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const t of monthTxns) {
-      if (!t.category_id) continue
-      map.set(t.category_id, (map.get(t.category_id) ?? 0) + t.amount)
-    }
-    return Array.from(map.entries())
-      .sort(([, a], [, b]) => b - a)
-      .map(([catId, amt]) => ({ catId, amt, cat: categories.find(c => c.id === catId) }))
-  }, [monthTxns, categories])
+  const txnCount      = monthTxns.length
 
   // Only show caps for cards in the user's wallet
   const walletCaps = useMemo(
@@ -252,7 +229,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Stat
           icon={<TrendingUp size={20} className="text-indigo-600" />}
           label="Miles Earned"
@@ -271,63 +248,10 @@ export default function Dashboard() {
           icon={<Receipt size={20} className="text-sky-600" />}
           label="Total Spent"
           value={`S$${totalSpent.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          sub="this month"
+          sub={`${txnCount} transactions`}
           bg="bg-sky-50"
         />
-        <Stat
-          icon={<Sparkles size={20} className="text-amber-600" />}
-          label="Transactions"
-          value={txnCount.toString()}
-          sub="this month"
-          bg="bg-amber-50"
-        />
       </div>
-
-      {/* Spending Overview */}
-      {monthTxns.length > 0 && (
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Wallet size={16} className="text-gray-600" />
-            <h2 className="font-semibold text-gray-800">Spending Overview</h2>
-            <span className="text-xs text-gray-400 ml-1">{currentMonthLabel()}</span>
-          </div>
-
-          {/* Spend by type */}
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-5 pb-4 border-b border-gray-100">
-            <span className="text-gray-500">Miles cards <span className="font-semibold text-gray-800 ml-1">{formatSGD(milesSpend)}</span></span>
-            <span className="text-gray-500">Cashback cards <span className="font-semibold text-gray-800 ml-1">{formatSGD(cashbackSpend)}</span></span>
-            <span className="text-gray-500">Cash / Debit <span className="font-semibold text-gray-800 ml-1">{formatSGD(debitSpend)}</span></span>
-            <span className="text-gray-400">|</span>
-            <span className="text-gray-500">Total <span className="font-bold text-gray-900 ml-1">{formatSGD(totalSpent)}</span></span>
-          </div>
-
-          {/* Spend by category */}
-          {catSpend.length > 0 && (
-            <div className="space-y-2.5">
-              {catSpend.map(({ catId, amt, cat }) => {
-                const pct = totalSpent > 0 ? (amt / totalSpent) * 100 : 0
-                return (
-                  <div key={catId}>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-gray-700">{cat ? `${cat.icon} ${cat.name}` : '—'}</span>
-                      <span className="text-gray-600 tabular-nums">
-                        {formatSGD(amt)}
-                        <span className="text-gray-400 ml-2 text-xs">{Math.round(pct)}%</span>
-                      </span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-indigo-300"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Spend milestones — cards with min spend thresholds */}
       {milestones.length > 0 && (
@@ -544,13 +468,13 @@ function Stat({ icon, label, value, sub, bg }: {
   icon: React.ReactNode; label: string; value: string; sub: string; bg: string
 }) {
   return (
-    <div className="card p-5 flex items-center gap-4">
-      <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+    <div className="card p-4 sm:p-5 flex items-center gap-3 sm:gap-4">
+      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
         {icon}
       </div>
-      <div>
-        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
+      <div className="min-w-0">
+        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide truncate">{label}</p>
+        <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">{value}</p>
         <p className="text-xs text-gray-400">{sub}</p>
       </div>
     </div>

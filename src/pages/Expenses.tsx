@@ -1,0 +1,200 @@
+import { useMemo } from 'react'
+import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2 } from 'lucide-react'
+import { useApp } from '../context/AppContext'
+import { currentMonthLabel, formatSGD } from '../lib/utils'
+
+export default function Expenses() {
+  const { cards, allCards, categories, transactions, loading, error, refresh } = useApp()
+
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+  const monthTxns = transactions.filter(t => t.transaction_date >= monthStart)
+
+  const cardTypeMap = useMemo(() => {
+    const m = new Map<string, 'miles' | 'cashback' | 'debit'>()
+    for (const c of allCards) m.set(c.id, c.card_type)
+    return m
+  }, [allCards])
+
+  const totalSpent     = monthTxns.reduce((s, t) => s + t.amount, 0)
+  const milesSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'miles')   .reduce((s, t) => s + t.amount, 0)
+  const cashbackSpend  = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'cashback').reduce((s, t) => s + t.amount, 0)
+  const debitSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'debit')   .reduce((s, t) => s + t.amount, 0)
+  const totalMiles     = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+  const totalCashback  = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+
+  const catSpend = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const t of monthTxns) {
+      if (!t.category_id) continue
+      map.set(t.category_id, (map.get(t.category_id) ?? 0) + t.amount)
+    }
+    return Array.from(map.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([catId, amt]) => ({ catId, amt, cat: categories.find(c => c.id === catId) }))
+  }, [monthTxns, categories])
+
+  // Per-card spend this month
+  const cardSpend = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const t of monthTxns) {
+      if (!t.card_id) continue
+      map.set(t.card_id, (map.get(t.card_id) ?? 0) + t.amount)
+    }
+    return Array.from(map.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([cardId, amt]) => ({
+        cardId,
+        amt,
+        card: cards.find(c => c.id === cardId) ?? allCards.find(c => c.id === cardId),
+      }))
+      .filter(r => r.card)
+  }, [monthTxns, cards, allCards])
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 text-gray-400">
+      <RefreshCw size={24} className="animate-spin mr-2" /> Loading…
+    </div>
+  )
+
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+      <AlertCircle size={32} className="text-red-400" />
+      <p className="font-medium text-gray-800">Could not load data</p>
+      <button onClick={refresh} className="btn-secondary"><RefreshCw size={14} /> Retry</button>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{currentMonthLabel()}</p>
+        </div>
+        <button onClick={refresh} className="btn-secondary text-xs">
+          <RefreshCw size={13} /> Refresh
+        </button>
+      </div>
+
+      {/* Spend by type — 4 stat chips */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatChip label="Miles Cards"     value={formatSGD(milesSpend)}    icon={<TrendingUp size={16} className="text-indigo-600" />} bg="bg-indigo-50" />
+        <StatChip label="Cashback Cards"  value={formatSGD(cashbackSpend)} icon={<Percent    size={16} className="text-emerald-600" />} bg="bg-emerald-50" />
+        <StatChip label="Cash / Debit"    value={formatSGD(debitSpend)}    icon={<Wallet     size={16} className="text-gray-500" />}   bg="bg-gray-100" />
+        <StatChip label="Total Spent"     value={formatSGD(totalSpent)}    icon={<Receipt    size={16} className="text-sky-600" />}    bg="bg-sky-50" bold />
+      </div>
+
+      {/* Rewards earned */}
+      {(totalMiles > 0 || totalCashback > 0) && (
+        <div className="card p-4 flex flex-wrap gap-6">
+          {totalMiles > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Miles Earned</p>
+              <p className="text-xl font-bold text-indigo-600">{Math.round(totalMiles).toLocaleString()} mi</p>
+            </div>
+          )}
+          {totalCashback > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Cashback Earned</p>
+              <p className="text-xl font-bold text-emerald-600">S${totalCashback.toFixed(2)}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {monthTxns.length === 0 ? (
+        <div className="card p-10 text-center text-gray-400">
+          <BarChart2 size={32} className="mx-auto mb-3 opacity-40" />
+          <p className="font-medium">No transactions this month yet.</p>
+        </div>
+      ) : (
+        <>
+          {/* Spend by category */}
+          <div className="card p-5">
+            <h2 className="font-semibold text-gray-800 mb-4">Spend by Category</h2>
+            <div className="space-y-3">
+              {catSpend.map(({ catId, amt, cat }) => {
+                const pct = totalSpent > 0 ? (amt / totalSpent) * 100 : 0
+                return (
+                  <div key={catId}>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-gray-700">{cat ? `${cat.icon} ${cat.name}` : '—'}</span>
+                      <span className="text-gray-600 tabular-nums">
+                        {formatSGD(amt)}
+                        <span className="text-gray-400 ml-2 text-xs">{Math.round(pct)}%</span>
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-300" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Spend by card */}
+          {cardSpend.length > 1 && (
+            <div className="card p-5">
+              <h2 className="font-semibold text-gray-800 mb-4">Spend by Card</h2>
+              <div className="space-y-3">
+                {cardSpend.map(({ cardId, amt, card }) => {
+                  const pct = totalSpent > 0 ? (amt / totalSpent) * 100 : 0
+                  const cashbackEarned = monthTxns
+                    .filter(t => t.card_id === cardId)
+                    .reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+                  const milesEarned = monthTxns
+                    .filter(t => t.card_id === cardId)
+                    .reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+                  return (
+                    <div key={cardId}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full shrink-0"
+                            style={{ backgroundColor: card!.color }}
+                          />
+                          <span className="text-gray-700">{card!.bank} {card!.name}</span>
+                        </span>
+                        <span className="text-gray-600 tabular-nums flex items-center gap-2">
+                          {milesEarned > 0 && (
+                            <span className="text-indigo-500 text-xs">+{Math.round(milesEarned)} mi</span>
+                          )}
+                          {cashbackEarned > 0 && (
+                            <span className="text-emerald-500 text-xs">+S${cashbackEarned.toFixed(2)}</span>
+                          )}
+                          {formatSGD(amt)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-indigo-200" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function StatChip({ label, value, icon, bg, bold }: {
+  label: string; value: string; icon: React.ReactNode; bg: string; bold?: boolean
+}) {
+  return (
+    <div className="card p-4 flex items-center gap-3">
+      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-gray-500 font-medium truncate">{label}</p>
+        <p className={`text-base sm:text-lg font-bold leading-tight truncate ${bold ? 'text-gray-900' : 'text-gray-800'}`}>{value}</p>
+      </div>
+    </div>
+  )
+}

@@ -10,6 +10,7 @@ import Recommend from './pages/Recommend'
 import Transactions from './pages/Transactions'
 import Cards from './pages/Cards'
 import Admin from './pages/Admin'
+import Expenses from './pages/Expenses'
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="recommend"    element={<Recommend />}    />
             <Route path="transactions" element={<Transactions />} />
             <Route path="cards"        element={<Cards />}        />
+            <Route path="expenses"     element={<Expenses />}     />
             <Route path="admin"        element={<Admin />}        />
           </Route>
         </Routes>
