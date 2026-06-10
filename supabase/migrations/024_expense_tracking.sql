@@ -81,7 +81,7 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
 VALUES (
   '00000000-0000-0000-0001-000000000023',
   'Citi Cash Back',
-  'Citi',
+  'Citibank',
   'Mastercard',
   0,
   '#D42B28',

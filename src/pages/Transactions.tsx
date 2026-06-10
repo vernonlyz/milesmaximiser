@@ -372,6 +372,9 @@ export default function Transactions() {
             {cards.map(c => (
               <option key={c.id} value={c.id}>{c.bank} {c.name}</option>
             ))}
+            {allCards.filter(c => c.card_type === 'debit').map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
           </select>
           <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>

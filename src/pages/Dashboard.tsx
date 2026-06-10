@@ -189,7 +189,7 @@ export default function Dashboard() {
   }, [cards, effectiveCaps, categories, periodSpending, monthTxns, overrides])
 
   // Wallet filter
-  const [walletFilter, setWalletFilter] = useState<string>('all') // 'all' | 'miles' | 'cashback' | bank name
+  const [walletFilter, setWalletFilter] = useState<string>('all')
 
   const walletBanks = useMemo(
     () => Array.from(new Set(cards.map(c => c.bank))).sort(),
@@ -200,8 +200,16 @@ export default function Dashboard() {
     [cards]
   )
 
+  // Debit spend this month (Cash/Debit is never a wallet card)
+  const debitMonthlySpent = useMemo(() => {
+    const debitIds = new Set(allCards.filter(c => c.card_type === 'debit').map(c => c.id))
+    return monthTxns.filter(t => t.card_id && debitIds.has(t.card_id)).reduce((s, t) => s + t.amount, 0)
+  }, [allCards, monthTxns])
+
+  const showDebitRow = walletFilter === 'all' || walletFilter === 'cash'
+
   const visibleSummaries = useMemo(() => {
-    if (walletFilter === 'all') return cardSummaries
+    if (walletFilter === 'all' || walletFilter === 'cash') return walletFilter === 'cash' ? [] : cardSummaries
     if (walletFilter === 'miles' || walletFilter === 'cashback')
       return cardSummaries.filter(s => s.card.card_type === walletFilter)
     return cardSummaries.filter(s => s.card.bank === walletFilter)
@@ -339,9 +347,9 @@ export default function Dashboard() {
           ) : (
             <>
               {/* Filter chips — only shown when there's something to filter */}
-              {(hasMultipleTypes || walletBanks.length > 1) && (
+              {(hasMultipleTypes || walletBanks.length > 1 || debitMonthlySpent > 0) && (
                 <div className="flex flex-wrap gap-1.5 mb-4">
-                  {(['all', ...(hasMultipleTypes ? ['miles', 'cashback'] : []), ...walletBanks] as string[]).map(f => (
+                  {(['all', ...(hasMultipleTypes ? ['miles', 'cashback'] : []), ...(debitMonthlySpent > 0 ? ['cash'] : []), ...walletBanks] as string[]).map(f => (
                     <button
                       key={f}
                       onClick={() => setWalletFilter(f)}
@@ -351,7 +359,7 @@ export default function Dashboard() {
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      {f === 'all' ? 'All' : f === 'miles' ? 'Miles' : f === 'cashback' ? 'Cashback' : f}
+                      {f === 'all' ? 'All' : f === 'miles' ? 'Miles' : f === 'cashback' ? 'Cashback' : f === 'cash' ? 'Cash/Debit' : f}
                     </button>
                   ))}
                 </div>
@@ -436,6 +444,26 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
+              {/* Debit / cash row */}
+              {showDebitRow && debitMonthlySpent > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className="w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                      style={{ backgroundColor: '#6B7280' }}
+                    >
+                      CA
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">Cash / Debit</span>
+                  </div>
+                  <div className="pl-7">
+                    <div className="flex items-center justify-between text-xs pt-0.5">
+                      <span className="text-gray-400">No rewards · total this month</span>
+                      <span className="text-gray-600 font-medium">S${debitMonthlySpent.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             </>
           )}
@@ -472,7 +500,7 @@ export default function Dashboard() {
                         <p className="text-xs text-gray-500 truncate">{notesLine}</p>
                       )}
                       <p className="text-xs text-gray-400">
-                        {t.transaction_date} · {card ? `${card.bank} ${card.name}` : 'No card'}
+                        {t.transaction_date} · {card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : 'No card'}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
