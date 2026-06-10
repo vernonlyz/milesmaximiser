@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut, Info, MessageSquare,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut, Info, MessageSquare, ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import Modal from './Modal'
+
+const ADMIN_EMAIL = 'vernonlyz@gmail.com'
 
 const nav = [
   { to: '/',             label: 'Dashboard',    Icon: LayoutDashboard },
@@ -19,16 +22,29 @@ export default function Layout() {
   const [feedback, setFeedback] = useState(false)
   const [fbType, setFbType] = useState<'bug' | 'suggestion'>('bug')
   const [fbMsg, setFbMsg] = useState('')
+  const [fbSaving, setFbSaving] = useState(false)
+  const [fbDone, setFbDone] = useState(false)
   const { user, signOut } = useAuth()
 
-  function submitFeedback() {
-    const subject = encodeURIComponent(
-      fbType === 'bug' ? '[MilesMaximiser] Bug report' : '[MilesMaximiser] Suggestion'
-    )
-    const body = encodeURIComponent(fbMsg.trim())
-    window.open(`mailto:vernonlyz@gmail.com?subject=${subject}&body=${body}`)
+  const isAdmin = user?.email === ADMIN_EMAIL
+
+  async function submitFeedback() {
+    if (!fbMsg.trim()) return
+    setFbSaving(true)
+    await supabase.from('feedback').insert({
+      user_id:    user?.id,
+      user_email: user?.email,
+      type:       fbType,
+      message:    fbMsg.trim(),
+    })
+    setFbSaving(false)
+    setFbDone(true)
+  }
+
+  function closeFeedback() {
     setFeedback(false)
     setFbMsg('')
+    setFbDone(false)
   }
 
   return (
@@ -84,6 +100,22 @@ export default function Layout() {
               {label}
             </NavLink>
           ))}
+          {isAdmin && (
+            <NavLink
+              to="/admin"
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                }`
+              }
+            >
+              <ShieldCheck size={18} />
+              Admin
+            </NavLink>
+          )}
         </nav>
 
         <div className="px-4 py-4 border-t border-gray-700 space-y-1">
@@ -154,56 +186,62 @@ export default function Layout() {
       )}
 
       {feedback && (
-        <Modal title="Report a bug / Suggestion" onClose={() => { setFeedback(false); setFbMsg('') }}>
-          <div className="space-y-4">
-            {/* Type toggle */}
-            <div className="flex gap-2">
-              {(['bug', 'suggestion'] as const).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setFbType(t)}
-                  className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                    fbType === t
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
-                  }`}
-                >
-                  {t === 'bug' ? '🐛 Bug report' : '💡 Suggestion'}
-                </button>
-              ))}
+        <Modal title="Report a bug / Suggestion" onClose={closeFeedback}>
+          {fbDone ? (
+            <div className="py-6 text-center space-y-2">
+              <p className="text-3xl">🎉</p>
+              <p className="font-semibold text-gray-800">Thanks for the feedback!</p>
+              <p className="text-sm text-gray-500">We'll look into it.</p>
+              <button onClick={closeFeedback} className="btn-primary mt-4">Close</button>
             </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Type toggle */}
+              <div className="flex gap-2">
+                {(['bug', 'suggestion'] as const).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setFbType(t)}
+                    className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      fbType === t
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    {t === 'bug' ? '🐛 Bug report' : '💡 Suggestion'}
+                  </button>
+                ))}
+              </div>
 
-            {/* Message */}
-            <div>
-              <label className="label">
-                {fbType === 'bug' ? 'What went wrong?' : 'What would you like to see?'}
-              </label>
-              <textarea
-                rows={5}
-                className="input resize-none"
-                placeholder={
-                  fbType === 'bug'
-                    ? 'Describe what happened and what you expected…'
-                    : 'Describe your idea or improvement…'
-                }
-                value={fbMsg}
-                onChange={e => setFbMsg(e.target.value)}
-              />
+              {/* Message */}
+              <div>
+                <label className="label">
+                  {fbType === 'bug' ? 'What went wrong?' : 'What would you like to see?'}
+                </label>
+                <textarea
+                  rows={5}
+                  className="input resize-none"
+                  placeholder={
+                    fbType === 'bug'
+                      ? 'Describe what happened and what you expected…'
+                      : 'Describe your idea or improvement…'
+                  }
+                  value={fbMsg}
+                  onChange={e => setFbMsg(e.target.value)}
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={!fbMsg.trim() || fbSaving}
+                onClick={submitFeedback}
+                className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {fbSaving ? 'Submitting…' : 'Submit'}
+              </button>
             </div>
-
-            <button
-              type="button"
-              disabled={!fbMsg.trim()}
-              onClick={submitFeedback}
-              className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Open in email app
-            </button>
-            <p className="text-xs text-gray-400 text-center">
-              This will open your email client pre-filled and ready to send.
-            </p>
-          </div>
+          )}
         </Modal>
       )}
     </div>

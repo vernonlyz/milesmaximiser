@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import Recommend from './pages/Recommend'
 import Transactions from './pages/Transactions'
 import Cards from './pages/Cards'
+import Admin from './pages/Admin'
 
 export default function App() {
   return (
@@ -32,10 +33,11 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index             element={<Dashboard />}    />
+            <Route index               element={<Dashboard />}    />
             <Route path="recommend"    element={<Recommend />}    />
             <Route path="transactions" element={<Transactions />} />
             <Route path="cards"        element={<Cards />}        />
+            <Route path="admin"        element={<Admin />}        />
           </Route>
         </Routes>
       </AppProvider>
