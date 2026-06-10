@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -188,6 +188,25 @@ export default function Dashboard() {
     })
   }, [cards, effectiveCaps, categories, periodSpending, monthTxns, overrides])
 
+  // Wallet filter
+  const [walletFilter, setWalletFilter] = useState<string>('all') // 'all' | 'miles' | 'cashback' | bank name
+
+  const walletBanks = useMemo(
+    () => Array.from(new Set(cards.map(c => c.bank))).sort(),
+    [cards]
+  )
+  const hasMultipleTypes = useMemo(
+    () => new Set(cards.map(c => c.card_type)).size > 1,
+    [cards]
+  )
+
+  const visibleSummaries = useMemo(() => {
+    if (walletFilter === 'all') return cardSummaries
+    if (walletFilter === 'miles' || walletFilter === 'cashback')
+      return cardSummaries.filter(s => s.card.card_type === walletFilter)
+    return cardSummaries.filter(s => s.card.bank === walletFilter)
+  }, [cardSummaries, walletFilter])
+
   // Recent transactions (last 8)
   const recent = transactions.slice(0, 8)
 
@@ -311,15 +330,34 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Wallet cards with cap usage */}
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-800 mb-4">My Wallet</h2>
+          <h2 className="font-semibold text-gray-800 mb-3">My Wallet</h2>
           {cardSummaries.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-sm text-gray-400">No cards in your wallet yet.</p>
               <Link to="/cards" className="btn-primary mt-3 text-xs">Go to My Cards</Link>
             </div>
           ) : (
+            <>
+              {/* Filter chips — only shown when there's something to filter */}
+              {(hasMultipleTypes || walletBanks.length > 1) && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {(['all', ...(hasMultipleTypes ? ['miles', 'cashback'] : []), ...walletBanks] as string[]).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setWalletFilter(f)}
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                        walletFilter === f
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {f === 'all' ? 'All' : f === 'miles' ? 'Miles' : f === 'cashback' ? 'Cashback' : f}
+                    </button>
+                  ))}
+                </div>
+              )}
             <div className="space-y-5">
-              {cardSummaries.map(({ card, capRows, spendRows, monthlySpent, monthlyMiles }) => (
+              {visibleSummaries.map(({ card, capRows, spendRows, monthlySpent, monthlyMiles }) => (
                 <div key={card.id}>
                   {/* Card name row */}
                   <div className="flex items-center gap-2 mb-2">
@@ -399,6 +437,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
 

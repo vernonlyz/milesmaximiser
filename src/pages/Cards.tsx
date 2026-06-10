@@ -105,16 +105,37 @@ export default function Cards() {
     setEditSaving(false)
   }
 
-  // Group library cards by bank
+  const [typeFilter, setTypeFilter] = useState<'all' | 'miles' | 'cashback'>('all')
+  const [bankFilter, setBankFilter] = useState<string>('all')
+
+  const libraryCards = useMemo(
+    () => allCards.filter(c => c.active && c.card_type !== 'debit'),
+    [allCards]
+  )
+
+  const banks = useMemo(
+    () => Array.from(new Set(libraryCards.map(c => c.bank))).sort(),
+    [libraryCards]
+  )
+
+  const filteredLibrary = useMemo(() => {
+    return libraryCards.filter(c => {
+      if (typeFilter !== 'all' && c.card_type !== typeFilter) return false
+      if (bankFilter !== 'all' && c.bank !== bankFilter) return false
+      return true
+    })
+  }, [libraryCards, typeFilter, bankFilter])
+
+  // Group filtered cards by bank
   const grouped = useMemo(() => {
     const map = new Map<string, CreditCard[]>()
-    for (const card of allCards.filter(c => c.active && c.card_type !== 'debit')) {
+    for (const card of filteredLibrary) {
       const list = map.get(card.bank) ?? []
       list.push(card)
       map.set(card.bank, list)
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [allCards])
+  }, [filteredLibrary])
 
   // Build selectable category map: card_id → category_id[]
   const selectableMap = useMemo(() => {
@@ -149,6 +170,51 @@ export default function Cards() {
           Toggle cards below to add or remove them from your wallet.
         </p>
       </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        {(['all', 'miles', 'cashback'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTypeFilter(t)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              typeFilter === t
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {t === 'all' ? 'All Types' : t === 'miles' ? 'Miles' : 'Cashback'}
+          </button>
+        ))}
+        <span className="text-gray-300 self-center">|</span>
+        <button
+          onClick={() => setBankFilter('all')}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            bankFilter === 'all'
+              ? 'bg-indigo-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          All Banks
+        </button>
+        {banks.map(b => (
+          <button
+            key={b}
+            onClick={() => setBankFilter(b)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              bankFilter === b
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {b}
+          </button>
+        ))}
+      </div>
+
+      {grouped.length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-6">No cards match the selected filters.</p>
+      )}
 
       {/* Library grouped by bank */}
       {grouped.map(([bank, bankCards]) => (

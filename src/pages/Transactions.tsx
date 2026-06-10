@@ -407,7 +407,7 @@ export default function Transactions() {
             {/* ── Mobile: card list (hidden on sm+) ── */}
             <div className="sm:hidden divide-y divide-gray-100">
               {filtered.map(t => {
-                const card = cards.find(c => c.id === t.card_id)
+                const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
                 const cat  = categories.find(c => c.id === t.category_id)
                 const isManual = t.manual_mpd != null
                 const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
@@ -459,7 +459,7 @@ export default function Transactions() {
                     {/* Card name | mpd + actions */}
                     <div className="flex items-center justify-between mt-0.5 ml-3.5">
                       <span className="text-xs text-gray-400">
-                        {card ? `${card.bank} ${card.name}` : ''}
+                        {card ? (card.bank && card.bank !== 'Cash' ? `${card.bank} ${card.name}` : card.name) : ''}
                       </span>
                       <div className="flex items-center gap-0.5">
                         {nomMpd != null && (
@@ -506,7 +506,7 @@ export default function Transactions() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filtered.map(t => {
-                    const card = cards.find(c => c.id === t.card_id)
+                    const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
                     const cat  = categories.find(c => c.id === t.category_id)
                     const isManual = t.manual_mpd != null
                     const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
@@ -540,7 +540,7 @@ export default function Transactions() {
                                 className="w-2 h-2 rounded-full shrink-0"
                                 style={{ backgroundColor: card.color }}
                               />
-                              <span className="text-gray-700">{card.bank} {card.name}</span>
+                              <span className="text-gray-700">{card.bank && card.bank !== 'Cash' ? `${card.bank} ${card.name}` : card.name}</span>
                               {t.payment_channel === 'contactless' && (
                                 <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1 rounded">tap</span>
                               )}
