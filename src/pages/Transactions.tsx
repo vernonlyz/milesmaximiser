@@ -35,6 +35,7 @@ export default function Transactions() {
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
   const [mcc, setMcc] = useState('')
   const [mccEditing, setMccEditing] = useState(false)
+  const [mccInputVal, setMccInputVal] = useState('')
 
   const [paymentChannel, setPaymentChannel] = useState<'contactless' | 'online' | 'chip' | null>(null)
 
@@ -294,6 +295,12 @@ export default function Transactions() {
 
   // MCC display helper
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
+
+  const mccSuggestions = useMemo(() => {
+    if (!mccEditing || /^\d*$/.test(mccInputVal) || mccInputVal.length < 2) return []
+    const q = mccInputVal.toLowerCase()
+    return mccCatalogue.filter(m => m.description.toLowerCase().includes(q)).slice(0, 8)
+  }, [mccEditing, mccInputVal, mccCatalogue])
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -668,22 +675,49 @@ export default function Transactions() {
               <span className="text-gray-400 font-normal text-xs">(optional)</span>
             </label>
             {mccEditing ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={mcc}
-                  onChange={e => setMcc(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  onBlur={() => setMccEditing(false)}
-                  placeholder="e.g. 5814"
-                  maxLength={4}
-                  className="input w-24 font-mono text-sm"
-                  autoFocus
-                />
-                {mcc.length === 4 && mccDescription ? (
-                  <span className="text-sm text-gray-600">{mccDescription}</span>
-                ) : mcc.length > 0 ? (
-                  <span className="text-xs text-gray-400 italic">Unknown MCC</span>
-                ) : null}
+              <div className="relative">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={mccInputVal}
+                    onChange={e => {
+                      const val = e.target.value
+                      if (/^\d*$/.test(val)) {
+                        const digits = val.slice(0, 4)
+                        setMccInputVal(digits)
+                        setMcc(digits)
+                      } else {
+                        setMccInputVal(val)
+                      }
+                    }}
+                    onBlur={() => setMccEditing(false)}
+                    placeholder="Code (5814) or keyword (dining)…"
+                    className="input flex-1 font-mono text-sm"
+                    autoFocus
+                  />
+                  {/^\d+$/.test(mccInputVal) && mcc.length === 4 && mccDescription ? (
+                    <span className="text-sm text-gray-600 shrink-0">{mccDescription}</span>
+                  ) : /^\d+$/.test(mccInputVal) && mcc.length > 0 ? (
+                    <span className="text-xs text-gray-400 italic shrink-0">Unknown MCC</span>
+                  ) : null}
+                </div>
+                {mccSuggestions.length > 0 && (
+                  <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                    {mccSuggestions.map(m => (
+                      <li key={m.code}>
+                        <button
+                          type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setMcc(m.code); setMccInputVal(m.code); setMccEditing(false) }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2"
+                        >
+                          <span className="font-mono text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded shrink-0">{m.code}</span>
+                          <span className="text-gray-700">{m.description}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ) : mcc ? (
               <div className="flex items-center gap-2">
@@ -695,7 +729,7 @@ export default function Transactions() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setMccEditing(true)}
+                  onClick={() => { setMccInputVal(mcc); setMccEditing(true) }}
                   className="text-gray-400 hover:text-indigo-600 transition-colors"
                   title="Edit MCC"
                 >
@@ -713,7 +747,7 @@ export default function Transactions() {
             ) : (
               <button
                 type="button"
-                onClick={() => setMccEditing(true)}
+                onClick={() => { setMccInputVal(''); setMccEditing(true) }}
                 className="text-xs text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
               >
                 + Add MCC
