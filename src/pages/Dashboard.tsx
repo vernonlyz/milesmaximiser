@@ -419,13 +419,18 @@ export default function Dashboard() {
               {recent.map(t => {
                 const card = cards.find(c => c.id === t.card_id)
                 const cat = categories.find(c => c.id === t.category_id)
+                const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
+                const notesLine = t.vendor_name && t.description ? t.description : null
                 return (
                   <div key={t.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
                     <span className="text-lg leading-none">{cat?.icon ?? '💳'}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">
-                        {t.description || cat?.name || '—'}
+                        {primaryLabel}
                       </p>
+                      {notesLine && (
+                        <p className="text-xs text-gray-500 truncate">{notesLine}</p>
+                      )}
                       <p className="text-xs text-gray-400">
                         {t.transaction_date} · {card ? `${card.bank} ${card.name}` : 'No card'}
                       </p>
