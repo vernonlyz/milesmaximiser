@@ -59,7 +59,7 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000018', 'PRVI Miles Mastercard',    'UOB',               'Mastercard', 1.4,  '#00427E', '2 years',
      ARRAY['2.4 mpd on all foreign currency spend (no minimum spend, uncapped)', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)', '3 mpd on IDR/MYR/THB/VND foreign currency spend'], 'calendar', 5),
   ('00000000-0000-0000-0001-000000000019', 'KrisFlyer Ascend',         'American Express',  'Amex',       1.2,  '#C9A84C', 'No expiry',
-     ARRAY['2 mpd on all foreign currency spend (no minimum spend, uncapped)', '4 complimentary Priority Pass lounge visits per year', '2 complimentary hotel stays at Crowne Plaza Changi Airport per year', 'S$0 conversion fee — miles credited directly to KrisFlyer account'], 'calendar', 1)
+     ARRAY['2 mpd on all foreign currency spend (no minimum spend, uncapped)', '2 complimentary hotel stays at Crowne Plaza Changi Airport per year', 'S$0 conversion fee — miles credited directly to KrisFlyer account'], 'calendar', 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────

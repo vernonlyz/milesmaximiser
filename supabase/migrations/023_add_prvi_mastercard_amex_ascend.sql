@@ -47,7 +47,6 @@ VALUES (
   'No expiry',
   ARRAY[
     '2 mpd on all foreign currency spend (no minimum spend, uncapped)',
-    '4 complimentary Priority Pass lounge visits per year',
     '2 complimentary hotel stays at Crowne Plaza Changi Airport per year',
     'S$0 conversion fee — miles credited directly to KrisFlyer account'
   ],

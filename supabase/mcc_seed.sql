@@ -33,6 +33,9 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 ('5816', 'Digital Goods: Games',                  '00000000-0000-0000-0000-000000000004'),
 ('5817', 'Digital Goods: Applications',           '00000000-0000-0000-0000-000000000004'),
 ('5818', 'Digital Goods: Large Merchants',        '00000000-0000-0000-0000-000000000004'),
+('5311', 'Department Stores',                     '00000000-0000-0000-0000-000000000004'),
+('5331', 'Variety Stores',                        '00000000-0000-0000-0000-000000000004'),
+('5999', 'Misc and Specialty Retail Stores',      '00000000-0000-0000-0000-000000000004'),
 
 -- ── Travel (006) ─────────────────────────────────────────────────────────────
 -- Note: 005 = Overseas/FCY (currency-based, not merchant-type based)
@@ -85,8 +88,6 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 -- No generic "Shopping" category exists; non-food retail defaults to Others.
 ('5200', 'Home Supply Warehouse Stores',          '00000000-0000-0000-0000-000000000010'),
 ('5251', 'Hardware Stores',                       '00000000-0000-0000-0000-000000000010'),
-('5311', 'Department Stores',                     '00000000-0000-0000-0000-000000000010'),
-('5331', 'Variety Stores',                        '00000000-0000-0000-0000-000000000010'),
 ('5399', 'Misc General Merchandise Stores',       '00000000-0000-0000-0000-000000000010'),
 ('5712', 'Furniture, Home Furnishings Stores',    '00000000-0000-0000-0000-000000000010'),
 ('5732', 'Electronics Stores',                    '00000000-0000-0000-0000-000000000010'),
@@ -96,10 +97,10 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 ('5942', 'Book Stores',                           '00000000-0000-0000-0000-000000000010'),
 ('5943', 'Stationery, Office and School Supplies','00000000-0000-0000-0000-000000000010'),
 ('5944', 'Jewelry, Watch, Clock and Silverware',  '00000000-0000-0000-0000-000000000010'),
-('5999', 'Misc and Specialty Retail Stores',      '00000000-0000-0000-0000-000000000010'),
 ('6300', 'Insurance Sales and Premiums',          '00000000-0000-0000-0000-000000000010'),
 ('6381', 'Insurance Premiums',                    '00000000-0000-0000-0000-000000000010'),
 ('7372', 'Computer Programming and Data Processing','00000000-0000-0000-0000-000000000010'),
+('7399', 'Business Services, Not Elsewhere Classified','00000000-0000-0000-0000-000000000010'),
 ('8011', 'Doctors and Physicians',                '00000000-0000-0000-0000-000000000010'),
 ('8049', 'Chiropractors and Osteopaths',          '00000000-0000-0000-0000-000000000010'),
 ('8099', 'Health and Medical Services',           '00000000-0000-0000-0000-000000000010'),
