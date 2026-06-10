@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut, Info, MessageSquare, ShieldCheck,
@@ -27,6 +27,25 @@ export default function Layout() {
   const { user, signOut } = useAuth()
 
   const isAdmin = user?.email === ADMIN_EMAIL
+  const [openCount, setOpenCount] = useState(0)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    fetchOpenCount()
+    const channel = supabase
+      .channel('feedback-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, fetchOpenCount)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [isAdmin])
+
+  async function fetchOpenCount() {
+    const { count } = await supabase
+      .from('feedback')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open')
+    setOpenCount(count ?? 0)
+  }
 
   async function submitFeedback() {
     if (!fbMsg.trim()) return
@@ -114,6 +133,11 @@ export default function Layout() {
             >
               <ShieldCheck size={18} />
               Admin
+              {openCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+                  {openCount}
+                </span>
+              )}
             </NavLink>
           )}
         </nav>
