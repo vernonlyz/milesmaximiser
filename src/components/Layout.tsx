@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut, Info,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut, Info, MessageSquare,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import Modal from './Modal'
@@ -16,7 +16,20 @@ const nav = [
 export default function Layout() {
   const [open, setOpen] = useState(false)
   const [disclaimer, setDisclaimer] = useState(false)
+  const [feedback, setFeedback] = useState(false)
+  const [fbType, setFbType] = useState<'bug' | 'suggestion'>('bug')
+  const [fbMsg, setFbMsg] = useState('')
   const { user, signOut } = useAuth()
+
+  function submitFeedback() {
+    const subject = encodeURIComponent(
+      fbType === 'bug' ? '[MilesMaximiser] Bug report' : '[MilesMaximiser] Suggestion'
+    )
+    const body = encodeURIComponent(fbMsg.trim())
+    window.open(`mailto:vernonlyz@gmail.com?subject=${subject}&body=${body}`)
+    setFeedback(false)
+    setFbMsg('')
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -73,15 +86,22 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="px-4 py-4 border-t border-gray-700 space-y-3">
+        <div className="px-4 py-4 border-t border-gray-700 space-y-1">
+          <button
+            onClick={() => setFeedback(true)}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+          >
+            <MessageSquare size={13} />
+            Report a bug / Suggestion
+          </button>
           <button
             onClick={() => setDisclaimer(true)}
-            className="flex items-center gap-1.5 px-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
           >
-            <Info size={12} />
-            Rates are indicative — verify with your bank.
+            <Info size={13} />
+            Rates are indicative — verify with bank
           </button>
-          <div className="flex items-center gap-2 px-2">
+          <div className="flex items-center gap-2 px-3 pt-2">
             <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
               {user?.email?.[0].toUpperCase() ?? '?'}
             </div>
@@ -130,6 +150,60 @@ export default function Layout() {
             issuers and exercise their own discretion when recording transactions or making
             financial decisions.
           </p>
+        </Modal>
+      )}
+
+      {feedback && (
+        <Modal title="Report a bug / Suggestion" onClose={() => { setFeedback(false); setFbMsg('') }}>
+          <div className="space-y-4">
+            {/* Type toggle */}
+            <div className="flex gap-2">
+              {(['bug', 'suggestion'] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setFbType(t)}
+                  className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    fbType === t
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                  }`}
+                >
+                  {t === 'bug' ? '🐛 Bug report' : '💡 Suggestion'}
+                </button>
+              ))}
+            </div>
+
+            {/* Message */}
+            <div>
+              <label className="label">
+                {fbType === 'bug' ? 'What went wrong?' : 'What would you like to see?'}
+              </label>
+              <textarea
+                rows={5}
+                className="input resize-none"
+                placeholder={
+                  fbType === 'bug'
+                    ? 'Describe what happened and what you expected…'
+                    : 'Describe your idea or improvement…'
+                }
+                value={fbMsg}
+                onChange={e => setFbMsg(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={!fbMsg.trim()}
+              onClick={submitFeedback}
+              className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Open in email app
+            </button>
+            <p className="text-xs text-gray-400 text-center">
+              This will open your email client pre-filled and ready to send.
+            </p>
+          </div>
         </Modal>
       )}
     </div>

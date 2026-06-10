@@ -696,22 +696,26 @@ export default function Transactions() {
                   key={rec.card.id}
                   type="button"
                   onClick={() => setField('card_id', rec.card.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
+                  className={`w-full flex items-start gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors ${
                     form.card_id === rec.card.id
                       ? 'bg-indigo-600 text-white'
                       : 'bg-white hover:bg-indigo-100 text-gray-700'
                   }`}
                 >
                   <span
-                    className="w-2 h-2 rounded-full shrink-0"
+                    className="w-2 h-2 rounded-full shrink-0 mt-1.5"
                     style={{ backgroundColor: rec.card.color }}
                   />
-                  <span className="flex-1 truncate">
-                    {i === 0 && '⭐ '}{rec.card.bank} {rec.card.name}
-                  </span>
-                  <StatusBadge status={rec.status} />
-                  <span className="font-semibold whitespace-nowrap">
-                    {rec.bonusMpd.toFixed(2)} mpd
+                  <span className="flex-1 min-w-0">
+                    <span className="block leading-snug">
+                      {i === 0 && '⭐ '}{rec.card.bank} {rec.card.name}
+                    </span>
+                    <span className="flex items-center gap-1.5 mt-0.5">
+                      <StatusBadge status={rec.status} />
+                      <span className={`text-xs font-semibold ${form.card_id === rec.card.id ? 'text-white' : 'text-gray-500'}`}>
+                        {rec.bonusMpd.toFixed(2)} mpd
+                      </span>
+                    </span>
                   </span>
                 </button>
               ))}
