@@ -76,30 +76,19 @@ VALUES (
   0.017
 ) ON CONFLICT (id) DO NOTHING;
 
--- 023: Citi Cash Back (0.25% base; 8% dining + groceries with S$800 min spend)
+-- 023: Citi Cash Back+ (1.6% flat, uncapped)
 INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_validity, remarks, cap_cycle, earn_increment, card_type, cashback_rate)
 VALUES (
   '00000000-0000-0000-0001-000000000023',
-  'Citi Cash Back',
+  'Citi Cash Back+',
   'Citibank',
   'Mastercard',
   0,
   '#D42B28',
   NULL,
-  ARRAY[
-    '8% cashback on dining and groceries (requires S$800/month total card spend)',
-    '0.25% cashback on all other spend',
-    'Cashback capped at S$25/month per category'
-  ],
+  ARRAY['1.6% cashback on all spend, uncapped, no minimum spend'],
   'calendar',
   1,
   'cashback',
-  0.0025
+  0.016
 ) ON CONFLICT (id) DO NOTHING;
-
--- Citi Cash Back category overrides: 8% dining (001) and groceries (002)
-INSERT INTO library_cashback_rates (card_id, category_id, cashback_rate, effective_from)
-VALUES
-  ('00000000-0000-0000-0001-000000000023', '00000000-0000-0000-0000-000000000001', 0.08, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000023', '00000000-0000-0000-0000-000000000002', 0.08, '2000-01-01')
-ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;

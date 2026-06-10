@@ -66,8 +66,8 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
      ARRAY['1.5% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.015),
   ('00000000-0000-0000-0001-000000000022', 'Absolute Cashback',        'UOB',               'Amex',       0,    '#00427E', NULL,
      ARRAY['1.7% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.017),
-  ('00000000-0000-0000-0001-000000000023', 'Citi Cash Back',           'Citibank',          'Mastercard', 0,    '#D42B28', NULL,
-     ARRAY['8% cashback on dining and groceries (requires S$800/month total card spend)', '0.25% cashback on all other spend', 'Cashback capped at S$25/month per category'], 'calendar', 1, 'cashback', 0.0025)
+  ('00000000-0000-0000-0001-000000000023', 'Citi Cash Back+',          'Citibank',          'Mastercard', 0,    '#D42B28', NULL,
+     ARRAY['1.6% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.016)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -130,11 +130,7 @@ ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Cashback rate overrides (per-category bonus rates for cashback cards)
 -- ─────────────────────────────────────────────────────────────────────────────
-INSERT INTO library_cashback_rates (card_id, category_id, cashback_rate, effective_from) VALUES
-  -- Citi Cash Back: 8% dining (001) and groceries (002)
-  ('00000000-0000-0000-0001-000000000023', '00000000-0000-0000-0000-000000000001', 0.08, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000023', '00000000-0000-0000-0000-000000000002', 0.08, '2000-01-01')
-ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
+-- Citi Cash Back+ is a flat-rate card — no per-category overrides needed.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Spending caps
