@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut, Info,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import Modal from './Modal'
 
 const nav = [
   { to: '/',             label: 'Dashboard',    Icon: LayoutDashboard },
@@ -14,6 +15,7 @@ const nav = [
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
+  const [disclaimer, setDisclaimer] = useState(false)
   const { user, signOut } = useAuth()
 
   return (
@@ -72,7 +74,13 @@ export default function Layout() {
         </nav>
 
         <div className="px-4 py-4 border-t border-gray-700 space-y-3">
-          <p className="text-xs text-gray-500 px-2">Rates are indicative — verify with your bank.</p>
+          <button
+            onClick={() => setDisclaimer(true)}
+            className="flex items-center gap-1.5 px-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            <Info size={12} />
+            Rates are indicative — verify with your bank.
+          </button>
           <div className="flex items-center gap-2 px-2">
             <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
               {user?.email?.[0].toUpperCase() ?? '?'}
@@ -108,6 +116,22 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {disclaimer && (
+        <Modal title="Disclaimer" onClose={() => setDisclaimer(false)}>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            The information provided by this app, including merchant category codes (MCCs), reward
+            rates, bonus eligibility, and other card-related data, is derived from a privately
+            maintained catalogue and should be treated as a best-effort reference only.
+          </p>
+          <p className="text-sm text-gray-600 leading-relaxed mt-3">
+            While we strive to keep the information accurate and up to date, we do not guarantee
+            its completeness or correctness. Users should verify details with the respective card
+            issuers and exercise their own discretion when recording transactions or making
+            financial decisions.
+          </p>
+        </Modal>
+      )}
     </div>
   )
 }
