@@ -55,7 +55,11 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000016', 'XL Rewards',               'Maybank',           'Visa',       0.4,  '#FF8F00', '12 months',
      ARRAY['Age restriction: applicants must be 21–39 at time of application', 'S$500/month minimum spend required to unlock 4 mpd bonus rates', 'S$1,000/month combined cap on all bonus categories', '4 mpd on ALL foreign currency spend (no MCC restrictions)', 'Annual fee waived first 2 years, then waivable with S$6,000 annual spend'], 'calendar', 5),
   ('00000000-0000-0000-0001-000000000017', 'Rewards Mastercard',       'Citibank',          'Mastercard', 0.4,  '#0288D1', '5 years',
-     ARRAY['4 mpd on all online purchases (any category) and in-store fashion', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month combined cap on 4 mpd spend (online + in-store fashion)', 'No lounge access'], 'statement', 1)
+     ARRAY['4 mpd on all online purchases (any category) and in-store fashion', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month combined cap on 4 mpd spend (online + in-store fashion)', 'No lounge access'], 'statement', 1),
+  ('00000000-0000-0000-0001-000000000018', 'PRVI Miles Mastercard',    'UOB',               'Mastercard', 1.4,  '#00427E', '2 years',
+     ARRAY['2.4 mpd on all foreign currency spend (no minimum spend, uncapped)', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)', '3 mpd on IDR/MYR/THB/VND foreign currency spend'], 'calendar', 5),
+  ('00000000-0000-0000-0001-000000000019', 'KrisFlyer Ascend',         'American Express',  'Amex',       1.2,  '#C9A84C', 'No expiry',
+     ARRAY['2 mpd on all foreign currency spend (no minimum spend, uncapped)', '4 complimentary Priority Pass lounge visits per year', '2 complimentary hotel stays at Crowne Plaza Changi Airport per year', 'S$0 conversion fee — miles credited directly to KrisFlyer account'], 'calendar', 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -108,7 +112,11 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000007', 4.0, '2000-01-01'),  -- entertainment
   ('00000000-0000-0000-0001-000000000016','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),  -- online shopping
   -- Citi Rewards Mastercard — 4 mpd on fashion in-store (wildcard online 4 mpd added separately below)
-  ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000011', 4.0, '2000-01-01')   -- fashion (011)
+  ('00000000-0000-0000-0001-000000000017','00000000-0000-0000-0000-000000000011', 4.0, '2000-01-01'),  -- fashion (011)
+  -- UOB PRVI Miles Mastercard — FCY 2.4 mpd (uncapped)
+  ('00000000-0000-0000-0001-000000000018','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
+  -- Amex KrisFlyer Ascend — FCY 2.0 mpd (uncapped)
+  ('00000000-0000-0000-0001-000000000019','00000000-0000-0000-0000-000000000005', 2.0, '2000-01-01')
 ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
