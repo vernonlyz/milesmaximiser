@@ -150,16 +150,16 @@ export default function Layout() {
         <div className="px-4 py-4 border-t border-gray-700 space-y-1">
           <button
             onClick={() => setFeedback(true)}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+            className="flex items-start gap-2 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
           >
-            <MessageSquare size={13} />
+            <MessageSquare size={15} className="shrink-0 mt-px" />
             Report a bug / Suggestion
           </button>
           <button
             onClick={() => setDisclaimer(true)}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+            className="flex items-start gap-2 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
           >
-            <Info size={13} />
+            <Info size={16} className="shrink-0 mt-px" />
             Rates are indicative — verify with bank
           </button>
           <div className="flex items-center gap-2 px-3 pt-2">
