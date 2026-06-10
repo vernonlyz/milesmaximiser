@@ -6,7 +6,9 @@ MilesMaximiser is a personal web app for Singapore credit card holders who want 
 
 The app tracks all card spend, computes cap usage in real time, and recommends the card that will yield the highest **effective MPD (miles per dollar)** for the next transaction — accounting for caps that have been partially or fully exhausted.
 
-**Target user:** A single Singapore resident with a small wallet (5–15 cards) who already understands miles earning but wants tooling to stop leaving miles on the table.
+It also functions as a general personal expense tracker: cashback credit cards and cash/debit spend are tracked alongside miles cards, so the user can see total spend, cashback earned, and category breakdowns across all payment methods in one place.
+
+**Target user:** A single Singapore resident with a small wallet (5–15 cards) who already understands miles earning but wants tooling to stop leaving miles on the table, and to track all their spending in one place.
 
 ---
 
@@ -18,8 +20,17 @@ Browser (React + Vite + TypeScript)
     ├─ AuthContext         — Supabase Auth (email/password + Google OAuth)
     ├─ AppContext          — All app data; loaded at login; derived wallet state
     │
-    ├─ pages/             — Route-level components (Dashboard, Cards, Recommend, Transactions, Onboarding, Login)
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, ProtectedRoute)
+    ├─ pages/             — Route-level components
+    │   ├─ Dashboard      — Monthly stats, wallet cap bars, recent transactions
+    │   ├─ Expenses       — Full spend breakdown: by type, category, card
+    │   ├─ Cards          — Card library browser with type/bank filters; wallet management
+    │   ├─ Recommend      — Ad-hoc card recommender for a given category + amount
+    │   ├─ Transactions   — Transaction log with filters, sort, inline miles/cashback
+    │   ├─ Onboarding     — First-run card selection flow
+    │   ├─ Login          — Auth entry point
+    │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
+    │
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine
         ├─ types.ts            — All TypeScript interfaces
@@ -28,21 +39,25 @@ Browser (React + Vite + TypeScript)
         └─ starterCards.ts     — Default card data for onboarding seed
 
 Supabase (Postgres + Auth + RLS)
-    ├─ card_library                   — Admin-managed list of SG credit cards
+    ├─ card_library                   — Admin-managed list of SG credit cards (card_type, cashback_rate added)
     ├─ library_rates                  — Bonus MPD per (card, category, effective_from)
     ├─ library_caps                   — Spending caps per (card, category, period, effective_from, cap_group)
+    ├─ library_cashback_rates         — Per-category cashback rate overrides (e.g. Citi 8% dining)
     ├─ library_selectable_categories  — Valid bonus-category choices per selectable card
     ├─ user_card_selections           — Per-user wallet (join table)
     ├─ user_category_overrides        — Per-user chosen bonus category for selectable cards
-    ├─ transactions                   — Per-user transaction log (includes computed_mpd, manual_mpd, override_note)
-    └─ categories                     — Shared lookup table (ids 001–008 from seed; 011=Fashion, 012=Beauty from migration 011)
+    ├─ transactions                   — Per-user transaction log (miles + cashback fields; vendor_name, mcc, payment_channel)
+    ├─ categories                     — Shared lookup table (ids 001–012)
+    ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
+    ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
+    └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
 Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 ```
 
 **Data flow at login:**
 1. Supabase Auth resolves the session.
-2. `AppContext` fires three parallel loads: full card library (cards + rates + caps + categories), user's wallet selections, and current-year transactions.
+2. `AppContext` fires parallel loads: full card library (cards + rates + caps + cashback rates + categories + MCC/vendor catalogues), user's wallet selections, and current-year transactions.
 3. Everything lives in React state for the session; no client-side cache or service worker.
 4. The recommendation engine runs entirely in the browser against this in-memory data.
 
@@ -51,6 +66,8 @@ Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 - Card library is read-only for users; only an admin can update rates/caps. This avoids per-user drift in card metadata.
 - Effective-date versioning (`effective_from`) on rates and caps allows historic accuracy without deleting old records. The engine resolves the row with the latest `effective_from ≤ today`.
 - Cap usage is computed client-side from the transaction log (`buildPeriodSpending` in `recommendations.ts`) rather than stored, so it is always consistent.
+- Expense tracking (cashback/debit) is additive: a `card_type` discriminator on `card_library` gates all miles-specific logic. Cashback and debit transactions are fully tracked for spend but skip the miles engine entirely.
+- The Cash/Debit card is a system-level virtual card (never in the user's wallet, always injected into the transaction form) so every user can log cash spend without any setup.
 
 ---
 
@@ -59,21 +76,24 @@ Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 | File | Purpose |
 |---|---|
 | [src/lib/recommendations.ts](../src/lib/recommendations.ts) | Core engine — cap resolution, period spend aggregation, effective MPD calculation, card ranking |
-| [src/context/AppContext.tsx](../src/context/AppContext.tsx) | Global state — library load, wallet selection, transaction list, derived `cards` array |
+| [src/context/AppContext.tsx](../src/context/AppContext.tsx) | Global state — library load, wallet selection, transaction list, cashback rates, derived `cards` + `allCards` arrays |
 | [src/context/AuthContext.tsx](../src/context/AuthContext.tsx) | Supabase Auth session management |
 | [src/lib/types.ts](../src/lib/types.ts) | All shared TypeScript interfaces |
 | [src/lib/utils.ts](../src/lib/utils.ts) | `getPeriodStart()`, formatting helpers, constants |
-| [src/lib/starterCards.ts](../src/lib/starterCards.ts) | Default 14 SG cards used during onboarding |
-| [src/pages/Dashboard.tsx](../src/pages/Dashboard.tsx) | Monthly stats, wallet cap bars, recent transactions |
-| [src/pages/Transactions.tsx](../src/pages/Transactions.tsx) | Transaction log, add modal with live recommendations |
+| [src/lib/starterCards.ts](../src/lib/starterCards.ts) | Default SG cards used during onboarding |
+| [src/pages/Dashboard.tsx](../src/pages/Dashboard.tsx) | Monthly stats (miles, cashback, total spent), wallet cap bars, spend milestones, recent transactions |
+| [src/pages/Expenses.tsx](../src/pages/Expenses.tsx) | Full expense breakdown: spend by card type, by category (bars), by card with rewards earned |
+| [src/pages/Transactions.tsx](../src/pages/Transactions.tsx) | Transaction log with month/category/card filters, wildcard search, sort; add/edit modal with live recs, MCC lookup, cashback preview |
 | [src/pages/Recommend.tsx](../src/pages/Recommend.tsx) | Ad-hoc card recommender for a given category + amount |
-| [src/pages/Cards.tsx](../src/pages/Cards.tsx) | Library browser; add/remove cards from wallet |
+| [src/pages/Cards.tsx](../src/pages/Cards.tsx) | Library browser with type/bank filter chips and card type badges; add/remove cards from wallet |
+| [src/pages/Admin.tsx](../src/pages/Admin.tsx) | Feedback inbox (admin-only) — resolve/reopen bug reports and suggestions |
 | [src/pages/Onboarding.tsx](../src/pages/Onboarding.tsx) | First-run card selection flow |
+| [src/components/Layout.tsx](../src/components/Layout.tsx) | App shell — sidebar nav, mobile overlay, feedback modal, disclaimer modal, open-feedback badge |
 | [supabase/migrations/004_library_model.sql](../supabase/migrations/004_library_model.sql) | Library + user_card_selections schema |
 | [supabase/migrations/005_selectable_categories.sql](../supabase/migrations/005_selectable_categories.sql) | Per-user selectable bonus category schema and seed |
 | [supabase/migrations/006_manual_mpd.sql](../supabase/migrations/006_manual_mpd.sql) | Adds computed_mpd, manual_mpd, override_note to transactions |
 | [supabase/migrations/007_mile_validity_remarks.sql](../supabase/migrations/007_mile_validity_remarks.sql) | Adds mile_validity and remarks columns to card_library |
-| [supabase/migrations/008_card_data_corrections.sql](../supabase/migrations/008_card_data_corrections.sql) | Comprehensive rate/cap corrections for all 14 cards (per milelion.com) |
+| [supabase/migrations/008_card_data_corrections.sql](../supabase/migrations/008_card_data_corrections.sql) | Comprehensive rate/cap corrections for all cards (per milelion.com) |
 | [supabase/migrations/009_add_revolution_xlrewards_citirewards.sql](../supabase/migrations/009_add_revolution_xlrewards_citirewards.sql) | Adds HSBC Revolution, Maybank XL Rewards, Citi Rewards Mastercard |
 | [supabase/migrations/010_combined_caps.sql](../supabase/migrations/010_combined_caps.sql) | Adds cap_group column; sets combined groups for SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards |
 | [supabase/migrations/011_fix_fashion_beauty_categories.sql](../supabase/migrations/011_fix_fashion_beauty_categories.sql) | Adds Fashion (011) and Beauty (012) categories; fixes Lady's Card/Solitaire selectable refs and Citi Rewards |
@@ -87,7 +107,10 @@ Deployment: Cloudflare Pages (static hosting; env vars injected at build)
 | [supabase/migrations/019_cap_cycle_calendar_default.sql](../supabase/migrations/019_cap_cycle_calendar_default.sql) | Sets all cards to calendar cycle as the current default |
 | [supabase/migrations/020_earn_increment.sql](../supabase/migrations/020_earn_increment.sql) | Adds earn_increment to card_library (5 for most banks, 1 for HSBC/Citi) |
 | [supabase/migrations/021_online_wildcard_rates.sql](../supabase/migrations/021_online_wildcard_rates.sql) | Converts DBS Woman's World and Citi Rewards to wildcard online rates; removes Citi fashion cap |
-| [supabase/library_seed.sql](../supabase/library_seed.sql) | 17-card SG library seed (run after all migrations) |
+| [supabase/migrations/022_feedback.sql](../supabase/migrations/022_feedback.sql) | Adds feedback table for bug reports and suggestions; admin-only RLS policies |
+| [supabase/migrations/023_add_prvi_mastercard_amex_ascend.sql](../supabase/migrations/023_add_prvi_mastercard_amex_ascend.sql) | Adds UOB PRVI Miles Mastercard (card 018) and Amex KrisFlyer Ascend (card 019) |
+| [supabase/migrations/024_expense_tracking.sql](../supabase/migrations/024_expense_tracking.sql) | Adds card_type + cashback_rate to card_library; cashback_earned to transactions; library_cashback_rates table; seeds cashback and debit cards (020–023) |
+| [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
 
 ---
 
@@ -98,11 +121,11 @@ The app is a functional MVP. All core features are implemented:
 | Feature | Status |
 |---|---|
 | Email/password + Google OAuth | Complete |
-| Card library (admin-managed, 14 SG cards) | Complete |
+| Card library (admin-managed, 23 cards) | Complete |
 | User wallet (add/remove cards) | Complete |
 | First-run onboarding flow | Complete |
-| Transaction logging (with miles calculation) | Complete |
-| Monthly stats dashboard | Complete |
+| Transaction logging (miles + cashback calculation) | Complete |
+| Monthly stats dashboard (miles, cashback, total spent) | Complete |
 | Spending cap visualisation (progress bars) | Complete |
 | Card recommender (category + amount → ranked cards) | Complete |
 | Live recommendations inside transaction modal | Complete |
@@ -115,10 +138,10 @@ The app is a functional MVP. All core features are implemented:
 | Manual MPD override on transactions (computed_mpd + manual_mpd stored separately) | Complete |
 | Mile validity and remarks fields on card library | Complete |
 | Comprehensive card data corrections from milelion.com | Complete |
-| 3 new cards: HSBC Revolution, Maybank XL Rewards, Citi Rewards Mastercard | Complete |
 | Combined cap modelling (cap_group; engine, Dashboard, My Cards all handle correctly) | Complete |
-| Lady's Solitaire shows 2 independent cap chips in My Cards | Complete |
 | Vendor + MCC catalogue with typeahead in transaction form | Complete |
+| MCC reverse lookup — type a keyword to find the MCC code | Complete |
+| Notes field in transaction form (positioned after Vendor) | Complete |
 | Min-spend threshold (locked status in recommender; progress bar toward threshold) | Complete |
 | Payment channel on rates + transactions (contactless/online-restricted bonuses) | Complete |
 | Wildcard rate pattern (null category + channel = earns bonus on any category) | Complete |
@@ -128,11 +151,29 @@ The app is a functional MVP. All core features are implemented:
 | earn_increment / block rounding (S$5 blocks for most banks, S$1 for HSBC/Citi) | Complete |
 | Nominal MPD shown in UI; earn block chip in My Cards | Complete |
 | DBS Woman's World + Citi Rewards wildcard online 4 mpd (any category, online) | Complete |
-| Transactions: sort by column header, wildcard search, mobile horizontal scroll | Complete |
+| Transactions: sort by column header, wildcard search, mobile card list | Complete |
 | Lady's Solitaire first-time setup: smart effective_from default (2000-01-01) | Complete |
+| Feedback system (bug reports + suggestions, admin inbox with resolve/reopen) | Complete |
+| Feedback badge in sidebar (live count of open items, updates on resolve/reopen) | Complete |
+| UOB PRVI Miles Mastercard and Amex KrisFlyer Ascend added to library | Complete |
+| Expense tracking — cashback cards (card_type, cashback_rate, cashback_earned) | Complete |
+| Expense tracking — Cash/Debit virtual card (system-level, no wallet setup needed) | Complete |
+| Per-category cashback rate overrides (library_cashback_rates) | Complete |
+| Dedicated Expenses page (spend by type, category bars, spend by card) | Complete |
+| Cards page: type filter (Miles/Cashback) and bank filter chips | Complete |
+| Cards page: card type badge (miles/cashback) with rate or mile validity | Complete |
+| Dashboard wallet: filter chips by type (Miles/Cashback/Cash/Debit) and bank | Complete |
+| Dashboard wallet: Cash/Debit summary row when debit spend exists | Complete |
+| Transaction form: Cash/Debit always available in card dropdown (no wallet setup) | Complete |
+| Transaction filter: card dropdown includes Cash/Debit | Complete |
 
-**Card library (17 cards):**
-DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), UOB Lady's Card, UOB Lady's Solitaire, UOB Visa Signature, UOB Preferred Platinum Visa, Standard Chartered Journey, Citi PremierMiles, Citi Rewards Mastercard, OCBC 90°N, HSBC TravelOne, HSBC Revolution, Maybank Horizon, Maybank XL Rewards, Singapore Airlines KrisFlyer Visa.
+**Card library (23 cards):**
+
+*Miles cards (19):* DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa/Amex/Mastercard), UOB Lady's Card, UOB Lady's Solitaire, UOB Visa Signature, UOB Preferred Platinum Visa, UOB KrisFlyer Visa, Standard Chartered Journey, Citi PremierMiles, Citi Rewards Mastercard, OCBC 90°N, HSBC TravelOne, HSBC Revolution, Maybank Horizon, Maybank XL Rewards, Amex KrisFlyer Ascend.
+
+*Cashback cards (3):* Standard Chartered Simply Cash (1.5%), UOB Absolute Cashback (1.7%), Citi Cash Back+ (1.6% flat).
+
+*Debit / Cash (1):* Cash / Debit — system-level card, tracks spend only, no rewards.
 
 **Recommendation engine capabilities:**
 - Handles monthly, quarterly, annual, and per-transaction cap types
@@ -144,6 +185,7 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 - Min-spend threshold: bonus rate locked until total card spend for the period meets the minimum
 - Block rounding: miles floored to the nearest `earn_increment`-dollar block per card
 - Returns a status (`optimal` / `partial` / `capped` / `base` / `locked`) and plain-English reason for each card
+- Engine is only invoked for `card_type === 'miles'` cards; cashback and debit transactions skip it entirely
 
 ---
 
@@ -151,7 +193,7 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 
 ### Missing but impactful
 - **Test suite** — No tests exist. The recommendation engine has complex branching logic (cap types, blended MPD, wildcard rates, channel caps, selectable overrides, block rounding) that would benefit significantly from unit tests. A regression in any of these paths is currently invisible.
-- **Admin interface for library updates** — Updating card rates/caps requires manual SQL against Supabase. There is no UI for maintaining the library.
+- **Admin interface for library updates** — Updating card rates/caps requires manual SQL against Supabase. There is no admin UI.
 
 ### Missing but lower priority
 - **No `.env.example`** — Onboarding a new developer requires inspecting the code to know which env vars are needed.
@@ -167,7 +209,7 @@ DBS Altitude, DBS Woman's World, UOB PRVI Miles (Visa), UOB PRVI Miles (Amex), U
 
 ### Data accuracy
 - **Rates are indicative.** The app shows a footer disclaimer ("Rates are indicative — verify with your bank"). Bank terms change; the library is manually maintained and may lag real-world changes.
-- **Combined caps are modelled** via `cap_group` on `library_caps`. Cards with a shared pool (SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards) show one combined bar/chip and the engine correctly tracks combined spend. UOB Visa Signature previously had a petrol+transport approximation; it is now modelled as a contactless wildcard (any-category contactless earns 4 mpd up to S$1,000/month), which is accurate to the card's actual terms.
+- **Combined caps are modelled** via `cap_group` on `library_caps`. Cards with a shared pool (SC Journey, HSBC Revolution, Maybank XL Rewards, Citi Rewards) show one combined bar/chip and the engine correctly tracks combined spend. UOB Visa Signature is modelled as a contactless wildcard (any-category contactless earns 4 mpd up to S$1,000/month), which is accurate to the card's actual terms.
 
 ### User experience
 - **Post-migration empty wallet.** Migration 004 dropped all per-user card data. Existing users who had already selected cards before the migration see an empty wallet and an empty dashboard rather than a prompt to re-select cards. The redirect to onboarding only fires for users who have *never* been onboarded (`isOnboarded` flag in localStorage). Users who were onboarded before the migration must navigate to Cards manually to rebuild their wallet.

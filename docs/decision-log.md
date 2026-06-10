@@ -89,10 +89,10 @@ Captures key architectural choices made during development — what was decided,
 **Decision:** When a user overrides the engine-computed MPD on a transaction, store `computed_mpd` (engine output), `manual_mpd` (user input), and `override_note` (reason) as separate columns. `effective_mpd = COALESCE(manual_mpd, computed_mpd)` is the value used for miles calculation.
 
 **Alternatives considered:**
-- Overwrite `effective_mpd` directly (Option A) — simpler schema, but the original engine value is permanently lost. No way to audit what the engine calculated vs what the user entered, and no "Reset to computed" UX.
+- Overwrite `effective_mpd` directly — simpler schema, but the original engine value is permanently lost. No way to audit what the engine calculated vs what the user entered, and no "Reset to computed" UX.
 - Store override as a flag + delta — unusual pattern; harder to query.
 
-**Why:** The dual-column approach (Option B) enables auditability, the "↺ Reset" button that restores the engine value, and future analytics (how often do users override, and by how much). Backward-compatible — old rows have NULL in both new columns; `COALESCE` still works correctly.
+**Why:** The dual-column approach enables auditability, the "↺ Reset" button that restores the engine value, and future analytics (how often do users override, and by how much). Backward-compatible — old rows have NULL in both new columns; `COALESCE` still works correctly.
 
 ---
 
@@ -104,7 +104,7 @@ Captures key architectural choices made during development — what was decided,
 - Server-side function (Supabase Edge Function) that takes a transaction and returns miles — moves logic to the server, enables future server-push updates, but adds round-trip latency on every recommendation request and couples the UX to network availability.
 - Stored procedure in Postgres — performant for batch recalculation but very hard to test and iterate on.
 
-**Why:** The dataset is small (14 cards, hundreds of transactions max). Client-side execution means zero latency for recommendations — the user gets instant feedback while typing an amount. The engine is pure TypeScript, easily unit-testable. There is no sensitive computation to protect on the server.
+**Why:** The dataset is small (23 cards, hundreds of transactions max). Client-side execution means zero latency for recommendations — the user gets instant feedback while typing an amount. The engine is pure TypeScript, easily unit-testable. There is no sensitive computation to protect on the server.
 
 **Trade-off:** All users download the full library on login (~small JSON). Logic bugs require a re-deploy to fix rather than a server patch. Accepted at current scale.
 
@@ -137,7 +137,7 @@ Captures key architectural choices made during development — what was decided,
 
 **Why:** New IDs (011, 012) are a non-destructive, backward-compatible fix. Existing transactions tagged as "Utilities & Bills" (009) or "Others" (010) are untouched. Migration 011 adds the new categories, fixes all `library_selectable_categories` references for Lady's Card and Solitaire, and corrects Citi Rewards' fashion rate from 009 to 011.
 
-**Trade-off:** Any `user_category_overrides` rows that a user may have set for Lady's Card/Solitaire pointing to 009 or 010 become stale (they reference Utilities/Others, not Fashion/Beauty). The user needs to reset their selectable category choice after running migration 011. Since selectable category overrides are reset by visiting My Cards and re-selecting, this is low-friction.
+**Trade-off:** Any `user_category_overrides` rows that a user may have set for Lady's Card/Solitaire pointing to 009 or 010 become stale. The user needs to reset their selectable category choice after running migration 011.
 
 ---
 
@@ -175,10 +175,10 @@ Captures key architectural choices made during development — what was decided,
 
 **Alternatives considered:**
 - Keep the fashion cap and show both bars — misleading; overstates available headroom.
-- Build a cap-merging mechanism in the engine — significant complexity for an edge case on one card; not worth it at this scale.
+- Build a cap-merging mechanism in the engine — significant complexity for an edge case on one card.
 - Remove the fashion rate too — would break in-store fashion earning for Citi Rewards, which is valid and real.
 
-**Why:** One honest bar (the online channel cap) is better than two misleading bars. In-store fashion spend that exceeds the online cap is tracked at base rate implicitly — the user can see when the online cap is exhausted and knows further spend earns base rate. This matches how most users will actually think about the card.
+**Why:** One honest bar (the online channel cap) is better than two misleading bars. In-store fashion spend that exceeds the online cap is tracked at base rate implicitly.
 
 ---
 
@@ -192,7 +192,7 @@ Captures key architectural choices made during development — what was decided,
 - `cap_group` linking petrol + transport caps — would produce the correct combined limit, but still only covered two categories; any other contactless spend (e.g. dining tapped at a terminal) would earn base rate incorrectly.
 - Keep the approximation — safe (never overstates headroom) but increasingly misleading as users add more transaction types.
 
-**Why:** The contactless wildcard is the accurate model of the card's actual terms and is simpler to maintain. One rate row, one cap row. Any contactless transaction on any category earns 4 mpd (subject to the monthly cap), which is exactly what the bank offers.
+**Why:** The contactless wildcard is the accurate model of the card's actual terms and is simpler to maintain. One rate row, one cap row. Any contactless transaction on any category earns 4 mpd (subject to the monthly cap).
 
 ---
 
@@ -201,10 +201,10 @@ Captures key architectural choices made during development — what was decided,
 **Decision:** Add `cap_cycle TEXT` (`'calendar'` | `'statement'`) to `card_library` and `statement_day INTEGER` to `user_card_selections`. The engine uses the user's statement day to compute the start of the current cap period when `cap_cycle = 'statement'`.
 
 **Alternatives considered:**
-- Always use calendar month — simple, but incorrect for statement-cycle cards (a purchase on the 5th of a month with a 15th statement date would count toward a different cap period than one on the 20th).
+- Always use calendar month — simple, but incorrect for statement-cycle cards.
 - Store a statement date per transaction — accurate but requires the user to input a date they may not know; and the statement day is a property of the card relationship, not the transaction.
 
-**Why:** Most SG credit card caps reset on the statement date. Defaulting to calendar month silently overstates available headroom for users near their statement cutoff. The per-user `statement_day` field allows the correct period to be computed from any transaction date without querying the bank. All current cards default to calendar month for simplicity; switching a card to statement-cycle is a one-field update.
+**Why:** Most SG credit card caps reset on the statement date. Defaulting to calendar month silently overstates available headroom for users near their statement cutoff. All current cards default to calendar month for simplicity; switching a card to statement-cycle is a one-field update.
 
 ---
 
@@ -213,23 +213,81 @@ Captures key architectural choices made during development — what was decided,
 **Decision:** Add `earn_increment INTEGER` to `card_library` (5 for most SG banks, 1 for HSBC and Citibank). Miles earned = `floor(spend / increment) * increment * mpd`. Applied consistently across the engine, transaction save, MPD preview, and My Cards display.
 
 **Alternatives considered:**
-- Round the total miles at display time only — the stored `miles_earned` would be inflated; the displayed value would differ from the stored value; confusing to users and makes cap-spend tracking harder.
+- Round the total miles at display time only — the stored `miles_earned` would be inflated; the displayed value would differ from the stored value.
 - Store the rounding rule per rate row — too granular; the rounding block is a property of the bank's processing system, not of individual spend categories.
 - Always round to S$1 — incorrect for most SG banks; overstates miles for small transactions.
 
-**Why:** Banks in Singapore award miles in discrete blocks — a S$14.99 spend at a 4 mpd card with S$5 blocks earns 40 miles (S$10 × 4), not 59.96 miles. Not modelling this makes the recommender look more precise than reality and creates discrepancies between what users see in the app and what appears on their statements. The field is on `card_library` because it is a bank-level rule that applies uniformly across all rates for that bank.
+**Why:** Banks in Singapore award miles in discrete blocks — a S$14.99 spend at a 4 mpd card with S$5 blocks earns 40 miles (S$10 × 4), not 59.96 miles. Not modelling this makes the recommender look more precise than reality and creates discrepancies between what users see in the app and what appears on their statements.
 
 ---
 
 ## 2026-06-10 — Smart effective_from default for first-time selectable category setup
 
-**Decision:** In `Cards.tsx openEditModal`, detect whether the user has any existing category overrides for the card. If none exist, or if all existing overrides were set today (i.e. the user just set up the card today), default `effective_from` to `'2000-01-01'` so the choice applies to all past transactions. If a prior override exists, default to today to preserve the category history.
+**Decision:** In `Cards.tsx openEditModal`, detect whether the user has any existing category overrides for the card. If none exist, or if all existing overrides were set today, default `effective_from` to `'2000-01-01'` so the choice applies to all past transactions. If a prior override exists, default to today to preserve the category history.
 
-**Background:** `effective_from` on `user_category_overrides` uses `isoDate()` which returns the UTC date. If a user sets up their Lady's Solitaire categories today and then logs a past transaction from last month, `resolveOverride` correctly rejects the override (because `effective_from > transactionDate`). This is the right behaviour when *changing* a category — old transactions should keep their old category. But it is wrong for *first-time* setup, where the user's intent is "this is the category I've always used."
+**Background:** `effective_from` on `user_category_overrides` uses `isoDate()` which returns today's date. If a user sets up their Lady's Solitaire categories today and then logs a past transaction from last month, `resolveOverride` correctly rejects the override (because `effective_from > transactionDate`). This is the right behaviour when *changing* a category — old transactions should keep their old category. But it is wrong for *first-time* setup, where the user's intent is "this is the category I've always used."
 
 **Alternatives considered:**
 - Always default to `'2000-01-01'` — changes to category choice would retroactively re-categorise all past transactions, breaking historical accuracy.
 - Always default to today — means first-time setup breaks for any past transactions (the bug reported).
 - Prompt the user to choose the date explicitly — adds friction to a flow that most users won't understand.
 
-**Why:** The heuristic (no overrides, or all overrides from today = first-time setup) is correct for the common case. A user who genuinely changed their category today and wants to preserve history can manually adjust the date field. The help text is context-sensitive: it explains either "applies to all transactions" or "transactions before this date keep their previous category" depending on the selected date.
+**Why:** The heuristic (no overrides, or all overrides from today = first-time setup) is correct for the common case. A user who genuinely changed their category today and wants to preserve history can manually adjust the date field.
+
+---
+
+## 2026-06-10 — Feedback badge update via custom browser event (not Supabase realtime)
+
+**Decision:** After the admin toggles a feedback item's status in `Admin.tsx`, dispatch a custom `'feedback-status-changed'` browser event. `Layout.tsx` listens for this event and re-fetches the open-item count to update the sidebar badge.
+
+**Background:** The initial approach used Supabase realtime (`postgres_changes`) to listen for changes to the `feedback` table. The badge never updated because the `feedback` table was not included in the Supabase realtime publication (only tables explicitly added to the publication receive change events).
+
+**Alternatives considered:**
+- Add `feedback` to the Supabase realtime publication — requires a Supabase dashboard config change; also subscribes all users to all feedback changes, which is unnecessary.
+- Poll on a timer — wastes requests; badge would lag by up to the poll interval.
+- Re-fetch on every navigation — works but feels sluggish and adds unnecessary Supabase calls.
+
+**Why:** Since the admin page and the layout sidebar are always co-rendered in the same browser tab, a custom event is instantaneous, zero-cost, and requires no external infrastructure. The event fires only after a confirmed Supabase write, so there is no risk of stale state.
+
+---
+
+## 2026-06-10 — Expense tracking via card_type discriminator (no separate schema)
+
+**Decision:** Add a `card_type TEXT ('miles' | 'cashback' | 'debit')` column to `card_library` and gate all miles-specific engine logic on `card_type === 'miles'`. Cashback cards get a `cashback_rate NUMERIC` column; cashback earned is stored in a new `cashback_earned` column on `transactions`. A separate `library_cashback_rates` table holds per-category rate overrides (e.g. Citi's 8% dining/groceries).
+
+**Alternatives considered:**
+- Separate `cashback_cards` table — keeps schemas clean but duplicates the card management logic (wallet selection, transaction linking, card library display) for a new table type.
+- Boolean `is_cashback` flag — doesn't accommodate a third type (debit/cash). A TEXT discriminator is extensible.
+- Compute cashback at query time only, never store it — no persistent record of cashback earned; can't show historical cashback totals.
+
+**Why:** A discriminator column on the existing `card_library` table means all existing wallet, transaction, and display logic works unchanged for the new card types. The miles engine is called inside a `card_type === 'miles'` guard, so cashback/debit transactions never touch miles-specific code paths. `cashback_earned` stored on the transaction provides the same queryable history as `miles_earned`.
+
+**Trade-off:** `cashback_rate` and `cashback_earned` are NULL for miles cards; `miles_earned` and `effective_mpd` are NULL for cashback/debit cards. This is correct — the columns are type-specific — but it means any aggregate across all transactions must handle NULLs carefully.
+
+---
+
+## 2026-06-10 — Cash/Debit as a system-level virtual card (never in the user's wallet)
+
+**Decision:** The Cash / Debit card (`card_type = 'debit'`) lives in `card_library` but is never added to `user_card_selections`. Instead, `AppContext` exposes an `allCards` array (wallet cards + all debit cards from the library) that is used wherever Cash/Debit must appear: the transaction form card dropdown, the transaction list card lookup, and the Dashboard recent transactions lookup. The Cards library page filters out debit cards (`card_type !== 'debit'`).
+
+**Alternatives considered:**
+- Add Cash/Debit to every user's wallet automatically during onboarding — requires a migration to back-fill existing users; also pollutes the wallet with a non-bank card.
+- Let users add Cash/Debit to their wallet like any other card — works, but it is conceptually wrong (Cash/Debit is not a credit card product) and creates an empty-wallet edge case if a user removes it.
+- Store cash transactions without a `card_id` — breaks all the card-based filtering and display logic; "No card" would appear everywhere.
+
+**Why:** Injecting debit cards via `allCards` (a separate in-memory collection) keeps the wallet semantics clean while ensuring Cash/Debit is always available with zero user setup. Debit cards are hidden from the Cards page and the wallet filter chips by default; they only surface in the transaction form, the transaction list filter, and the Dashboard wallet section when debit spend exists.
+
+---
+
+## 2026-06-10 — Dedicated Expenses page vs. expanding the Dashboard
+
+**Decision:** Move the full expense breakdown (spend by card type, by category, by card with rewards) to a dedicated `/expenses` route. Keep the Dashboard focused on three headline stats, spend milestones, wallet cap bars, and recent transactions.
+
+**Alternatives considered:**
+- Collapsible sections on the Dashboard — hides content without removing the rendering cost; the Dashboard was already crowded.
+- Tabs on the Dashboard (Miles / Expenses) — improves discovery but the Dashboard component grows very large; hard to deep-link.
+- Keep everything on the Dashboard — was the original approach; the page became cluttered when expense tracking added a full spend-by-category breakdown on top of cap bars and milestones.
+
+**Why:** A dedicated page keeps each route's scope clear: Dashboard = "how am I tracking this month?"; Expenses = "where did my money go?" The split also allows the Expenses page to evolve independently (e.g. date-range filters, CSV export) without touching the Dashboard.
+
+**Trade-off:** One extra navigation step to see full spending detail. Mitigated by the Expenses link in the sidebar nav.
