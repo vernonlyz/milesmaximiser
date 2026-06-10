@@ -21,7 +21,7 @@ const EMPTY_FORM: TransactionFormData = {
 type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 
 export default function Transactions() {
-  const { cards, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, refreshTransactions } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
   const { user } = useAuth()
 
   const [showModal, setShowModal] = useState(false)
@@ -175,10 +175,20 @@ export default function Transactions() {
 
     const card = cards.find(c => c.id === form.card_id)!
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    const { effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel, statementDays)
+
+    // Cashback cards: compute cashback_earned; skip the miles engine entirely
+    let cashback_earned: number | null = null
+    let engineMpd = 0
+    if (card.card_type === 'cashback') {
+      const override = cashbackRates.find(r => r.card_id === card.id && r.category_id === form.category_id)
+      const rate = override?.cashback_rate ?? card.cashback_rate ?? 0
+      cashback_earned = parseFloat((amount * rate).toFixed(4))
+    } else if (card.card_type === 'miles') {
+      ;({ effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel, statementDays))
+    }
 
     const parsedManual = parseFloat(manualMpd)
-    const hasValidOverride = mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0
+    const hasValidOverride = card.card_type === 'miles' && mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0
 
     // Apply the same block rounding to manual overrides that the engine applies automatically.
     const saveEarnAmount = Math.floor(amount / card.earn_increment) * card.earn_increment
@@ -194,11 +204,12 @@ export default function Transactions() {
       mcc: mcc.trim() || null,
       payment_channel: paymentChannel,
       transaction_date: form.transaction_date,
-      computed_mpd: parseFloat(engineMpd.toFixed(4)),
+      computed_mpd: card.card_type === 'miles' ? parseFloat(engineMpd.toFixed(4)) : null,
       manual_mpd: hasValidOverride ? parseFloat(parsedManual.toFixed(4)) : null,
       override_note: hasValidOverride && overrideNote.trim() ? overrideNote.trim() : null,
-      effective_mpd: parseFloat((hasValidOverride ? overrideEffectiveMpd : engineMpd).toFixed(4)),
-      miles_earned: hasValidOverride ? overrideMiles : Math.round(amount * engineMpd),
+      effective_mpd: card.card_type === 'miles' ? parseFloat((hasValidOverride ? overrideEffectiveMpd : engineMpd).toFixed(4)) : null,
+      miles_earned: card.card_type === 'miles' ? (hasValidOverride ? overrideMiles : Math.round(amount * engineMpd)) : null,
+      cashback_earned,
     }
 
     let dbErr
@@ -282,15 +293,23 @@ export default function Transactions() {
     ? parseFloat((computedMpd * formAmt / earnAmount).toFixed(4))
     : computedMpd
 
-  // Live miles preview in modal
+  // Live preview in modal
   const parsedManualMpd = parseFloat(manualMpd)
   const previewMpd = mpdOverrideActive && !isNaN(parsedManualMpd) && parsedManualMpd > 0
     ? parsedManualMpd
     : computedMpd
-  const previewMiles = previewMpd != null && formAmt > 0
+  const previewMiles = formCard?.card_type === 'miles' && previewMpd != null && formAmt > 0
     ? mpdOverrideActive
       ? Math.round(earnAmount * previewMpd)   // manual: apply block rounding
       : Math.round(formAmt * previewMpd)      // computed: effectiveMpd already has rounding baked in
+    : null
+
+  const previewCashback = formCard?.card_type === 'cashback' && formAmt > 0
+    ? (() => {
+        const override = cashbackRates.find(r => r.card_id === formCard.id && r.category_id === form.category_id)
+        const rate = override?.cashback_rate ?? formCard.cashback_rate ?? 0
+        return parseFloat((formAmt * rate).toFixed(2))
+      })()
     : null
 
   // MCC display helper
@@ -761,8 +780,8 @@ export default function Transactions() {
               value={form.amount} onChange={e => setField('amount', e.target.value)} />
           </div>
 
-          {/* Live recommendation — only shown when adding */}
-          {!editingId && recs.length > 0 && (
+          {/* Live recommendation — miles cards only, only shown when adding */}
+          {formCard?.card_type !== 'cashback' && formCard?.card_type !== 'debit' && !editingId && recs.length > 0 && (
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1.5">
               <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
                 <Sparkles size={12} /> Recommendation
@@ -844,8 +863,8 @@ export default function Transactions() {
             </div>
           </div>
 
-          {/* MPD section — appears once card + category + amount are set */}
-          {computedMpd !== null && (
+          {/* MPD section — miles cards only, appears once card + category + amount are set */}
+          {formCard?.card_type === 'miles' && computedMpd !== null && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-sm font-medium text-gray-700">Miles Rate</span>
@@ -909,6 +928,12 @@ export default function Transactions() {
                 <p className="text-xs text-gray-400 mt-1.5 text-right">
                   Miles earned:{' '}
                   <span className="text-indigo-600 font-medium">{previewMiles.toLocaleString()} mi</span>
+                </p>
+              )}
+              {previewCashback != null && (
+                <p className="text-xs text-gray-400 mt-1.5 text-right">
+                  Est. cashback:{' '}
+                  <span className="text-emerald-600 font-medium">S${previewCashback.toFixed(2)}</span>
                 </p>
               )}
             </div>

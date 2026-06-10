@@ -20,7 +20,18 @@ export interface CreditCard {
   default_payment_channel: 'contactless' | 'online' | null  // pre-fills payment method in the log form
   cap_cycle: 'calendar' | 'statement'  // whether caps reset on statement date or calendar month
   earn_increment: number  // miles awarded per $N block: 1 for HSBC/Citi, 5 for most other banks
+  card_type: 'miles' | 'cashback' | 'debit'
+  cashback_rate: number | null  // base cashback rate, e.g. 0.015 = 1.5%; null for miles/debit cards
   created_at: string
+}
+
+// Per-category cashback rate override for a cashback card
+export interface CashbackRate {
+  id: string
+  card_id: string
+  category_id: string
+  cashback_rate: number
+  effective_from: string
 }
 
 // Bonus earn rate for a library card — has effective_from for versioning
@@ -76,6 +87,7 @@ export interface Transaction {
   override_note: string | null  // reason for override
   effective_mpd: number | null  // COALESCE(manual_mpd, computed_mpd) — final applied value
   miles_earned: number | null
+  cashback_earned: number | null  // computed at save for cashback cards; null for miles/debit
   created_at: string
 }
 

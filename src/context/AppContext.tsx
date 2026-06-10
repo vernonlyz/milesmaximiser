@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
-import { Category, CreditCard, CardRate, SpendingCap, Transaction, SelectableCategory, CategoryOverride, MccEntry, Vendor } from '../lib/types'
+import { Category, CreditCard, CardRate, SpendingCap, Transaction, SelectableCategory, CategoryOverride, MccEntry, Vendor, CashbackRate } from '../lib/types'
 import { isoDate } from '../lib/utils'
 
 interface AppContextValue {
@@ -17,6 +17,7 @@ interface AppContextValue {
   transactions: Transaction[]
   mccCatalogue: MccEntry[]         // admin-seeded MCC reference data
   vendorCatalogue: Vendor[]        // admin-seeded known SG vendors
+  cashbackRates: CashbackRate[]    // per-category cashback rate overrides
   loading: boolean
   error: string | null
   refresh: () => void
@@ -43,11 +44,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions]               = useState<Transaction[]>([])
   const [mccCatalogue, setMccCatalogue]               = useState<MccEntry[]>([])
   const [vendorCatalogue, setVendorCatalogue]         = useState<Vendor[]>([])
+  const [cashbackRates, setCashbackRates]             = useState<CashbackRate[]>([])
   const [loading, setLoading]                         = useState(true)
   const [error, setError]                             = useState<string | null>(null)
 
   const loadLibrary = useCallback(async () => {
-    const [catRes, cardRes, rateRes, capRes, selectableRes, mccRes, vendorRes] = await Promise.all([
+    const [catRes, cardRes, rateRes, capRes, selectableRes, mccRes, vendorRes, cbRateRes] = await Promise.all([
       supabase.from('categories').select('*').order('name'),
       supabase.from('card_library').select('*').order('bank').order('name'),
       supabase.from('library_rates').select('*'),
@@ -55,6 +57,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       supabase.from('library_selectable_categories').select('*'),
       supabase.from('mcc_catalogue').select('*').order('code'),
       supabase.from('vendor_catalogue').select('*').eq('active', true).order('name'),
+      supabase.from('library_cashback_rates').select('*'),
     ])
     if (catRes.error)       throw catRes.error
     if (cardRes.error)      throw cardRes.error
@@ -63,6 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (selectableRes.error) throw selectableRes.error
     if (mccRes.error)       throw mccRes.error
     if (vendorRes.error)    throw vendorRes.error
+    if (cbRateRes.error)    throw cbRateRes.error
     setCategories(catRes.data ?? [])
     setAllCards(cardRes.data ?? [])
     setRates(rateRes.data ?? [])
@@ -70,6 +74,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectableCategories(selectableRes.data ?? [])
     setMccCatalogue(mccRes.data ?? [])
     setVendorCatalogue(vendorRes.data ?? [])
+    setCashbackRates(cbRateRes.data ?? [])
   }, [])
 
   const loadSelections = useCallback(async () => {
@@ -186,6 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTransactions([])
       setMccCatalogue([])
       setVendorCatalogue([])
+      setCashbackRates([])
       setLoading(false)
     }
   }, [user?.id])
@@ -197,7 +203,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       categories, allCards, cards, selectedCardIds, statementDays,
       rates, caps, selectableCategories, overrides,
-      transactions, mccCatalogue, vendorCatalogue,
+      transactions, mccCatalogue, vendorCatalogue, cashbackRates,
       loading, error,
       refresh, refreshTransactions,
       addCardSelection, removeCardSelection, saveOverride, saveStatementDay,

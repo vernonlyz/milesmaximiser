@@ -21,45 +21,53 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Card Library
 -- ─────────────────────────────────────────────────────────────────────────────
-INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_validity, remarks, cap_cycle, earn_increment) VALUES
+INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_validity, remarks, cap_cycle, earn_increment, card_type, cashback_rate) VALUES
   ('00000000-0000-0000-0001-000000000001', 'Altitude Visa Signature',  'DBS',               'Visa',       1.3,  '#E31E35', 'No expiry',
-     ARRAY['2 complimentary Priority Pass lounge visits per year'], 'calendar', 5),
+     ARRAY['2 complimentary Priority Pass lounge visits per year'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000002', 'Woman''s World Card',       'DBS',               'Mastercard', 0.4,  '#C0162E', '12 months',
-     ARRAY['4 mpd covers all online purchases (SGD and FCY)', 'S$1,000/month cap on 4 mpd rate; excess earns base rate'], 'calendar', 5),
+     ARRAY['4 mpd covers all online purchases (SGD and FCY)', 'S$1,000/month cap on 4 mpd rate; excess earns base rate'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000003', 'PRVI Miles Visa',           'UOB',               'Visa',       1.4,  '#00427E', '2 years',
-     ARRAY['4 complimentary Priority Pass lounge visits per year', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)', '3 mpd on IDR/MYR/THB/VND foreign currency spend'], 'calendar', 5),
+     ARRAY['4 complimentary Priority Pass lounge visits per year', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)', '3 mpd on IDR/MYR/THB/VND foreign currency spend'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000004', 'Journey Credit Card',       'Standard Chartered','Visa',       1.2,  '#00854A', 'No expiry',
-     ARRAY['2 complimentary Priority Pass lounge visits per year', '3 mpd applies to online SGD transactions (dining, groceries, food delivery, transport)', 'S$1,000/month combined cap across ALL 3 mpd bonus categories', 'Complimentary travel insurance via Allianz'], 'calendar', 5),
+     ARRAY['2 complimentary Priority Pass lounge visits per year', '3 mpd applies to online SGD transactions (dining, groceries, food delivery, transport)', 'S$1,000/month combined cap across ALL 3 mpd bonus categories', 'Complimentary travel insurance via Allianz'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000005', 'PremierMiles Visa',         'Citibank',          'Visa',       1.2,  '#003882', 'No expiry',
-     ARRAY['2 complimentary Priority Pass lounge visits per year', '10 mpd on Kaligo hotel bookings', '7.2 mpd (FCY) / 6.2 mpd (SGD) on Agoda via Citi portal'], 'calendar', 1),
+     ARRAY['2 complimentary Priority Pass lounge visits per year', '10 mpd on Kaligo hotel bookings', '7.2 mpd (FCY) / 6.2 mpd (SGD) on Agoda via Citi portal'], 'calendar', 1, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000006', '90°N Visa',                 'OCBC',              'Visa',       1.3,  '#BE1833', 'No expiry',
-     ARRAY['9 transfer partners; 1:1 ratio for KrisFlyer, Flying Blue, Marriott Bonvoy, IHG', 'No minimum spend requirement; no spending cap', 'No lounge access'], 'calendar', 5),
+     ARRAY['9 transfer partners; 1:1 ratio for KrisFlyer, Flying Blue, Marriott Bonvoy, IHG', 'No minimum spend requirement; no spending cap', 'No lounge access'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000007', 'TravelOne Visa',            'HSBC',              'Visa',       1.2,  '#DB0011', '37 months',
-     ARRAY['4 complimentary lounge visits per year (DragonPass/Mastercard Travel Pass)', '20 transfer partners — transfers instant and free of charge', 'Effective MPD varies by partner: 1.2/2.4 mpd (most partners), 1.0/2.0 mpd (KrisFlyer from Jan 2025)'], 'calendar', 1),
+     ARRAY['4 complimentary lounge visits per year (DragonPass/Mastercard Travel Pass)', '20 transfer partners — transfers instant and free of charge', 'Effective MPD varies by partner: 1.2/2.4 mpd (most partners), 1.0/2.0 mpd (KrisFlyer from Jan 2025)'], 'calendar', 1, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000008', 'Horizon Visa Signature',    'Maybank',           'Visa',       0.4,  '#F7A900', '12 months',
-     ARRAY['2.8 mpd on all foreign currency spend (no minimum spend, uncapped)', '2.8 mpd on air tickets, 1.2 mpd on dining/petrol/transport — both require S$800/month total spend', 'Miles expiry waived with S$24,000 annual spend (Rewards Infinite Programme)'], 'calendar', 5),
+     ARRAY['2.8 mpd on all foreign currency spend (no minimum spend, uncapped)', '2.8 mpd on air tickets, 1.2 mpd on dining/petrol/transport — both require S$800/month total spend', 'Miles expiry waived with S$24,000 annual spend (Rewards Infinite Programme)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000009', 'PRVI Miles Amex',           'UOB',               'Amex',       1.4,  '#00427E', '2 years',
-     ARRAY['2 complimentary airport transfers per quarter (requires S$1,000 FCY spend to unlock)', 'Annual fee waived + 20,000 bonus miles when annual spend reaches S$50,000', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)'], 'calendar', 5),
+     ARRAY['2 complimentary airport transfers per quarter (requires S$1,000 FCY spend to unlock)', 'Annual fee waived + 20,000 bonus miles when annual spend reaches S$50,000', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000010', 'Lady''s Card',              'UOB',               'Mastercard', 0.4,  '#C2185B', '2 years',
-     ARRAY['Choose 1 bonus category: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$1,000/month cap on chosen bonus category'], 'calendar', 5),
+     ARRAY['Choose 1 bonus category: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$1,000/month cap on chosen bonus category'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000011', 'Lady''s Solitaire Card',    'UOB',               'Mastercard', 0.4,  '#880E4F', '24 months',
-     ARRAY['Choose 2 bonus categories: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$750/month cap per chosen category (S$1,500/month combined)'], 'calendar', 5),
+     ARRAY['Choose 2 bonus categories: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$750/month cap per chosen category (S$1,500/month combined)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000012', 'Visa Signature',            'UOB',               'Visa',       0.4,  '#1A237E', '2 years',
-     ARRAY['Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise', '4 mpd on all tap-to-pay spend (any category, incl. petrol) — S$1,200/month cap', '4 mpd on overseas FCY — S$1,200/month cap (separate from contactless pool)'], 'calendar', 5),
+     ARRAY['Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise', '4 mpd on all tap-to-pay spend (any category, incl. petrol) — S$1,200/month cap', '4 mpd on overseas FCY — S$1,200/month cap (separate from contactless pool)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000013', 'Preferred Platinum Visa',   'UOB',               'Visa',       0.4,  '#1565C0', '2 years',
-     NULL, 'calendar', 5),
+     NULL, 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000014', 'KrisFlyer Visa',            'UOB',               'Visa',       1.2,  '#003580', '3 years',
-     ARRAY['Miles credited directly to KrisFlyer — no bank points currency, no transfer needed', '3 mpd on Singapore Airlines, Scoot, KrisShop, Kris+ and Pelago', '2.4 mpd on dining, online shopping, online travel, transport (requires S$800 SIA Group spend/year to unlock)'], 'calendar', 5),
+     ARRAY['Miles credited directly to KrisFlyer — no bank points currency, no transfer needed', '3 mpd on Singapore Airlines, Scoot, KrisShop, Kris+ and Pelago', '2.4 mpd on dining, online shopping, online travel, transport (requires S$800 SIA Group spend/year to unlock)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000015', 'Revolution',               'HSBC',              'Visa',       0.4,  '#C62828', '37 months',
-     ARRAY['No annual fee', '4 mpd on dining, shopping, transport and travel (contactless and online)', 'S$1,000/month combined cap across all bonus categories', '8 mpd available with S$50,000 ADB in HSBC Everyday Global Account', '20 transfer partners, instant transfers with no conversion fee'], 'calendar', 1),
+     ARRAY['No annual fee', '4 mpd on dining, shopping, transport and travel (contactless and online)', 'S$1,000/month combined cap across all bonus categories', '8 mpd available with S$50,000 ADB in HSBC Everyday Global Account', '20 transfer partners, instant transfers with no conversion fee'], 'calendar', 1, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000016', 'XL Rewards',               'Maybank',           'Visa',       0.4,  '#FF8F00', '12 months',
-     ARRAY['Age restriction: applicants must be 21–39 at time of application', 'S$500/month minimum spend required to unlock 4 mpd bonus rates', 'S$1,000/month combined cap on all bonus categories', '4 mpd on ALL foreign currency spend (no MCC restrictions)', 'Annual fee waived first 2 years, then waivable with S$6,000 annual spend'], 'calendar', 5),
+     ARRAY['Age restriction: applicants must be 21–39 at time of application', 'S$500/month minimum spend required to unlock 4 mpd bonus rates', 'S$1,000/month combined cap on all bonus categories', '4 mpd on ALL foreign currency spend (no MCC restrictions)', 'Annual fee waived first 2 years, then waivable with S$6,000 annual spend'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000017', 'Rewards Mastercard',       'Citibank',          'Mastercard', 0.4,  '#0288D1', '5 years',
-     ARRAY['4 mpd on all online purchases (any category) and in-store fashion', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month combined cap on 4 mpd spend (online + in-store fashion)', 'No lounge access'], 'statement', 1),
+     ARRAY['4 mpd on all online purchases (any category) and in-store fashion', 'Travel bookings (airlines, hotels) excluded from 4 mpd online bonus', 'S$1,000/month combined cap on 4 mpd spend (online + in-store fashion)', 'No lounge access'], 'statement', 1, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000018', 'PRVI Miles Mastercard',    'UOB',               'Mastercard', 1.4,  '#00427E', '2 years',
-     ARRAY['2.4 mpd on all foreign currency spend (no minimum spend, uncapped)', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)', '3 mpd on IDR/MYR/THB/VND foreign currency spend'], 'calendar', 5),
+     ARRAY['2.4 mpd on all foreign currency spend (no minimum spend, uncapped)', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)', '3 mpd on IDR/MYR/THB/VND foreign currency spend'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000019', 'KrisFlyer Ascend',         'American Express',  'Amex',       1.2,  '#C9A84C', 'No expiry',
-     ARRAY['2 mpd on all foreign currency spend (no minimum spend, uncapped)', '2 complimentary hotel stays at Crowne Plaza Changi Airport per year', 'S$0 conversion fee — miles credited directly to KrisFlyer account'], 'calendar', 1)
+     ARRAY['2 mpd on all foreign currency spend (no minimum spend, uncapped)', '2 complimentary hotel stays at Crowne Plaza Changi Airport per year', 'S$0 conversion fee — miles credited directly to KrisFlyer account'], 'calendar', 1, 'miles', NULL),
+  ('00000000-0000-0000-0001-000000000020', 'Cash / Debit',             'Cash',              'Debit',      0,    '#6B7280', NULL,
+     ARRAY['Use for cash or debit card transactions — spend is tracked but no rewards earned'], 'calendar', 1, 'debit', NULL),
+  ('00000000-0000-0000-0001-000000000021', 'Simply Cash',              'Standard Chartered','Visa',       0,    '#0B5CAB', NULL,
+     ARRAY['1.5% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.015),
+  ('00000000-0000-0000-0001-000000000022', 'Absolute Cashback',        'UOB',               'Amex',       0,    '#00427E', NULL,
+     ARRAY['1.7% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.017),
+  ('00000000-0000-0000-0001-000000000023', 'Citi Cash Back',           'Citi',              'Mastercard', 0,    '#D42B28', NULL,
+     ARRAY['8% cashback on dining and groceries (requires S$800/month total card spend)', '0.25% cashback on all other spend', 'Cashback capped at S$25/month per category'], 'calendar', 1, 'cashback', 0.0025)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +125,15 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   ('00000000-0000-0000-0001-000000000018','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
   -- Amex KrisFlyer Ascend — FCY 2.0 mpd (uncapped)
   ('00000000-0000-0000-0001-000000000019','00000000-0000-0000-0000-000000000005', 2.0, '2000-01-01')
+ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Cashback rate overrides (per-category bonus rates for cashback cards)
+-- ─────────────────────────────────────────────────────────────────────────────
+INSERT INTO library_cashback_rates (card_id, category_id, cashback_rate, effective_from) VALUES
+  -- Citi Cash Back: 8% dining (001) and groceries (002)
+  ('00000000-0000-0000-0001-000000000023', '00000000-0000-0000-0000-000000000001', 0.08, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000023', '00000000-0000-0000-0000-000000000002', 0.08, '2000-01-01')
 ON CONFLICT (card_id, category_id, effective_from) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────

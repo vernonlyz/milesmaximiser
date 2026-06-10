@@ -200,8 +200,18 @@ export default function Cards() {
                         <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                           {card.card_network}
                         </span>
-                        {card.mile_validity && (
+                        {card.card_type === 'cashback' && (
                           <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                            Cashback{card.cashback_rate != null ? ` · ${(card.cashback_rate * 100).toFixed(1)}%` : ''}
+                          </span>
+                        )}
+                        {card.card_type === 'debit' && (
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                            Debit / Cash
+                          </span>
+                        )}
+                        {card.card_type === 'miles' && card.mile_validity && (
+                          <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
                             Miles: {card.mile_validity}
                           </span>
                         )}
