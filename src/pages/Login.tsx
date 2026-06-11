@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { TrendingUp, Loader2 } from 'lucide-react'
+import { Smile, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -35,9 +35,9 @@ export default function Login() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-            <TrendingUp size={20} className="text-white" />
+            <Smile size={20} className="text-white" />
           </div>
-          <span className="text-2xl font-bold text-gray-900">MilesMaximiser</span>
+          <span className="text-2xl font-bold text-gray-900">SmileMax</span>
         </div>
 
         <div className="card p-8">

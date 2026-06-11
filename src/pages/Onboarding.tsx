@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Loader2, TrendingUp } from 'lucide-react'
+import { Check, Loader2, Smile } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { resolveRates } from '../lib/recommendations'
@@ -65,9 +65,9 @@ export default function Onboarding() {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <TrendingUp size={16} className="text-white" />
+            <Smile size={16} className="text-white" />
           </div>
-          <span className="font-bold text-lg text-gray-900">MilesMaximiser</span>
+          <span className="font-bold text-lg text-gray-900">SmileMax</span>
         </div>
       </div>
 
