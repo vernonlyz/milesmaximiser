@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2 } from 'lucide-react'
+import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { currentMonthLabel, formatSGD } from '../lib/utils'
 import { Transaction } from '../lib/types'
@@ -117,6 +117,17 @@ export default function Expenses() {
         <StatChip label="Cash / Debit"    value={formatSGD(debitSpend)}    icon={<Wallet     size={16} className="text-gray-500" />}   bg="bg-gray-100" />
         <StatChip label="Total Spent"     value={formatSGD(totalSpent)}    icon={<Receipt    size={16} className="text-sky-600" />}    bg="bg-sky-50" bold />
       </div>
+
+      {/* My spend mode banner */}
+      {viewMode === 'personal' && hasGroupSpends && (
+        <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+          <Info size={14} className="text-indigo-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-indigo-700">
+            <span className="font-medium">My spend</span> shows your personal share of group spends.{' '}
+            <span className="text-indigo-500">Miles and cashback are always earned on the full amount charged to your card.</span>
+          </p>
+        </div>
+      )}
 
       {/* Rewards earned — always based on card amount */}
       {(totalMiles > 0 || totalCashback > 0) && (

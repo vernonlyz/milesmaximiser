@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
@@ -48,6 +48,7 @@ export default function Transactions() {
   const [splitOpen, setSplitOpen] = useState(false)
   const [splitN, setSplitN] = useState<number | null>(null)
   const [splitCustom, setSplitCustom] = useState('')
+  const [splitInfoOpen, setSplitInfoOpen] = useState(false)
 
   // Filters
   const [filterMonth, setFilterMonth] = useState(isoDate().slice(0, 7))
@@ -120,6 +121,7 @@ export default function Transactions() {
     setSplitOpen(false)
     setSplitN(null)
     setSplitCustom('')
+    setSplitInfoOpen(false)
     setError(null)
   }
 
@@ -820,13 +822,31 @@ export default function Transactions() {
 
             {/* Group split */}
             {!splitOpen ? (
-              <button
-                type="button"
-                onClick={() => setSplitOpen(true)}
-                className="mt-1.5 text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
-              >
-                <Users size={11} /> Split with group?
-              </button>
+              <div className="mt-1.5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setSplitOpen(true); setSplitInfoOpen(false) }}
+                    className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
+                  >
+                    <Users size={11} /> Split with group?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSplitInfoOpen(p => !p)}
+                    className={`transition-colors ${splitInfoOpen ? 'text-indigo-500' : 'text-gray-300 hover:text-gray-400'}`}
+                    title="What is this?"
+                  >
+                    <Info size={11} />
+                  </button>
+                </div>
+                {splitInfoOpen && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700 leading-relaxed">
+                    Useful when you foot the bill for a group. Your card earns miles on the full charge; only your actual expense is split.
+                    <span className="block mt-1 text-blue-500">e.g. $120 dinner ÷ 4 = $30 yours, but you earn miles on $120.</span>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="mt-2 bg-gray-50 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
