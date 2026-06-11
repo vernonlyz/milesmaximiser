@@ -266,8 +266,7 @@ export default function Dashboard() {
             onClick={() => navigate('/transactions', { state: { openModal: true } })}
             className="btn-primary text-xs"
           >
-            <Plus size={14} />
-            <span className="hidden sm:inline">Log Transaction</span>
+            <Plus size={14} /> Log Transaction
           </button>
           <button onClick={refresh} className="hidden sm:inline-flex btn-secondary text-xs">
             <RefreshCw size={13} /> Refresh
