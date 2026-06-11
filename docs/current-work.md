@@ -51,6 +51,8 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-11  Fix onboarding redirect on new devices — use Supabase-backed hasActivity, not localStorage only
 2026-06-11  Add group-spend split: personal_amount on transactions, collapsible form section (migration 025)
 2026-06-11  Add group-split info popup (ⓘ) and My spend mode banner in Expenses  [tag: v4.0-smilemax]
+2026-06-12  Add Log Transaction button to Dashboard header — navigates to /transactions with auto-open modal
+2026-06-12  Fix Log Transaction button on mobile — full label always visible, Refresh hidden on mobile
 ```
 
 ---
@@ -106,6 +108,7 @@ Everything listed below is in a working, committed state on `main` (tagged `v4.0
 - **Group-spend split** — Optional collapsible "÷ Split with group?" section in the transaction form. Quick-pick chips for ÷2 / ÷3 / ÷4, plus a free-entry "My share" field (accepts S$0). Stores `personal_amount` on the transaction (migration 025). Miles and cashback always earned on the full `amount`; only spend views use `personal_amount`. An ⓘ info popup next to the section header explains the feature.
 - **Expenses: Card spend / My spend toggle** — Toggle appears only when the current month has at least one group spend. In "My spend" mode all spend figures use `personal_amount ?? amount`; rewards totals remain on full card amounts. An indigo banner below the stat chips explains the mode distinction. Transaction list shows an indigo "yours: S$X" label on split transactions.
 - **Dashboard Total Spent sub-line** — When any transaction has a personal split, the stat sub-line shows "S$X yours · N txns" so the user can see their actual share at a glance.
+- **Log Transaction button on Dashboard** — Primary "Log Transaction" button in the Dashboard header. Clicking navigates to `/transactions` with `{ state: { openModal: true } }`; Transactions reads this on mount, calls `openAdd()`, then clears the history state so back-navigation doesn't re-trigger it. Refresh button is hidden on mobile (`hidden sm:inline-flex`) to avoid header congestion; Log Transaction label is always visible.
 
 ---
 

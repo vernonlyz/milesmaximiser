@@ -180,6 +180,7 @@ The app is a functional MVP. All core features are implemented:
 | Dashboard Total Spent sub-line shows personal share when any group spends exist | Complete |
 | Transactions list: "yours: S$X" indigo label when personal_amount set and differs from amount | Complete |
 | Group-split info popup (ⓘ) in transaction form explaining the feature | Complete |
+| Log Transaction button on Dashboard — one tap to open the add-transaction modal from the home page | Complete |
 
 **Card library (23 cards):**
 

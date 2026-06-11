@@ -351,3 +351,18 @@ Captures key architectural choices made during development — what was decided,
 **Why:** Progressive disclosure keeps the UI simple for users who never use group splits. The toggle appears naturally the first time a user logs a group expense, at which point the distinction is immediately meaningful.
 
 **Trade-off:** The toggle is per-month (`monthTxns` scope), so if a user's current month has no group spends but previous months do, the toggle is hidden this month. Acceptable — the Expenses page is month-scoped throughout.
+
+---
+
+## 2026-06-12 — Log Transaction shortcut on Dashboard via navigation state
+
+**Decision:** Add a "Log Transaction" primary button to the Dashboard header. On click it calls `navigate('/transactions', { state: { openModal: true } })`. Transactions reads `location.state.openModal` in a mount-time `useEffect`, calls `openAdd()`, then clears the history state with `window.history.replaceState({}, '')` so back-navigation doesn't re-open the modal. The Refresh button is hidden on mobile (`hidden sm:inline-flex`) to keep the header uncluttered.
+
+**Alternatives considered:**
+- Lift the transaction modal into a global context rendered in Layout — correct UX (user stays on Dashboard after saving), but requires extracting the modal and all its state out of Transactions into a shared component. Significant refactor for marginal benefit at current scale.
+- Duplicate a simplified modal on Dashboard — code duplication; would diverge from the full modal over time.
+- Floating action button (FAB) — common mobile pattern, but inconsistent with the rest of the app's header-button style.
+
+**Why:** Navigation state is the minimal-change solution: zero duplication, full modal functionality, and the user lands on the Transactions page after saving which is a natural post-log destination. Clearing history state prevents the modal re-opening on back-forward navigation.
+
+**Trade-off:** User is navigated away from Dashboard after logging. Acceptable — the Transactions page shows the newly added entry immediately, and Dashboard is one tap away via the sidebar.
