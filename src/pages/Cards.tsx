@@ -151,7 +151,7 @@ export default function Cards() {
   const walletCount = selectedCardIds.size
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -220,7 +220,7 @@ export default function Cards() {
       {grouped.map(([bank, bankCards]) => (
         <div key={bank}>
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">{bank}</h2>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
             {bankCards.map(card => {
               const cardRates = resolveRates(rates.filter(r => r.card_id === card.id), today)
               const cardCaps  = resolveCaps(caps.filter(c => c.card_id === card.id), today)

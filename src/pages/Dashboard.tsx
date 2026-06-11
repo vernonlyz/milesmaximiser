@@ -252,7 +252,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8 max-w-7xl">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -297,7 +297,7 @@ export default function Dashboard() {
             <h2 className="font-semibold text-gray-800">Spend Milestones</h2>
             <span className="text-xs text-gray-400">unlock bonus miles by hitting min spend</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-5">
             {milestones.map(m => {
               const pct = Math.min((m.totalSpent / m.minSpend) * 100, 100)
               const remaining = Math.max(0, m.minSpend - m.totalSpent)
