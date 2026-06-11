@@ -47,13 +47,17 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-11  Fix sidebar footer button alignment; enlarge Info icon  [tag: v3.0-expense-tracking]
 2026-06-11  Fix SPA deep-link refresh: add not_found_handling to wrangler.toml
 2026-06-11  Add npm run deploy script (build + wrangler deploy in one step)
+2026-06-11  Make layout fully fluid — remove all max-w-* constraints; 2xl breakpoint grids on Dashboard/Cards
+2026-06-11  Fix onboarding redirect on new devices — use Supabase-backed hasActivity, not localStorage only
+2026-06-11  Add group-spend split: personal_amount on transactions, collapsible form section (migration 025)
+2026-06-11  Add group-split info popup (ⓘ) and My spend mode banner in Expenses  [tag: v4.0-smilemax]
 ```
 
 ---
 
 ## Completed
 
-Everything listed below is in a working, committed state on `main` (tagged `v3.0-expense-tracking`):
+Everything listed below is in a working, committed state on `main` (tagged `v4.0-smilemax`):
 
 - **Auth** — Email/password and Google OAuth, per-user RLS, protected routes
 - **Card library model** — Centralised read-only `card_library` with 23 SG cards, seeded via `library_seed.sql`
@@ -97,6 +101,11 @@ Everything listed below is in a working, committed state on `main` (tagged `v3.0
 - **Dashboard wallet filters** — Chip filters by type (Miles / Cashback / Cash/Debit) and by bank. Cash/Debit chip appears when debit spend exists; selecting it shows the debit-only summary row.
 - **Transaction form / list** — Cash/Debit always appears in card dropdown (injected from `allCards`). Card filter in transaction list includes Cash/Debit.
 - **SPA routing fix** — `not_found_handling = "single-page-application"` in `wrangler.toml` so refreshing on any route (e.g. `/recommend`, `/expenses`) serves `index.html` instead of a 404. `npm run deploy` added to `package.json` to always rebuild before uploading — prevents deploying a stale `dist`.
+- **Fully fluid layout** — All `max-w-*` constraints removed from Dashboard, Expenses, Cards, and Recommend. Dashboard milestones grid is `sm:grid-cols-2 2xl:grid-cols-4`; Cards library is `grid-cols-1 2xl:grid-cols-2`; Recommend uses `lg:grid-cols-[2fr_3fr]` for form/results split. Layout fills the full viewport on any monitor width.
+- **Cross-device onboarding guard** — Onboarding redirect now uses a Supabase-backed `hasActivity` signal (`cards.length > 0 || transactions.length > 0`) instead of relying solely on `localStorage`. Eliminates the false onboarding prompt on new devices, phones, or after a domain change. `markOnboarded` is called proactively when `hasActivity` is true and the localStorage flag is absent.
+- **Group-spend split** — Optional collapsible "÷ Split with group?" section in the transaction form. Quick-pick chips for ÷2 / ÷3 / ÷4, plus a free-entry "My share" field (accepts S$0). Stores `personal_amount` on the transaction (migration 025). Miles and cashback always earned on the full `amount`; only spend views use `personal_amount`. An ⓘ info popup next to the section header explains the feature.
+- **Expenses: Card spend / My spend toggle** — Toggle appears only when the current month has at least one group spend. In "My spend" mode all spend figures use `personal_amount ?? amount`; rewards totals remain on full card amounts. An indigo banner below the stat chips explains the mode distinction. Transaction list shows an indigo "yours: S$X" label on split transactions.
+- **Dashboard Total Spent sub-line** — When any transaction has a personal split, the stat sub-line shows "S$X yours · N txns" so the user can see their actual share at a glance.
 
 ---
 
@@ -114,9 +123,10 @@ The card library (rates, caps, new cards) is updated via manual SQL in the Supab
 
 ## Likely next task
 
-The core recommendation, tracking, and expense features are now complete and accurate (tagged `v3.0-expense-tracking`). The most likely next candidates are:
+The core recommendation, tracking, expense, and group-spend features are now complete and accurate (tagged `v4.0-smilemax`). The most likely next candidates are:
 
 1. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested. A regression in any of these paths is invisible without tests.
 2. **Error handling on Cards/Recommend/Transactions pages** — Currently shows silent empty states on Supabase failures.
 3. **Pagination or date-range filter on transactions** — Currently loads the full current year; will slow down as volume grows.
-4. **More cashback cards** — Citi Cash Back (the old category-based card) could be modelled if the user still holds it; other cashback products (OCBC 365, DBS Live Fresh, etc.) are not yet in the library.
+4. **More cashback cards** — Other cashback products (OCBC 365, DBS Live Fresh, etc.) are not yet in the library.
+5. **Run migration 025 in Supabase** — `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personal_amount NUMERIC;` — required before any group-spend data can be saved in production.

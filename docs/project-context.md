@@ -46,15 +46,16 @@ Supabase (Postgres + Auth + RLS)
     ├─ library_selectable_categories  — Valid bonus-category choices per selectable card
     ├─ user_card_selections           — Per-user wallet (join table)
     ├─ user_category_overrides        — Per-user chosen bonus category for selectable cards
-    ├─ transactions                   — Per-user transaction log (miles + cashback fields; vendor_name, mcc, payment_channel)
+    ├─ transactions                   — Per-user transaction log (miles + cashback fields; vendor_name, mcc, payment_channel, personal_amount)
     ├─ categories                     — Shared lookup table (ids 001–012)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
-Deployment: Cloudflare Workers (`wrangler.toml`; `[assets]` serves the Vite `dist/` output)
+Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/` output)
   - `not_found_handling = "single-page-application"` ensures all unmatched routes serve index.html (SPA refresh fix)
   - `npm run deploy` = `npm run build && wrangler deploy` (always rebuilds before uploading)
+  - Live at `smilemax.pages.dev`; auto-deploys on push to `main`
 ```
 
 **Data flow at login:**
@@ -112,6 +113,7 @@ Deployment: Cloudflare Workers (`wrangler.toml`; `[assets]` serves the Vite `dis
 | [supabase/migrations/022_feedback.sql](../supabase/migrations/022_feedback.sql) | Adds feedback table for bug reports and suggestions; admin-only RLS policies |
 | [supabase/migrations/023_add_prvi_mastercard_amex_ascend.sql](../supabase/migrations/023_add_prvi_mastercard_amex_ascend.sql) | Adds UOB PRVI Miles Mastercard (card 018) and Amex KrisFlyer Ascend (card 019) |
 | [supabase/migrations/024_expense_tracking.sql](../supabase/migrations/024_expense_tracking.sql) | Adds card_type + cashback_rate to card_library; cashback_earned to transactions; library_cashback_rates table; seeds cashback and debit cards (020–023) |
+| [supabase/migrations/025_personal_amount.sql](../supabase/migrations/025_personal_amount.sql) | Adds personal_amount NUMERIC to transactions for group-spend splitting |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
 
 ---
@@ -168,7 +170,16 @@ The app is a functional MVP. All core features are implemented:
 | Dashboard wallet: Cash/Debit summary row when debit spend exists | Complete |
 | Transaction form: Cash/Debit always available in card dropdown (no wallet setup) | Complete |
 | Transaction filter: card dropdown includes Cash/Debit | Complete |
-| SPA deep-link refresh fix (Cloudflare Workers not_found_handling) | Complete |
+| SPA deep-link refresh fix (Cloudflare Pages not_found_handling) | Complete |
+| Fully fluid layout — no max-width caps; 2xl breakpoint grids on Dashboard and Cards | Complete |
+| Cross-device onboarding detection — Supabase-backed hasActivity replaces localStorage-only guard | Complete |
+| Group-spend split — optional collapsible section in transaction form (÷2/÷3/÷4 chips + custom) | Complete |
+| personal_amount stored on transaction; miles/cashback always earned on full card amount | Complete |
+| Expenses: Card spend / My spend toggle (hidden until ≥1 group spend exists) | Complete |
+| Expenses: My spend mode banner explaining that rewards are always on full amount | Complete |
+| Dashboard Total Spent sub-line shows personal share when any group spends exist | Complete |
+| Transactions list: "yours: S$X" indigo label when personal_amount set and differs from amount | Complete |
+| Group-split info popup (ⓘ) in transaction form explaining the feature | Complete |
 
 **Card library (23 cards):**
 

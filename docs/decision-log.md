@@ -291,3 +291,63 @@ Captures key architectural choices made during development — what was decided,
 **Why:** A dedicated page keeps each route's scope clear: Dashboard = "how am I tracking this month?"; Expenses = "where did my money go?" The split also allows the Expenses page to evolve independently (e.g. date-range filters, CSV export) without touching the Dashboard.
 
 **Trade-off:** One extra navigation step to see full spending detail. Mitigated by the Expenses link in the sidebar nav.
+
+---
+
+## 2026-06-11 — Fluid layout: remove all max-width constraints
+
+**Decision:** Remove all `max-w-*` Tailwind constraints from Dashboard, Cards, Recommend, and Expenses. Use `2xl:` breakpoint variants (≥1536px) for grids that would stretch awkwardly on wide monitors — Dashboard milestones `sm:grid-cols-2 2xl:grid-cols-4`, Cards library `grid-cols-1 2xl:grid-cols-2`, Recommend `lg:grid-cols-[2fr_3fr]`.
+
+**Alternatives considered:**
+- Keep `max-w-7xl` — content is horizontally centred with large empty margins on 2K/4K monitors; screen real estate wasted.
+- Increase max-width (e.g. `max-w-screen-2xl`) — slightly more content but still a hard boundary; all monitors wider than that still see margins.
+
+**Why:** The app is a personal dashboard — users benefit from seeing more data at once on large monitors. Removing hard limits and letting Tailwind breakpoints control column count gives a natural, proportional layout at every width without empty gutters.
+
+**Trade-off:** Very wide line lengths in full-width text blocks on ultra-wide monitors. Mitigated by the grid layout breaking text into columns at `2xl:`.
+
+---
+
+## 2026-06-11 — Cross-device onboarding guard via Supabase-backed hasActivity
+
+**Decision:** Replace the pure-localStorage `isOnboarded` guard with a combined check: `hasActivity = cards.length > 0 || transactions.length > 0`. If `hasActivity` is true but the localStorage flag is absent (new device, new domain), `markOnboarded` is called immediately so the user is not redirected to onboarding. The redirect to `/onboarding` only fires when `!loading && !error && user && !hasActivity && !isOnboarded(user.id)`.
+
+**Background:** `localStorage` is per-device and per-domain. An existing user logging in on a phone for the first time, or after a domain migration, had no `isOnboarded` flag in their new localStorage and was incorrectly sent to the onboarding flow. A secondary bug caused the redirect to fire before the error check — if Supabase failed to load `cards`, an empty array triggered the redirect even though the user was onboarded.
+
+**Alternatives considered:**
+- Store `isOnboarded` in Supabase (user profile table) — correct cross-device, but requires a schema migration and a database read on every login before showing the dashboard.
+- Use the presence of `user_card_selections` rows as the sole signal — accurate for wallet cards but misses users who have only transactions (no wallet cards currently selected).
+
+**Why:** `hasActivity` (cards OR transactions) is a reliable proxy for "this user has been through onboarding" and is already loaded from Supabase at login with no additional round-trip. Proactively setting the localStorage flag when `hasActivity` is true means subsequent page loads on the same device are instant (no Supabase check needed).
+
+**Trade-off:** A brand-new user who adds their first card and then opens the app on a second device before any Supabase data has loaded (extremely unlikely) would briefly see onboarding on the second device. The `!error` guard prevents a network failure from triggering a redirect.
+
+---
+
+## 2026-06-11 — Group-spend split: optional collapsible section, personal_amount on transaction
+
+**Decision:** Add an optional "÷ Split with group?" collapsible section below the Amount field in the transaction form. When expanded it shows quick-pick chips (÷2 / ÷3 / ÷4) and a custom "My share" free-entry field. The user's personal share is stored as `personal_amount NUMERIC` on the transaction (migration 025). When `personal_amount` is null the full amount belongs to the user. Miles and cashback are always computed on the full `amount` column — `personal_amount` only affects spend views.
+
+**Alternatives considered:**
+- Always-visible "My share" field — adds friction for every transaction even though group spends are the minority case; requires validation to explain why the field is sometimes needed.
+- Separate "group" transaction type — would require a different flow and schema; doesn't integrate naturally with the existing card/category/amount model.
+- Compute personal share at display time from a stored split ratio — less flexible than storing the actual share; can't handle custom odd splits (e.g. S$32 out of S$97).
+
+**Why:** Collapsible section preserves zero friction for the common (solo) case. The quick-pick chips cover the most common splits (equal division); the custom field handles everything else. Storing `personal_amount` directly (not a ratio) is simpler and makes every query straightforward — no multiplication needed at read time.
+
+**Trade-off:** Miles and cashback always computed on the full card charge. This is correct: the card earns rewards on the full amount billed. The Expenses page and Dashboard sub-line reflect personal share separately so users can see both views.
+
+---
+
+## 2026-06-11 — Expenses view toggle hidden until first group spend exists
+
+**Decision:** The "Card spend / My spend" toggle on the Expenses page is only rendered when `hasGroupSpends` is true (`monthTxns.some(t => t.personal_amount != null && t.personal_amount !== t.amount)`). First-time and solo users see a single-view Expenses page with no toggle.
+
+**Alternatives considered:**
+- Always show the toggle — adds UI chrome that means nothing until group spends exist; "My spend" and "Card spend" would show identical numbers.
+- Show the toggle greyed out with a tooltip — draws attention to a feature the user hasn't used yet; potentially confusing.
+- Separate `/expenses/my` and `/expenses/card` routes — over-engineering; the toggle state doesn't need to be deep-linkable.
+
+**Why:** Progressive disclosure keeps the UI simple for users who never use group splits. The toggle appears naturally the first time a user logs a group expense, at which point the distinction is immediately meaningful.
+
+**Trade-off:** The toggle is per-month (`monthTxns` scope), so if a user's current month has no group spends but previous months do, the toggle is hidden this month. Acceptable — the Expenses page is month-scoped throughout.
