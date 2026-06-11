@@ -43,7 +43,7 @@ export default function Recommend() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Card Recommender</h1>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -51,8 +51,10 @@ export default function Recommend() {
         </p>
       </div>
 
+      <div className="lg:grid lg:grid-cols-[2fr_3fr] lg:gap-6 lg:items-start">
+
       {/* Inputs */}
-      <div className="card p-5 space-y-4">
+      <div className="card p-5 space-y-4 mb-6 lg:mb-0">
         {/* Vendor typeahead */}
         <div>
           <label className="label">Vendor <span className="text-gray-400 font-normal text-xs">(optional — auto-fills category)</span></label>
@@ -142,24 +144,28 @@ export default function Recommend() {
       </div>
 
       {/* Results */}
-      {categoryId && amount > 0 ? (
-        <div className="space-y-3">
-          <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">
-            Best cards for {cat?.icon} {cat?.name} · {formatSGD(amount)}
-          </h2>
+      <div>
+        {categoryId && amount > 0 ? (
+          <div className="space-y-3">
+            <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">
+              Best cards for {cat?.icon} {cat?.name} · {formatSGD(amount)}
+            </h2>
 
-          {recs.map((rec, i) => (
-            <RecCard key={rec.card.id} rec={rec} rank={i + 1} />
-          ))}
-        </div>
-      ) : (
-        <div className="card p-10 text-center border-dashed border-2 border-gray-200">
-          <Sparkles size={32} className="text-indigo-300 mx-auto mb-2" />
-          <p className="text-gray-500 text-sm">
-            Select a category and enter an amount to see which card earns the most miles.
-          </p>
-        </div>
-      )}
+            {recs.map((rec, i) => (
+              <RecCard key={rec.card.id} rec={rec} rank={i + 1} />
+            ))}
+          </div>
+        ) : (
+          <div className="card p-10 text-center border-dashed border-2 border-gray-200">
+            <Sparkles size={32} className="text-indigo-300 mx-auto mb-2" />
+            <p className="text-gray-500 text-sm">
+              Select a category and enter an amount to see which card earns the most miles.
+            </p>
+          </div>
+        )}
+      </div>
+
+      </div>{/* end lg:grid */}
     </div>
   )
 }
