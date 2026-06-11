@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -7,11 +7,20 @@ import CapUsageBar from '../components/CapUsageBar'
 import { SpendingCap } from '../lib/types'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel, getPeriodEnd, formatSGD } from '../lib/utils'
-import { isOnboarded } from './Onboarding'
+import { isOnboarded, markOnboarded } from './Onboarding'
 
 export default function Dashboard() {
   const { cards, allCards, selectedCardIds, categories, rates, caps, overrides, transactions, statementDays, loading, error, refresh } = useApp()
   const { user } = useAuth()
+
+  // Auto-bootstrap the onboarded flag for existing users on a new domain (e.g. after
+  // migrating from workers.dev → pages.dev). localStorage is domain-scoped, so the flag
+  // won't exist on first visit to the new domain even if the user has wallet cards in Supabase.
+  useEffect(() => {
+    if (!loading && user && cards.length > 0 && !isOnboarded(user.id)) {
+      markOnboarded(user.id)
+    }
+  }, [loading, user, cards.length])
 
   // Only redirect brand-new users who have never been through onboarding.
   // Existing users (isOnboarded flag set) stay on the dashboard even if
