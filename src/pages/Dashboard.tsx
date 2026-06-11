@@ -13,19 +13,19 @@ export default function Dashboard() {
   const { cards, allCards, selectedCardIds, categories, rates, caps, overrides, transactions, statementDays, loading, error, refresh } = useApp()
   const { user } = useAuth()
 
-  // Auto-bootstrap the onboarded flag for existing users on a new domain (e.g. after
-  // migrating from workers.dev → pages.dev). localStorage is domain-scoped, so the flag
-  // won't exist on first visit to the new domain even if the user has wallet cards in Supabase.
+  // Use Supabase-backed signals (cards, transactions) as cross-device proof of an existing user.
+  // localStorage isOnboarded is device/domain scoped and can't be trusted alone on mobile or
+  // after a domain change. If either cards or transactions exist in Supabase, skip onboarding.
+  const hasActivity = cards.length > 0 || transactions.length > 0
+
   useEffect(() => {
-    if (!loading && user && cards.length > 0 && !isOnboarded(user.id)) {
+    if (!loading && user && hasActivity && !isOnboarded(user.id)) {
       markOnboarded(user.id)
     }
-  }, [loading, user, cards.length])
+  }, [loading, user, hasActivity])
 
-  // Only redirect brand-new users who have never been through onboarding.
-  // Existing users (isOnboarded flag set) stay on the dashboard even if
-  // their wallet is empty after the library migration — they see an empty state instead.
-  if (!loading && user && cards.length === 0 && !isOnboarded(user.id)) {
+  // Only redirect if we're sure the user is brand new: data loaded, no error, no activity, no flag.
+  if (!loading && !error && user && !hasActivity && !isOnboarded(user.id)) {
     return <Navigate to="/onboarding" replace />
   }
 
