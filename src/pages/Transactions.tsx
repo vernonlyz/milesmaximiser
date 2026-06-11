@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
@@ -23,6 +24,7 @@ type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 export default function Transactions() {
   const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
   const { user } = useAuth()
+  const location = useLocation()
 
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -59,6 +61,14 @@ export default function Transactions() {
   // Sort
   const [sortBy, setSortBy] = useState<SortCol>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  // Auto-open the add modal when navigated here with { state: { openModal: true } }
+  useEffect(() => {
+    if ((location.state as { openModal?: boolean } | null)?.openModal) {
+      openAdd()
+      window.history.replaceState({}, '')
+    }
+  }, [])
 
   function toggleSort(col: SortCol) {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
-import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent } from 'lucide-react'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
@@ -12,6 +12,7 @@ import { isOnboarded, markOnboarded } from './Onboarding'
 export default function Dashboard() {
   const { cards, allCards, selectedCardIds, categories, rates, caps, overrides, transactions, statementDays, loading, error, refresh } = useApp()
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   // Use Supabase-backed signals (cards, transactions) as cross-device proof of an existing user.
   // localStorage isOnboarded is device/domain scoped and can't be trusted alone on mobile or
@@ -260,9 +261,17 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">{currentMonthLabel()}</p>
         </div>
-        <button onClick={refresh} className="btn-secondary text-xs">
-          <RefreshCw size={13} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/transactions', { state: { openModal: true } })}
+            className="btn-primary text-xs"
+          >
+            <Plus size={14} /> Log Transaction
+          </button>
+          <button onClick={refresh} className="btn-secondary text-xs">
+            <RefreshCw size={13} /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
