@@ -89,7 +89,7 @@ export default function Transactions() {
     if (!splitOpen || isNaN(amt) || amt <= 0) return null
     if (splitN != null && splitN >= 2) return parseFloat((amt / splitN).toFixed(2))
     const custom = parseFloat(splitCustom)
-    return (!isNaN(custom) && custom > 0 && custom <= amt) ? custom : null
+    return (!isNaN(custom) && custom >= 0 && custom <= amt) ? custom : null
   }, [splitOpen, splitN, splitCustom, form.amount])
 
   function setField(k: keyof TransactionFormData, v: string) {
