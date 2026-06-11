@@ -187,9 +187,9 @@ export default function Layout() {
           </button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-indigo-500 rounded flex items-center justify-center">
-              <TrendingUp size={12} className="text-white" />
+              <Smile size={12} className="text-white" />
             </div>
-            <span className="font-bold text-sm">MilesMaximiser</span>
+            <span className="font-bold text-sm">SmileMax</span>
           </div>
         </header>
 
