@@ -88,6 +88,7 @@ export interface Transaction {
   effective_mpd: number | null  // COALESCE(manual_mpd, computed_mpd) — final applied value
   miles_earned: number | null
   cashback_earned: number | null  // computed at save for cashback cards; null for miles/debit
+  personal_amount: number | null  // user's own share when paying for a group; null = full amount
   created_at: string
 }
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
@@ -44,6 +44,11 @@ export default function Transactions() {
   const [manualMpd, setManualMpd] = useState('')
   const [overrideNote, setOverrideNote] = useState('')
 
+  // Group split state
+  const [splitOpen, setSplitOpen] = useState(false)
+  const [splitN, setSplitN] = useState<number | null>(null)
+  const [splitCustom, setSplitCustom] = useState('')
+
   // Filters
   const [filterMonth, setFilterMonth] = useState(isoDate().slice(0, 7))
   const [filterCat, setFilterCat] = useState('')
@@ -79,6 +84,14 @@ export default function Transactions() {
 
   const bestCardId = recs[0]?.card.id ?? ''
 
+  const personalAmount = useMemo(() => {
+    const amt = parseFloat(form.amount)
+    if (!splitOpen || isNaN(amt) || amt <= 0) return null
+    if (splitN != null && splitN >= 2) return parseFloat((amt / splitN).toFixed(2))
+    const custom = parseFloat(splitCustom)
+    return (!isNaN(custom) && custom > 0 && custom <= amt) ? custom : null
+  }, [splitOpen, splitN, splitCustom, form.amount])
+
   function setField(k: keyof TransactionFormData, v: string) {
     if (k === 'card_id' || k === 'category_id') {
       setMpdOverrideActive(false)
@@ -104,6 +117,9 @@ export default function Transactions() {
     setMpdOverrideActive(false)
     setManualMpd('')
     setOverrideNote('')
+    setSplitOpen(false)
+    setSplitN(null)
+    setSplitCustom('')
     setError(null)
   }
 
@@ -133,6 +149,15 @@ export default function Transactions() {
       setMpdOverrideActive(false)
       setManualMpd('')
       setOverrideNote('')
+    }
+    if (t.personal_amount != null && t.personal_amount !== t.amount) {
+      setSplitOpen(true)
+      setSplitN(null)
+      setSplitCustom(t.personal_amount.toFixed(2))
+    } else {
+      setSplitOpen(false)
+      setSplitN(null)
+      setSplitCustom('')
     }
     setEditingId(t.id)
     setError(null)
@@ -210,6 +235,7 @@ export default function Transactions() {
       effective_mpd: card.card_type === 'miles' ? parseFloat((hasValidOverride ? overrideEffectiveMpd : engineMpd).toFixed(4)) : null,
       miles_earned: card.card_type === 'miles' ? (hasValidOverride ? overrideMiles : Math.round(amount * engineMpd)) : null,
       cashback_earned,
+      personal_amount: personalAmount,
     }
 
     let dbErr
@@ -459,6 +485,11 @@ export default function Transactions() {
                       </span>
                       <span className="font-medium text-gray-800 text-sm">S${t.amount.toFixed(2)}</span>
                     </div>
+                    {t.personal_amount != null && t.personal_amount !== t.amount && (
+                      <p className="text-xs text-indigo-500 ml-3.5 mt-0.5">
+                        yours: S${t.personal_amount.toFixed(2)}
+                      </p>
+                    )}
                     {/* Card name | mpd + actions */}
                     <div className="flex items-center justify-between mt-0.5 ml-3.5">
                       <span className="text-xs text-gray-400">
@@ -555,6 +586,11 @@ export default function Transactions() {
                         </td>
                         <td className="px-4 py-3 text-right font-medium text-gray-800">
                           S${t.amount.toFixed(2)}
+                          {t.personal_amount != null && t.personal_amount !== t.amount && (
+                            <span className="block text-xs text-indigo-500 font-normal">
+                              S${t.personal_amount.toFixed(2)} yours
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {t.miles_earned != null
@@ -781,6 +817,75 @@ export default function Transactions() {
             <label className="label">Amount (S$)</label>
             <input type="number" min="0" step="0.01" placeholder="0.00" className="input"
               value={form.amount} onChange={e => setField('amount', e.target.value)} />
+
+            {/* Group split */}
+            {!splitOpen ? (
+              <button
+                type="button"
+                onClick={() => setSplitOpen(true)}
+                className="mt-1.5 text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
+              >
+                <Users size={11} /> Split with group?
+              </button>
+            ) : (
+              <div className="mt-2 bg-gray-50 rounded-xl p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-600 flex items-center gap-1.5">
+                    <Users size={12} className="text-gray-400" /> Split with group
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setSplitOpen(false); setSplitN(null); setSplitCustom('') }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {[2, 3, 4].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => { setSplitN(n); setSplitCustom('') }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                        splitN === n
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                      }`}
+                    >
+                      ÷{n}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSplitN(null)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      splitN === null
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+                {splitN === null && (
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Your share (S$)"
+                    className="input text-sm"
+                    value={splitCustom}
+                    onChange={e => setSplitCustom(e.target.value)}
+                  />
+                )}
+                {personalAmount != null && (
+                  <p className="text-xs text-indigo-600 font-medium">
+                    Your share: S${personalAmount.toFixed(2)}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Live recommendation — miles cards only, only shown when adding */}

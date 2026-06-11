@@ -35,10 +35,11 @@ export default function Dashboard() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   const monthTxns = transactions.filter(t => t.transaction_date >= monthStart)
 
-  const totalSpent    = monthTxns.reduce((s, t) => s + t.amount, 0)
-  const totalMiles    = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
-  const totalCashback = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
-  const txnCount      = monthTxns.length
+  const totalSpent      = monthTxns.reduce((s, t) => s + t.amount, 0)
+  const myActualSpent   = monthTxns.reduce((s, t) => s + (t.personal_amount ?? t.amount), 0)
+  const totalMiles      = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+  const totalCashback   = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+  const txnCount        = monthTxns.length
 
   // Only show caps for cards in the user's wallet
   const walletCaps = useMemo(
@@ -284,7 +285,9 @@ export default function Dashboard() {
           icon={<Receipt size={20} className="text-sky-600" />}
           label="Total Spent"
           value={`S$${totalSpent.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          sub={`${txnCount} transactions`}
+          sub={myActualSpent < totalSpent
+            ? `S$${myActualSpent.toFixed(2)} yours · ${txnCount} txns`
+            : `${txnCount} transactions`}
           bg="bg-sky-50"
         />
       </div>

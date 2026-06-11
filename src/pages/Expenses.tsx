@@ -1,14 +1,25 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { currentMonthLabel, formatSGD } from '../lib/utils'
+import { Transaction } from '../lib/types'
 
 export default function Expenses() {
   const { cards, allCards, categories, transactions, loading, error, refresh } = useApp()
 
+  const [viewMode, setViewMode] = useState<'card' | 'personal'>('card')
+
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   const monthTxns = transactions.filter(t => t.transaction_date >= monthStart)
+
+  // True if any transaction this month has a personal split recorded
+  const hasGroupSpends = monthTxns.some(t => t.personal_amount != null && t.personal_amount !== t.amount)
+
+  // Returns the spend amount to count based on view mode
+  function eff(t: Transaction) {
+    return viewMode === 'personal' ? (t.personal_amount ?? t.amount) : t.amount
+  }
 
   const cardTypeMap = useMemo(() => {
     const m = new Map<string, 'miles' | 'cashback' | 'debit'>()
@@ -16,10 +27,11 @@ export default function Expenses() {
     return m
   }, [allCards])
 
-  const totalSpent     = monthTxns.reduce((s, t) => s + t.amount, 0)
-  const milesSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'miles')   .reduce((s, t) => s + t.amount, 0)
-  const cashbackSpend  = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'cashback').reduce((s, t) => s + t.amount, 0)
-  const debitSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'debit')   .reduce((s, t) => s + t.amount, 0)
+  const totalSpent     = monthTxns.reduce((s, t) => s + eff(t), 0)
+  const milesSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'miles')   .reduce((s, t) => s + eff(t), 0)
+  const cashbackSpend  = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'cashback').reduce((s, t) => s + eff(t), 0)
+  const debitSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'debit')   .reduce((s, t) => s + eff(t), 0)
+  // Rewards are always based on full card amount — unaffected by split view
   const totalMiles     = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalCashback  = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
 
@@ -27,19 +39,18 @@ export default function Expenses() {
     const map = new Map<string, number>()
     for (const t of monthTxns) {
       if (!t.category_id) continue
-      map.set(t.category_id, (map.get(t.category_id) ?? 0) + t.amount)
+      map.set(t.category_id, (map.get(t.category_id) ?? 0) + eff(t))
     }
     return Array.from(map.entries())
       .sort(([, a], [, b]) => b - a)
       .map(([catId, amt]) => ({ catId, amt, cat: categories.find(c => c.id === catId) }))
-  }, [monthTxns, categories])
+  }, [monthTxns, categories, viewMode])
 
-  // Per-card spend this month
   const cardSpend = useMemo(() => {
     const map = new Map<string, number>()
     for (const t of monthTxns) {
       if (!t.card_id) continue
-      map.set(t.card_id, (map.get(t.card_id) ?? 0) + t.amount)
+      map.set(t.card_id, (map.get(t.card_id) ?? 0) + eff(t))
     }
     return Array.from(map.entries())
       .sort(([, a], [, b]) => b - a)
@@ -49,7 +60,7 @@ export default function Expenses() {
         card: cards.find(c => c.id === cardId) ?? allCards.find(c => c.id === cardId),
       }))
       .filter(r => r.card)
-  }, [monthTxns, cards, allCards])
+  }, [monthTxns, cards, allCards, viewMode])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-gray-400">
@@ -73,9 +84,30 @@ export default function Expenses() {
           <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
           <p className="text-sm text-gray-500 mt-0.5">{currentMonthLabel()}</p>
         </div>
-        <button onClick={refresh} className="btn-secondary text-xs">
-          <RefreshCw size={13} /> Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          {/* View toggle — only shown when group spends exist */}
+          {hasGroupSpends && (
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
+              {(['card', 'personal'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    viewMode === mode
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {mode === 'card' ? 'Card spend' : 'My spend'}
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={refresh} className="btn-secondary text-xs">
+            <RefreshCw size={13} /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Spend by type — 4 stat chips */}
@@ -86,7 +118,7 @@ export default function Expenses() {
         <StatChip label="Total Spent"     value={formatSGD(totalSpent)}    icon={<Receipt    size={16} className="text-sky-600" />}    bg="bg-sky-50" bold />
       </div>
 
-      {/* Rewards earned */}
+      {/* Rewards earned — always based on card amount */}
       {(totalMiles > 0 || totalCashback > 0) && (
         <div className="card p-4 flex flex-wrap gap-6">
           {totalMiles > 0 && (
@@ -99,6 +131,11 @@ export default function Expenses() {
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Cashback Earned</p>
               <p className="text-xl font-bold text-emerald-600">S${totalCashback.toFixed(2)}</p>
+            </div>
+          )}
+          {viewMode === 'personal' && hasGroupSpends && (
+            <div className="ml-auto self-center">
+              <p className="text-xs text-gray-400">Rewards earned on full card amount</p>
             </div>
           )}
         </div>
