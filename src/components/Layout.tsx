@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, TrendingUp, LogOut, Info, MessageSquare, ShieldCheck, BarChart2,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -93,9 +93,9 @@ export default function Layout() {
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-700">
           <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-            <TrendingUp size={16} className="text-white" />
+            <Smile size={16} className="text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight">MilesMaximiser</span>
+          <span className="font-bold text-lg tracking-tight">SmileMax</span>
           <button
             className="ml-auto lg:hidden text-gray-400 hover:text-white"
             onClick={() => setOpen(false)}
