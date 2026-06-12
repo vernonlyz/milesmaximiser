@@ -366,3 +366,40 @@ Captures key architectural choices made during development — what was decided,
 **Why:** Navigation state is the minimal-change solution: zero duplication, full modal functionality, and the user lands on the Transactions page after saving which is a natural post-log destination. Clearing history state prevents the modal re-opening on back-forward navigation.
 
 **Trade-off:** User is navigated away from Dashboard after logging. Acceptable — the Transactions page shows the newly added entry immediately, and Dashboard is one tap away via the sidebar.
+
+---
+
+## 2026-06-12 — Excel export with both Card Spend and My Spend in one workbook
+
+**Decision:** The Expenses "Export Excel" button always exports both Card Spend and My Spend as side-by-side columns on every sheet, computed independently of the current toggle state. A dedicated "Definitions" sheet (first tab) holds all term explanations; data sheets start on row 1 with no inline note rows. Personal Share column is always populated (`personal_amount ?? amount`) so the column can be summed without handling blanks.
+
+**Alternatives considered:**
+- Export only the currently active view mode — user must remember to toggle before exporting; two separate downloads needed to get both views.
+- Separate sheets per mode (Card Spend sheet + My Spend sheet) — more sheets, harder to compare values side by side.
+- Inline note rows on each sheet — clutters data; breaks pivot tables and filters that expect headers on row 1.
+
+**Why:** Side-by-side columns in a single download gives the most analytical flexibility — the user can compare both views at a glance in Excel without re-exporting. Computing both views in the export function (not from React state) eliminates any dependency on which toggle was active at export time. The Definitions sheet keeps the workbook self-documenting without polluting data rows.
+
+**Trade-off:** Column count on breakdown sheets is wider than a single-view export. Acceptable — the extra columns are immediately useful for users who use the group-spend split feature.
+
+---
+
+## 2026-06-12 — Onboarding redirect: dataLoaded guard via allCards.length
+
+**Decision:** Add `dataLoaded = allCards.length > 0` as an additional condition on the Dashboard onboarding redirect. The redirect only fires when `!loading && dataLoaded && !error && user && !hasActivity && !isOnboarded(user.id)`.
+
+**Background:** There is a one-frame race condition in the auth/data loading sequence:
+1. On app mount, `loading = true` (useState initial).
+2. AppContext `useEffect` fires with `user = null` → hits the `else` branch → `setLoading(false)`.
+3. Auth resolves → `user` becomes non-null → `useEffect` fires again and calls `refresh()`.
+4. But `refresh()` sets `loading = true` only in the *next* React render. In the render that sees the new `user` for the first time, `loading` is still `false` from step 2.
+5. In that frame: `loading = false`, `user ≠ null`, `cards = []`, `transactions = []` → redirect fires incorrectly.
+
+**Alternatives considered:**
+- Set `loading = true` synchronously in the `useEffect` before calling `refresh()` — `setLoading` is itself async in React; the state update is still queued and doesn't prevent the render from seeing the old value.
+- Store onboarded flag in Supabase — correct cross-device, but requires a DB migration and extra read on every login.
+- Check `user.created_at` and only show onboarding to accounts created within the last few minutes — works but introduces a time-based heuristic that can fail at the boundary.
+
+**Why:** `allCards` is the full card library fetched from Supabase. It is always non-empty (23+ cards) after a successful load and always empty before any data arrives. It is therefore a reliable, zero-cost "data has been fetched for this user" signal that collapses the race window to zero without any schema changes.
+
+**Trade-off:** If the card library itself is somehow empty (e.g., library not seeded), `dataLoaded` would be permanently false and the redirect would never fire. Acceptable — an empty library is a broken deployment, not a user scenario.

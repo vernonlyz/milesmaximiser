@@ -53,6 +53,11 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-11  Add group-split info popup (ⓘ) and My spend mode banner in Expenses  [tag: v4.0-smilemax]
 2026-06-12  Add Log Transaction button to Dashboard header — navigates to /transactions with auto-open modal
 2026-06-12  Fix Log Transaction button on mobile — full label always visible, Refresh hidden on mobile
+2026-06-12  Add CSV export to Transactions page and Excel export to Expenses page (xlsx, SheetJS)
+2026-06-12  Expenses Excel: 5-sheet workbook (Definitions | Summary | By Category | By Card | Transactions)
+2026-06-12  Both Card Spend and My Spend columns in every sheet — no toggle needed before exporting
+2026-06-12  Personal Share column always populated (personal_amount ?? amount) in all exports
+2026-06-12  Fix onboarding race condition — gate redirect on allCards.length > 0 (dataLoaded guard)
 ```
 
 ---
@@ -109,6 +114,9 @@ Everything listed below is in a working, committed state on `main` (tagged `v4.0
 - **Expenses: Card spend / My spend toggle** — Toggle appears only when the current month has at least one group spend. In "My spend" mode all spend figures use `personal_amount ?? amount`; rewards totals remain on full card amounts. An indigo banner below the stat chips explains the mode distinction. Transaction list shows an indigo "yours: S$X" label on split transactions.
 - **Dashboard Total Spent sub-line** — When any transaction has a personal split, the stat sub-line shows "S$X yours · N txns" so the user can see their actual share at a glance.
 - **Log Transaction button on Dashboard** — Primary "Log Transaction" button in the Dashboard header. Clicking navigates to `/transactions` with `{ state: { openModal: true } }`; Transactions reads this on mount, calls `openAdd()`, then clears the history state so back-navigation doesn't re-trigger it. Refresh button is hidden on mobile (`hidden sm:inline-flex`) to avoid header congestion; Log Transaction label is always visible.
+- **CSV export on Transactions page** — "Export CSV" button exports the currently filtered view. Columns: Date, Vendor, Category (plain name, no emoji), Card, Amount, Personal Share (personal_amount ?? amount so always populated), Payment Channel, Miles Earned, MPD, Cashback Earned, Notes.
+- **Excel export on Expenses page** — "Export Excel" button downloads `expenses_YYYY-MM.xlsx` via SheetJS. 5-sheet workbook: **Definitions** (term/definition table), **Summary** (totals), **By Category**, **By Card**, **Transactions**. Every breakdown sheet has both Card Spend and My Spend columns computed independently — no need to toggle the view before exporting. Personal Share column always filled (full charge when no group split). Data starts on row 1 of every sheet; all definitions live in the Definitions tab.
+- **Onboarding race condition fix** — Added `dataLoaded = allCards.length > 0` guard to the redirect condition. Without this, there was a one-frame window after auth resolved where `loading = false` and `user ≠ null` but `cards = []` and `transactions = []` (data not yet fetched), causing existing users on new devices to be incorrectly sent to onboarding.
 
 ---
 
@@ -133,3 +141,4 @@ The core recommendation, tracking, expense, and group-spend features are now com
 3. **Pagination or date-range filter on transactions** — Currently loads the full current year; will slow down as volume grows.
 4. **More cashback cards** — Other cashback products (OCBC 365, DBS Live Fresh, etc.) are not yet in the library.
 5. **Run migration 025 in Supabase** — `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personal_amount NUMERIC;` — required before any group-spend data can be saved in production.
+6. **Error handling on Cards/Recommend/Transactions pages** — Currently shows silent empty states on Supabase failures.
