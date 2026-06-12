@@ -157,7 +157,7 @@ export default function Expenses() {
     ]), 'By Card')
 
     // Sheet 4: Transactions — both amount columns always present
-    const txNote = 'Card Charge = full amount billed (miles/cashback earned on this). Personal Share = your portion when splitting; blank if not a group transaction.'
+    const txNote = 'Card Charge = full amount billed (miles/cashback earned on this). Personal Share = your portion of the spend; equals Card Charge when not a group split.'
     const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Card Charge (S$)', 'Personal Share (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
     const txRows = monthTxns.map(t => {
       const c = cards.find(x => x.id === t.card_id) ?? allCards.find(x => x.id === t.card_id)
@@ -168,7 +168,7 @@ export default function Expenses() {
         cat ? cat.name : '',
         c ? (c.card_type === 'debit' ? c.name : `${c.bank} ${c.name}`) : '',
         t.amount,
-        t.personal_amount ?? '',
+        t.personal_amount ?? t.amount,
         t.payment_channel ?? '',
         t.miles_earned != null ? Math.round(t.miles_earned) : '',
         t.effective_mpd != null ? parseFloat(t.effective_mpd.toFixed(4)) : '',

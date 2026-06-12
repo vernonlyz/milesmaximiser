@@ -86,7 +86,7 @@ export default function Transactions() {
         cat ? cat.name : '',
         card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '',
         t.amount.toFixed(2),
-        t.personal_amount != null ? t.personal_amount.toFixed(2) : '',
+        (t.personal_amount ?? t.amount).toFixed(2),
         t.payment_channel ?? '',
         t.miles_earned != null ? Math.round(t.miles_earned) : '',
         t.effective_mpd != null ? t.effective_mpd.toFixed(4) : '',
