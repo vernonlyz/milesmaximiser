@@ -25,8 +25,13 @@ export default function Dashboard() {
     }
   }, [loading, user, hasActivity])
 
-  // Only redirect if we're sure the user is brand new: data loaded, no error, no activity, no flag.
-  if (!loading && !error && user && !hasActivity && !isOnboarded(user.id)) {
+  // allCards is always non-empty after a successful library load.
+  // If it is empty, data has not yet arrived for this user — do not redirect.
+  const dataLoaded = allCards.length > 0
+
+  // Only redirect if data has fully loaded, there is no error, and the user has
+  // no activity in Supabase and no onboarded flag in localStorage.
+  if (!loading && dataLoaded && !error && user && !hasActivity && !isOnboarded(user.id)) {
     return <Navigate to="/onboarding" replace />
   }
 
