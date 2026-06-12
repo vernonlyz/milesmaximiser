@@ -65,74 +65,108 @@ export default function Expenses() {
 
   function handleExport() {
     const month = isoDate().slice(0, 7)
-    const isPersonal = viewMode === 'personal'
-    const modeLabel = isPersonal ? 'My Spend' : 'Card Spend'
-    const spendCol = `${modeLabel} (S$)`
-    const note = isPersonal
-      ? 'My Spend: your personal share of group transactions. Miles/cashback earned on full card amount.'
-      : 'Card Spend: full amount charged to your card. Miles/cashback earned on this amount.'
     const wb = XLSX.utils.book_new()
 
+    // Compute both views independently — no dependency on current toggle state
+    const cardAmt  = (t: Transaction) => t.amount
+    const myAmt    = (t: Transaction) => t.personal_amount ?? t.amount
+    const cardTypeMap = new Map(allCards.map(c => [c.id, c.card_type]))
+
+    const cTotal   = monthTxns.reduce((s, t) => s + cardAmt(t), 0)
+    const mTotal   = monthTxns.reduce((s, t) => s + myAmt(t), 0)
+    const cMiles   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'miles').reduce((s, t) => s + cardAmt(t), 0)
+    const mMiles   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'miles').reduce((s, t) => s + myAmt(t), 0)
+    const cCash    = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + cardAmt(t), 0)
+    const mCash    = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + myAmt(t), 0)
+    const cDebit   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'debit').reduce((s, t) => s + cardAmt(t), 0)
+    const mDebit   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'debit').reduce((s, t) => s + myAmt(t), 0)
+    const totMiles = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+    const totCashback = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+
+    const note = 'Card Spend = full amount charged to your card (used for miles/cashback). My Spend = your personal share when splitting a group bill.'
+
     // Sheet 1: Summary
-    const summaryData = [
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ['Note', note],
       [],
-      ['Metric', modeLabel],
-      ['Month', month],
+      ['Metric', 'Card Spend (S$)', 'My Spend (S$)'],
+      ['Month', month, ''],
       [],
-      [`Total Spent (S$) — ${modeLabel}`, parseFloat(totalSpent.toFixed(2))],
-      [`Miles Cards (S$) — ${modeLabel}`, parseFloat(milesSpend.toFixed(2))],
-      [`Cashback Cards (S$) — ${modeLabel}`, parseFloat(cashbackSpend.toFixed(2))],
-      [`Cash / Debit (S$) — ${modeLabel}`, parseFloat(debitSpend.toFixed(2))],
+      ['Total Spent',       parseFloat(cTotal.toFixed(2)),  parseFloat(mTotal.toFixed(2))],
+      ['Miles Cards',       parseFloat(cMiles.toFixed(2)),  parseFloat(mMiles.toFixed(2))],
+      ['Cashback Cards',    parseFloat(cCash.toFixed(2)),   parseFloat(mCash.toFixed(2))],
+      ['Cash / Debit',      parseFloat(cDebit.toFixed(2)),  parseFloat(mDebit.toFixed(2))],
       [],
-      ['Total Miles Earned (on full card amount)', Math.round(totalMiles)],
-      ['Total Cashback Earned (S$) (on full card amount)', parseFloat(totalCashback.toFixed(4))],
-    ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary')
+      ['Miles Earned (on card amount)',    Math.round(totMiles),                    '(same — rewards on full charge)'],
+      ['Cashback Earned (on card amount)', parseFloat(totCashback.toFixed(4)), '(same — rewards on full charge)'],
+    ]), 'Summary')
 
-    // Sheet 2: By Category
-    const catData = [
-      ['Note', note],
-      [],
-      ['Category', spendCol, '% of Total'],
-      ...catSpend.map(({ cat, amt }) => [
-        cat ? cat.name : '—',
-        parseFloat(amt.toFixed(2)),
-        totalSpent > 0 ? parseFloat(((amt / totalSpent) * 100).toFixed(1)) : 0,
-      ]),
-    ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catData), 'By Category')
-
-    // Sheet 3: By Card
-    const cardData = [
-      ['Note', note],
-      [],
-      ['Card', 'Type', spendCol, 'Miles Earned (card amount)', 'Cashback Earned (S$) (card amount)'],
-      ...cardSpend.map(({ card, amt }) => {
-        const milesEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.miles_earned ?? 0), 0)
-        const cashbackEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+    // Sheet 2: By Category — collect all categories, compute both views
+    const catMap = new Map<string, { card: number; my: number }>()
+    for (const t of monthTxns) {
+      if (!t.category_id) continue
+      const prev = catMap.get(t.category_id) ?? { card: 0, my: 0 }
+      catMap.set(t.category_id, { card: prev.card + cardAmt(t), my: prev.my + myAmt(t) })
+    }
+    const catRows = Array.from(catMap.entries())
+      .sort(([, a], [, b]) => b.card - a.card)
+      .map(([catId, { card, my }]) => {
+        const cat = categories.find(c => c.id === catId)
         return [
-          card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '—',
-          card?.card_type ?? '',
-          parseFloat(amt.toFixed(2)),
+          cat ? cat.name : '—',
+          parseFloat(card.toFixed(2)),
+          cTotal > 0 ? parseFloat(((card / cTotal) * 100).toFixed(1)) : 0,
+          parseFloat(my.toFixed(2)),
+          mTotal > 0 ? parseFloat(((my / mTotal) * 100).toFixed(1)) : 0,
+        ]
+      })
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Note', note],
+      [],
+      ['Category', 'Card Spend (S$)', '% of Card Total', 'My Spend (S$)', '% of My Total'],
+      ...catRows,
+    ]), 'By Category')
+
+    // Sheet 3: By Card — same treatment
+    const cardIdMap = new Map<string, { card: number; my: number }>()
+    for (const t of monthTxns) {
+      if (!t.card_id) continue
+      const prev = cardIdMap.get(t.card_id) ?? { card: 0, my: 0 }
+      cardIdMap.set(t.card_id, { card: prev.card + cardAmt(t), my: prev.my + myAmt(t) })
+    }
+    const byCardRows = Array.from(cardIdMap.entries())
+      .sort(([, a], [, b]) => b.card - a.card)
+      .map(([cardId, { card, my }]) => {
+        const c = cards.find(x => x.id === cardId) ?? allCards.find(x => x.id === cardId)
+        const milesEarned = monthTxns.filter(t => t.card_id === cardId).reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+        const cashbackEarned = monthTxns.filter(t => t.card_id === cardId).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+        return [
+          c ? (c.card_type === 'debit' ? c.name : `${c.bank} ${c.name}`) : '—',
+          c?.card_type ?? '',
+          parseFloat(card.toFixed(2)),
+          parseFloat(my.toFixed(2)),
           milesEarned > 0 ? Math.round(milesEarned) : '',
           cashbackEarned > 0 ? parseFloat(cashbackEarned.toFixed(4)) : '',
         ]
-      }),
-    ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cardData), 'By Card')
+      })
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Note', note],
+      [],
+      ['Card', 'Type', 'Card Spend (S$)', 'My Spend (S$)', 'Miles Earned', 'Cashback Earned (S$)'],
+      ...byCardRows,
+    ]), 'By Card')
 
-    // Sheet 4: Transactions — always shows full card amount + personal amount side by side
-    const txNote = 'Amount = full card charge (used for miles/cashback). Personal Amount = your share when splitting with a group (blank if not split).'
-    const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Amount — Card Charge (S$)', 'Amount — Personal Share (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
+    // Sheet 4: Transactions — both amount columns always present
+    const txNote = 'Card Charge = full amount billed (miles/cashback earned on this). Personal Share = your portion when splitting; blank if not a group transaction.'
+    const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Card Charge (S$)', 'Personal Share (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
     const txRows = monthTxns.map(t => {
-      const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
-      const cat = categories.find(c => c.id === t.category_id)
+      const c = cards.find(x => x.id === t.card_id) ?? allCards.find(x => x.id === t.card_id)
+      const cat = categories.find(x => x.id === t.category_id)
       return [
         t.transaction_date,
         t.vendor_name ?? '',
         cat ? cat.name : '',
-        card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '',
+        c ? (c.card_type === 'debit' ? c.name : `${c.bank} ${c.name}`) : '',
         t.amount,
         t.personal_amount ?? '',
         t.payment_channel ?? '',
@@ -144,7 +178,7 @@ export default function Expenses() {
     })
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Note', txNote], [], txHeaders, ...txRows]), 'Transactions')
 
-    XLSX.writeFile(wb, `expenses_${month}_${isPersonal ? 'my-spend' : 'card-spend'}.xlsx`)
+    XLSX.writeFile(wb, `expenses_${month}.xlsx`)
   }
 
   if (loading) return (
