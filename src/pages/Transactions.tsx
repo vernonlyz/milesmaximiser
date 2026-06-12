@@ -83,7 +83,7 @@ export default function Transactions() {
       return [
         t.transaction_date,
         t.vendor_name ?? '',
-        cat ? `${cat.icon} ${cat.name}` : '',
+        cat ? cat.name : '',
         card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '',
         t.amount.toFixed(2),
         t.personal_amount != null ? t.personal_amount.toFixed(2) : '',

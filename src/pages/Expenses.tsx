@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info, Download } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import { currentMonthLabel, formatSGD, exportCsv, isoDate } from '../lib/utils'
+import { currentMonthLabel, formatSGD, isoDate } from '../lib/utils'
+import * as XLSX from 'xlsx'
 import { Transaction } from '../lib/types'
 
 export default function Expenses() {
@@ -64,53 +65,75 @@ export default function Expenses() {
 
   function handleExport() {
     const month = isoDate().slice(0, 7)
-    const label = viewMode === 'personal' ? 'my_spend' : 'card_spend'
+    const spendLabel = viewMode === 'personal' ? 'My Spend (S$)' : 'Card Spend (S$)'
+    const wb = XLSX.utils.book_new()
 
-    // Section 1: spend by category
-    const catHeaders = ['Section', 'Category', `Amount (S$) — ${label}`]
-    const catRows = catSpend.map(({ cat, amt }) => [
-      'By Category',
-      cat ? `${cat.icon} ${cat.name}` : '—',
-      amt.toFixed(2),
-    ])
+    // Sheet 1: Summary
+    const summaryData = [
+      ['Metric', 'Value'],
+      ['Month', month],
+      ['View', viewMode === 'personal' ? 'My Spend' : 'Card Spend'],
+      [],
+      ['Total Spent (S$)', totalSpent],
+      ['Miles Cards (S$)', milesSpend],
+      ['Cashback Cards (S$)', cashbackSpend],
+      ['Cash / Debit (S$)', debitSpend],
+      [],
+      ['Total Miles Earned', Math.round(totalMiles)],
+      ['Total Cashback Earned (S$)', parseFloat(totalCashback.toFixed(4))],
+    ]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary')
 
-    // Section 2: spend by card
-    const cardRows = cardSpend.map(({ card, amt }) => {
-      const milesEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.miles_earned ?? 0), 0)
-      const cashbackEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+    // Sheet 2: By Category
+    const catData = [
+      ['Category', spendLabel, '% of Total'],
+      ...catSpend.map(({ cat, amt }) => [
+        cat ? cat.name : '—',
+        parseFloat(amt.toFixed(2)),
+        totalSpent > 0 ? parseFloat(((amt / totalSpent) * 100).toFixed(1)) : 0,
+      ]),
+    ]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catData), 'By Category')
+
+    // Sheet 3: By Card
+    const cardData = [
+      ['Card', 'Type', spendLabel, 'Miles Earned', 'Cashback Earned (S$)'],
+      ...cardSpend.map(({ card, amt }) => {
+        const milesEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+        const cashbackEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+        return [
+          card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '—',
+          card?.card_type ?? '',
+          parseFloat(amt.toFixed(2)),
+          milesEarned > 0 ? Math.round(milesEarned) : '',
+          cashbackEarned > 0 ? parseFloat(cashbackEarned.toFixed(4)) : '',
+        ]
+      }),
+    ]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cardData), 'By Card')
+
+    // Sheet 4: Transactions
+    const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Amount (S$)', 'Personal Amount (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
+    const txRows = monthTxns.map(t => {
+      const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
+      const cat = categories.find(c => c.id === t.category_id)
       return [
-        'By Card',
-        card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '—',
-        amt.toFixed(2),
-        milesEarned > 0 ? Math.round(milesEarned) : '',
-        cashbackEarned > 0 ? cashbackEarned.toFixed(4) : '',
+        t.transaction_date,
+        t.vendor_name ?? '',
+        cat ? cat.name : '',
+        card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '',
+        t.amount,
+        t.personal_amount ?? '',
+        t.payment_channel ?? '',
+        t.miles_earned != null ? Math.round(t.miles_earned) : '',
+        t.effective_mpd != null ? parseFloat(t.effective_mpd.toFixed(4)) : '',
+        t.cashback_earned != null ? parseFloat(t.cashback_earned.toFixed(4)) : '',
+        t.description ?? '',
       ]
     })
-    const cardHeaders = ['Section', 'Card', `Amount (S$) — ${label}`, 'Miles Earned', 'Cashback Earned (S$)']
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]), 'Transactions')
 
-    // Summary row
-    const summaryHeaders = ['Metric', 'Value']
-    const summaryRows = [
-      ['Total Spent', totalSpent.toFixed(2)],
-      ['Miles Cards', milesSpend.toFixed(2)],
-      ['Cashback Cards', cashbackSpend.toFixed(2)],
-      ['Cash / Debit', debitSpend.toFixed(2)],
-      ['Total Miles Earned', Math.round(totalMiles).toString()],
-      ['Total Cashback Earned (S$)', totalCashback.toFixed(4)],
-    ]
-
-    // Combine into one CSV with blank-line separators
-    const allHeaders = summaryHeaders
-    const allRows: (string | number | null | undefined)[][] = [
-      ...summaryRows,
-      [],
-      catHeaders,
-      ...catRows,
-      [],
-      cardHeaders,
-      ...cardRows,
-    ]
-    exportCsv(`expenses_${month}_${label}.csv`, allHeaders, allRows)
+    XLSX.writeFile(wb, `expenses_${month}.xlsx`)
   }
 
   if (loading) return (
@@ -158,7 +181,7 @@ export default function Expenses() {
           {monthTxns.length > 0 && (
             <button onClick={handleExport} className="btn-secondary text-xs">
               <Download size={13} />
-              <span className="hidden sm:inline">Export CSV</span>
+              <span className="hidden sm:inline">Export Excel</span>
             </button>
           )}
           <button onClick={refresh} className="btn-secondary text-xs">
