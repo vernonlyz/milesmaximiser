@@ -65,28 +65,36 @@ export default function Expenses() {
 
   function handleExport() {
     const month = isoDate().slice(0, 7)
-    const spendLabel = viewMode === 'personal' ? 'My Spend (S$)' : 'Card Spend (S$)'
+    const isPersonal = viewMode === 'personal'
+    const modeLabel = isPersonal ? 'My Spend' : 'Card Spend'
+    const spendCol = `${modeLabel} (S$)`
+    const note = isPersonal
+      ? 'My Spend: your personal share of group transactions. Miles/cashback earned on full card amount.'
+      : 'Card Spend: full amount charged to your card. Miles/cashback earned on this amount.'
     const wb = XLSX.utils.book_new()
 
     // Sheet 1: Summary
     const summaryData = [
-      ['Metric', 'Value'],
+      ['Note', note],
+      [],
+      ['Metric', modeLabel],
       ['Month', month],
-      ['View', viewMode === 'personal' ? 'My Spend' : 'Card Spend'],
       [],
-      ['Total Spent (S$)', totalSpent],
-      ['Miles Cards (S$)', milesSpend],
-      ['Cashback Cards (S$)', cashbackSpend],
-      ['Cash / Debit (S$)', debitSpend],
+      [`Total Spent (S$) — ${modeLabel}`, parseFloat(totalSpent.toFixed(2))],
+      [`Miles Cards (S$) — ${modeLabel}`, parseFloat(milesSpend.toFixed(2))],
+      [`Cashback Cards (S$) — ${modeLabel}`, parseFloat(cashbackSpend.toFixed(2))],
+      [`Cash / Debit (S$) — ${modeLabel}`, parseFloat(debitSpend.toFixed(2))],
       [],
-      ['Total Miles Earned', Math.round(totalMiles)],
-      ['Total Cashback Earned (S$)', parseFloat(totalCashback.toFixed(4))],
+      ['Total Miles Earned (on full card amount)', Math.round(totalMiles)],
+      ['Total Cashback Earned (S$) (on full card amount)', parseFloat(totalCashback.toFixed(4))],
     ]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary')
 
     // Sheet 2: By Category
     const catData = [
-      ['Category', spendLabel, '% of Total'],
+      ['Note', note],
+      [],
+      ['Category', spendCol, '% of Total'],
       ...catSpend.map(({ cat, amt }) => [
         cat ? cat.name : '—',
         parseFloat(amt.toFixed(2)),
@@ -97,7 +105,9 @@ export default function Expenses() {
 
     // Sheet 3: By Card
     const cardData = [
-      ['Card', 'Type', spendLabel, 'Miles Earned', 'Cashback Earned (S$)'],
+      ['Note', note],
+      [],
+      ['Card', 'Type', spendCol, 'Miles Earned (card amount)', 'Cashback Earned (S$) (card amount)'],
       ...cardSpend.map(({ card, amt }) => {
         const milesEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.miles_earned ?? 0), 0)
         const cashbackEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
@@ -112,8 +122,9 @@ export default function Expenses() {
     ]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cardData), 'By Card')
 
-    // Sheet 4: Transactions
-    const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Amount (S$)', 'Personal Amount (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
+    // Sheet 4: Transactions — always shows full card amount + personal amount side by side
+    const txNote = 'Amount = full card charge (used for miles/cashback). Personal Amount = your share when splitting with a group (blank if not split).'
+    const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Amount — Card Charge (S$)', 'Amount — Personal Share (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
     const txRows = monthTxns.map(t => {
       const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
       const cat = categories.find(c => c.id === t.category_id)
@@ -131,9 +142,9 @@ export default function Expenses() {
         t.description ?? '',
       ]
     })
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]), 'Transactions')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Note', txNote], [], txHeaders, ...txRows]), 'Transactions')
 
-    XLSX.writeFile(wb, `expenses_${month}.xlsx`)
+    XLSX.writeFile(wb, `expenses_${month}_${isPersonal ? 'my-spend' : 'card-spend'}.xlsx`)
   }
 
   if (loading) return (
