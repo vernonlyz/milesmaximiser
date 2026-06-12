@@ -83,25 +83,35 @@ export default function Expenses() {
     const totMiles = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
     const totCashback = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
 
-    const note = 'Card Spend = full amount charged to your card (used for miles/cashback). My Spend = your personal share when splitting a group bill.'
-
-    // Sheet 1: Summary
+    // Sheet 1: Definitions
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['Note', note],
-      [],
+      ['Term', 'Definition'],
+      ['Card Spend', 'Full amount charged to your card. This is what miles and cashback are earned on.'],
+      ['My Spend', 'Your personal share of the charge. Equals Card Spend for solo transactions; lower when you split a group bill.'],
+      ['Card Charge', 'Full amount billed to your card (same as Card Spend).'],
+      ['Personal Share', 'Your portion of the charge. Equals Card Charge when there is no group split.'],
+      ['Miles Earned', 'Miles awarded by the card, always calculated on the full Card Charge.'],
+      ['Cashback Earned', 'Cashback awarded by the card, always calculated on the full Card Charge.'],
+      ['MPD', 'Miles per dollar — effective rate after block rounding applied by the bank.'],
+      ['% of Card Total', 'This category\'s Card Spend as a percentage of all Card Spend this month.'],
+      ['% of My Total', 'This category\'s My Spend as a percentage of all My Spend this month.'],
+    ]), 'Definitions')
+
+    // Sheet 2: Summary
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ['Metric', 'Card Spend (S$)', 'My Spend (S$)'],
       ['Month', month, ''],
       [],
-      ['Total Spent',       parseFloat(cTotal.toFixed(2)),  parseFloat(mTotal.toFixed(2))],
-      ['Miles Cards',       parseFloat(cMiles.toFixed(2)),  parseFloat(mMiles.toFixed(2))],
-      ['Cashback Cards',    parseFloat(cCash.toFixed(2)),   parseFloat(mCash.toFixed(2))],
-      ['Cash / Debit',      parseFloat(cDebit.toFixed(2)),  parseFloat(mDebit.toFixed(2))],
+      ['Total Spent',    parseFloat(cTotal.toFixed(2)),  parseFloat(mTotal.toFixed(2))],
+      ['Miles Cards',    parseFloat(cMiles.toFixed(2)),  parseFloat(mMiles.toFixed(2))],
+      ['Cashback Cards', parseFloat(cCash.toFixed(2)),   parseFloat(mCash.toFixed(2))],
+      ['Cash / Debit',   parseFloat(cDebit.toFixed(2)),  parseFloat(mDebit.toFixed(2))],
       [],
-      ['Miles Earned (on card amount)',    Math.round(totMiles),                    '(same — rewards on full charge)'],
+      ['Miles Earned (on card amount)',    Math.round(totMiles),               '(same — rewards on full charge)'],
       ['Cashback Earned (on card amount)', parseFloat(totCashback.toFixed(4)), '(same — rewards on full charge)'],
     ]), 'Summary')
 
-    // Sheet 2: By Category — collect all categories, compute both views
+    // Sheet 3: By Category
     const catMap = new Map<string, { card: number; my: number }>()
     for (const t of monthTxns) {
       if (!t.category_id) continue
@@ -121,13 +131,11 @@ export default function Expenses() {
         ]
       })
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['Note', note],
-      [],
       ['Category', 'Card Spend (S$)', '% of Card Total', 'My Spend (S$)', '% of My Total'],
       ...catRows,
     ]), 'By Category')
 
-    // Sheet 3: By Card — same treatment
+    // Sheet 4: By Card
     const cardIdMap = new Map<string, { card: number; my: number }>()
     for (const t of monthTxns) {
       if (!t.card_id) continue
@@ -150,14 +158,11 @@ export default function Expenses() {
         ]
       })
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['Note', note],
-      [],
       ['Card', 'Type', 'Card Spend (S$)', 'My Spend (S$)', 'Miles Earned', 'Cashback Earned (S$)'],
       ...byCardRows,
     ]), 'By Card')
 
-    // Sheet 4: Transactions — both amount columns always present
-    const txNote = 'Card Charge = full amount billed (miles/cashback earned on this). Personal Share = your portion of the spend; equals Card Charge when not a group split.'
+    // Sheet 5: Transactions
     const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Card Charge (S$)', 'Personal Share (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
     const txRows = monthTxns.map(t => {
       const c = cards.find(x => x.id === t.card_id) ?? allCards.find(x => x.id === t.card_id)
@@ -176,7 +181,7 @@ export default function Expenses() {
         t.description ?? '',
       ]
     })
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Note', txNote], [], txHeaders, ...txRows]), 'Transactions')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]), 'Transactions')
 
     XLSX.writeFile(wb, `expenses_${month}.xlsx`)
   }
