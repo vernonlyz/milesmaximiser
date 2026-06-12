@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Link, Outlet } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -14,6 +14,7 @@ const nav = [
   { to: '/recommend',    label: 'Recommend',    Icon: Sparkles        },
   { to: '/transactions', label: 'Transactions', Icon: Receipt         },
   { to: '/expenses',    label: 'Expenses',     Icon: BarChart2       },
+  { to: '/calculator',   label: 'Mile Value',   Icon: Calculator      },
   { to: '/cards',        label: 'My Cards',     Icon: CreditCard      },
 ]
 

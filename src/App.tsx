@@ -11,6 +11,7 @@ import Transactions from './pages/Transactions'
 import Cards from './pages/Cards'
 import Admin from './pages/Admin'
 import Expenses from './pages/Expenses'
+import MileValue from './pages/MileValue'
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="transactions" element={<Transactions />} />
             <Route path="cards"        element={<Cards />}        />
             <Route path="expenses"     element={<Expenses />}     />
+            <Route path="calculator"   element={<MileValue />}    />
             <Route path="admin"        element={<Admin />}        />
           </Route>
         </Routes>
