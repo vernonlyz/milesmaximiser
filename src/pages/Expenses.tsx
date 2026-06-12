@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info } from 'lucide-react'
+import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info, Download } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import { currentMonthLabel, formatSGD } from '../lib/utils'
+import { currentMonthLabel, formatSGD, exportCsv, isoDate } from '../lib/utils'
 import { Transaction } from '../lib/types'
 
 export default function Expenses() {
@@ -62,6 +62,57 @@ export default function Expenses() {
       .filter(r => r.card)
   }, [monthTxns, cards, allCards, viewMode])
 
+  function handleExport() {
+    const month = isoDate().slice(0, 7)
+    const label = viewMode === 'personal' ? 'my_spend' : 'card_spend'
+
+    // Section 1: spend by category
+    const catHeaders = ['Section', 'Category', `Amount (S$) — ${label}`]
+    const catRows = catSpend.map(({ cat, amt }) => [
+      'By Category',
+      cat ? `${cat.icon} ${cat.name}` : '—',
+      amt.toFixed(2),
+    ])
+
+    // Section 2: spend by card
+    const cardRows = cardSpend.map(({ card, amt }) => {
+      const milesEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+      const cashbackEarned = monthTxns.filter(t => t.card_id === card!.id).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+      return [
+        'By Card',
+        card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '—',
+        amt.toFixed(2),
+        milesEarned > 0 ? Math.round(milesEarned) : '',
+        cashbackEarned > 0 ? cashbackEarned.toFixed(4) : '',
+      ]
+    })
+    const cardHeaders = ['Section', 'Card', `Amount (S$) — ${label}`, 'Miles Earned', 'Cashback Earned (S$)']
+
+    // Summary row
+    const summaryHeaders = ['Metric', 'Value']
+    const summaryRows = [
+      ['Total Spent', totalSpent.toFixed(2)],
+      ['Miles Cards', milesSpend.toFixed(2)],
+      ['Cashback Cards', cashbackSpend.toFixed(2)],
+      ['Cash / Debit', debitSpend.toFixed(2)],
+      ['Total Miles Earned', Math.round(totalMiles).toString()],
+      ['Total Cashback Earned (S$)', totalCashback.toFixed(4)],
+    ]
+
+    // Combine into one CSV with blank-line separators
+    const allHeaders = summaryHeaders
+    const allRows: (string | number | null | undefined)[][] = [
+      ...summaryRows,
+      [],
+      catHeaders,
+      ...catRows,
+      [],
+      cardHeaders,
+      ...cardRows,
+    ]
+    exportCsv(`expenses_${month}_${label}.csv`, allHeaders, allRows)
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-gray-400">
       <RefreshCw size={24} className="animate-spin mr-2" /> Loading…
@@ -103,6 +154,12 @@ export default function Expenses() {
                 </button>
               ))}
             </div>
+          )}
+          {monthTxns.length > 0 && (
+            <button onClick={handleExport} className="btn-secondary text-xs">
+              <Download size={13} />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
           )}
           <button onClick={refresh} className="btn-secondary text-xs">
             <RefreshCw size={13} /> Refresh

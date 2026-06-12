@@ -104,3 +104,18 @@ export const PRESET_COLORS = [
   '#4F46E5', '#0891B2', '#059669', '#D97706',
   '#7C3AED', '#DB2777', '#374151',
 ]
+
+export function exportCsv(filename: string, headers: string[], rows: (string | number | null | undefined)[][]): void {
+  const escape = (v: string | number | null | undefined): string => {
+    const s = v == null ? '' : String(v)
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const csv = [headers, ...rows].map(row => row.map(escape).join(',')).join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}

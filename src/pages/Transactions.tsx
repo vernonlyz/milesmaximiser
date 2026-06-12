@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -8,7 +8,7 @@ import StatusBadge from '../components/StatusBadge'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
-import { isoDate } from '../lib/utils'
+import { isoDate, exportCsv } from '../lib/utils'
 import { TransactionFormData, CardRecommendation, Transaction, Vendor } from '../lib/types'
 
 const EMPTY_FORM: TransactionFormData = {
@@ -73,6 +73,29 @@ export default function Transactions() {
   function toggleSort(col: SortCol) {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortBy(col); setSortDir('desc') }
+  }
+
+  function handleExport() {
+    const headers = ['Date', 'Vendor', 'Category', 'Card', 'Amount (S$)', 'Personal Amount (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
+    const rows = filtered.map(t => {
+      const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
+      const cat = categories.find(c => c.id === t.category_id)
+      return [
+        t.transaction_date,
+        t.vendor_name ?? '',
+        cat ? `${cat.icon} ${cat.name}` : '',
+        card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : '',
+        t.amount.toFixed(2),
+        t.personal_amount != null ? t.personal_amount.toFixed(2) : '',
+        t.payment_channel ?? '',
+        t.miles_earned != null ? Math.round(t.miles_earned) : '',
+        t.effective_mpd != null ? t.effective_mpd.toFixed(4) : '',
+        t.cashback_earned != null ? t.cashback_earned.toFixed(4) : '',
+        t.description ?? '',
+      ]
+    })
+    const month = filterMonth || isoDate().slice(0, 7)
+    exportCsv(`transactions_${month}.csv`, headers, rows)
   }
 
   // Engine-computed MPD for the current form selection
@@ -364,9 +387,18 @@ export default function Transactions() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-        <button onClick={openAdd} className="btn-primary">
-          <Plus size={16} /> Log Transaction
-        </button>
+        <div className="flex items-center gap-2">
+          {filtered.length > 0 && (
+            <button onClick={handleExport} className="btn-secondary text-xs">
+              <Download size={13} />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+          )}
+          <button onClick={openAdd} className="btn-primary">
+            <Plus size={16} />
+            <span className="hidden sm:inline">Log Transaction</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
