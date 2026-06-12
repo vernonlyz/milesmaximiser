@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Link, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2,
 } from 'lucide-react'
@@ -92,10 +92,12 @@ export default function Layout() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-700">
-          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-            <Smile size={16} className="text-white" />
-          </div>
-          <span className="font-bold text-lg tracking-tight">SmileMax</span>
+          <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+              <Smile size={16} className="text-white" />
+            </div>
+            <span className="font-bold text-lg tracking-tight">SmileMax</span>
+          </Link>
           <button
             className="ml-auto lg:hidden text-gray-400 hover:text-white"
             onClick={() => setOpen(false)}
@@ -185,12 +187,12 @@ export default function Layout() {
           <button onClick={() => setOpen(true)} className="text-gray-500 hover:text-gray-800">
             <Menu size={22} />
           </button>
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <div className="w-6 h-6 bg-indigo-500 rounded flex items-center justify-center">
               <Smile size={12} className="text-white" />
             </div>
             <span className="font-bold text-sm">SmileMax</span>
-          </div>
+          </Link>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
