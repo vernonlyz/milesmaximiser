@@ -45,7 +45,7 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000011', 'Lady''s Solitaire Card',    'UOB',               'Mastercard', 0.4,  '#880E4F', '24 months',
      ARRAY['Choose 2 bonus categories: Dining, Fashion, Beauty, Entertainment, Travel, or Transport', 'S$750/month cap per chosen category (S$1,500/month combined)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000012', 'Visa Signature',            'UOB',               'Visa',       0.4,  '#1A237E', '2 years',
-     ARRAY['Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise', '4 mpd on all tap-to-pay spend (any category, incl. petrol) — S$1,200/month cap', '4 mpd on overseas FCY — S$1,200/month cap (separate from contactless pool)'], 'calendar', 5, 'miles', NULL),
+     ARRAY['Requires S$1,000/month total spend to unlock 4 mpd — earns 0.4 mpd base rate otherwise', '4 mpd on all tap-to-pay spend (any category, incl. petrol) — S$1,200/month cap', '4 mpd on overseas FCY — S$1,200/month cap (separate from contactless pool)'], 'statement', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000013', 'Preferred Platinum Visa',   'UOB',               'Visa',       0.4,  '#1565C0', '2 years',
      NULL, 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000014', 'KrisFlyer Visa',            'UOB',               'Visa',       1.2,  '#003580', '3 years',

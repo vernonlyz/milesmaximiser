@@ -6,6 +6,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Modal from './Modal'
+import StatementDayPrompt from './StatementDayPrompt'
 
 const ADMIN_EMAIL = 'vernonlyz@gmail.com'
 
@@ -199,6 +200,7 @@ export default function Layout() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
           <Outlet />
         </main>
+        <StatementDayPrompt />
       </div>
 
       {disclaimer && (
