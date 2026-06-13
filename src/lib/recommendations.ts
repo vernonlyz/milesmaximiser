@@ -1,5 +1,5 @@
 import { CreditCard, CardRate, SpendingCap, Transaction, CardRecommendation, CategoryOverride } from './types'
-import { getPeriodStart, formatSGD } from './utils'
+import { getPeriodStart, getPeriodEnd, formatSGD } from './utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Effective-date resolvers
@@ -132,7 +132,9 @@ export function buildPeriodSpending(
   for (const cap of resolvedCaps) {
     if (cap.cap_period === 'per_transaction') continue
 
-    const periodStart = getPeriodStart(cap.cap_period, now, statementDays.get(cap.card_id))
+    const statDay = statementDays.get(cap.card_id)
+    const periodStart = getPeriodStart(cap.cap_period, now, statDay)
+    const periodEnd   = getPeriodEnd(cap.cap_period, now, statDay)
 
     if (cap.cap_payment_channel) {
       // Channel cap: sum only transactions paid via the specified payment method,
@@ -140,11 +142,14 @@ export function buildPeriodSpending(
       const channelKey = `${cap.card_id}:channel:${cap.cap_payment_channel}:${cap.cap_period}`
       if (result.has(channelKey)) continue
       const spent = transactions
-        .filter(t =>
-          t.card_id === cap.card_id &&
-          t.payment_channel === cap.cap_payment_channel &&
-          new Date(t.transaction_date) >= periodStart
-        )
+        .filter(t => {
+          const d = new Date(t.transaction_date)
+          return (
+            t.card_id === cap.card_id &&
+            t.payment_channel === cap.cap_payment_channel &&
+            d >= periodStart && d <= periodEnd
+          )
+        })
         .reduce((sum, t) => sum + t.amount, 0)
       result.set(channelKey, spent)
     } else if (cap.cap_group) {
@@ -156,12 +161,15 @@ export function buildPeriodSpending(
         .map(c => c.category_id as string)
 
       const spent = transactions
-        .filter(t =>
-          t.card_id === cap.card_id &&
-          t.category_id !== null &&
-          groupCatIds.includes(t.category_id) &&
-          new Date(t.transaction_date) >= periodStart
-        )
+        .filter(t => {
+          const d = new Date(t.transaction_date)
+          return (
+            t.card_id === cap.card_id &&
+            t.category_id !== null &&
+            groupCatIds.includes(t.category_id) &&
+            d >= periodStart && d <= periodEnd
+          )
+        })
         .reduce((sum, t) => sum + t.amount, 0)
 
       result.set(groupKey, spent)
@@ -173,7 +181,8 @@ export function buildPeriodSpending(
         .filter(t => {
           if (t.card_id !== cap.card_id) return false
           if (cap.category_id !== null && t.category_id !== cap.category_id) return false
-          return new Date(t.transaction_date) >= periodStart
+          const d = new Date(t.transaction_date)
+          return d >= periodStart && d <= periodEnd
         })
         .reduce((sum, t) => sum + t.amount, 0)
 
@@ -188,9 +197,14 @@ export function buildPeriodSpending(
     const totalKey = `${cap.card_id}:total:${cap.cap_period}`
     if (seenTotalKeys.has(totalKey)) continue
     seenTotalKeys.add(totalKey)
-    const periodStart = getPeriodStart(cap.cap_period, now, statementDays.get(cap.card_id))
+    const statDay = statementDays.get(cap.card_id)
+    const periodStart = getPeriodStart(cap.cap_period, now, statDay)
+    const periodEnd   = getPeriodEnd(cap.cap_period, now, statDay)
     const total = transactions
-      .filter(t => t.card_id === cap.card_id && new Date(t.transaction_date) >= periodStart)
+      .filter(t => {
+        const d = new Date(t.transaction_date)
+        return t.card_id === cap.card_id && d >= periodStart && d <= periodEnd
+      })
       .reduce((sum, t) => sum + t.amount, 0)
     result.set(totalKey, total)
   }

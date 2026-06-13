@@ -37,9 +37,10 @@ export default function Dashboard() {
 
   const now = new Date()
 
-  // Transactions in current month
+  // Transactions in current calendar month
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
-  const monthTxns = transactions.filter(t => t.transaction_date >= monthStart)
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
+  const monthTxns = transactions.filter(t => t.transaction_date >= monthStart && t.transaction_date <= monthEnd)
 
   const totalSpent      = monthTxns.reduce((s, t) => s + t.amount, 0)
   const myActualSpent   = monthTxns.reduce((s, t) => s + (t.personal_amount ?? t.amount), 0)
