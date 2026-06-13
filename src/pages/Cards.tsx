@@ -402,7 +402,7 @@ export default function Cards() {
                           {editingStatementDay === card.id ? (
                             <div className="flex items-center gap-2">
                               <CalendarDays size={13} className="text-gray-400 shrink-0" />
-                              <span className="text-xs text-gray-500">Statement closes day</span>
+                              <span className="text-xs text-gray-500">Cycle starts day</span>
                               <input
                                 type="number"
                                 min={1}
@@ -432,8 +432,8 @@ export default function Cards() {
                               <CalendarDays size={13} className="text-gray-400 shrink-0" />
                               <span className="text-xs text-gray-500">
                                 {statementDays.has(card.id)
-                                  ? `Statement closes day ${statementDays.get(card.id)} of each month`
-                                  : 'Statement date not set — using calendar month'}
+                                  ? `Cycle starts day ${statementDays.get(card.id)} of each month`
+                                  : 'Cycle start not set — using calendar month'}
                               </span>
                               <button
                                 onClick={() => openStatementDayEdit(card.id)}
@@ -583,11 +583,11 @@ export default function Cards() {
         <Modal title={`Add ${pendingAddCard.bank} ${pendingAddCard.name}`} onClose={() => setPendingAddCard(null)}>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              This card's bonus cap resets on your statement closing date, not the 1st of each month.
-              Setting your statement date ensures cap tracking is accurate.
+              This card's bonus cap resets on a statement cycle, not the 1st of each month.
+              Enter which day your new billing period starts to keep cap tracking accurate.
             </p>
             <div>
-              <label className="label">Statement closing day</label>
+              <label className="label">Billing cycle starts on day</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"

@@ -47,11 +47,11 @@ export default function StatementDayPrompt() {
           </div>
           <div>
             <p className="font-semibold text-gray-900 text-base">
-              Set statement date for {card.bank} {card.name}
+              Set billing cycle for {card.bank} {card.name}
             </p>
             <p className="text-sm text-gray-500 mt-0.5">
-              This card's bonus cap resets on your statement closing date — not the 1st of the month.
-              Setting this helps SmileMax track your caps accurately.
+              This card's bonus cap resets on a statement cycle, not the 1st of each month.
+              Tell SmileMax which day your new billing period <span className="font-medium text-gray-600">starts</span> so it can track your caps accurately.
             </p>
           </div>
         </div>
@@ -59,14 +59,14 @@ export default function StatementDayPrompt() {
         {/* Input */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            Statement closing day (1–28)
+            Billing cycle starts on day… (1–28)
           </label>
           <div className="flex items-center gap-3">
             <input
               type="number"
               min={1}
               max={28}
-              placeholder="e.g. 22"
+              placeholder="e.g. 23"
               value={dayInput}
               onChange={e => { setDayInput(e.target.value); setError('') }}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
