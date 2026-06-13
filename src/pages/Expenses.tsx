@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react'
-import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info, Download } from 'lucide-react'
+import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info, Download, LineChart } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { currentMonthLabel, formatSGD, isoDate } from '../lib/utils'
 import * as XLSX from 'xlsx'
 import { Transaction } from '../lib/types'
+import ExpensesTrends from '../components/ExpensesTrends'
 
 export default function Expenses() {
   const { cards, allCards, categories, transactions, loading, error, refresh } = useApp()
 
+  const [activeTab, setActiveTab] = useState<'overview' | 'trends'>('overview')
   const [viewMode, setViewMode] = useState<'card' | 'personal'>('card')
 
   const now = new Date()
@@ -203,14 +205,14 @@ export default function Expenses() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
           <p className="text-sm text-gray-500 mt-0.5">{currentMonthLabel()}</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* View toggle — only shown when group spends exist */}
-          {hasGroupSpends && (
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* View toggle — only shown on overview when group spends exist */}
+          {activeTab === 'overview' && hasGroupSpends && (
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
               {(['card', 'personal'] as const).map(mode => (
                 <button
@@ -228,7 +230,7 @@ export default function Expenses() {
               ))}
             </div>
           )}
-          {monthTxns.length > 0 && (
+          {activeTab === 'overview' && monthTxns.length > 0 && (
             <button onClick={handleExport} className="btn-secondary text-xs">
               <Download size={13} />
               <span className="hidden sm:inline">Export Excel</span>
@@ -240,6 +242,17 @@ export default function Expenses() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <TabBtn label="Overview" icon={<BarChart2 size={14} />} active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
+        <TabBtn label="Trends"   icon={<LineChart  size={14} />} active={activeTab === 'trends'}   onClick={() => setActiveTab('trends')} />
+      </div>
+
+      {/* Trends tab */}
+      {activeTab === 'trends' && <ExpensesTrends />}
+
+      {/* Overview tab */}
+      {activeTab === 'overview' && <>
       {/* Spend by type — 4 stat chips */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatChip label="Miles Cards"     value={formatSGD(milesSpend)}    icon={<TrendingUp size={16} className="text-indigo-600" />} bg="bg-indigo-50" />
@@ -357,7 +370,23 @@ export default function Expenses() {
           )}
         </>
       )}
+      </>}
     </div>
+  )
+}
+
+function TabBtn({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+        active
+          ? 'border-indigo-600 text-indigo-600'
+          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+      }`}
+    >
+      {icon}{label}
+    </button>
   )
 }
 
