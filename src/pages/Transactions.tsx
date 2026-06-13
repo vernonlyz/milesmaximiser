@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -8,7 +8,7 @@ import StatusBadge from '../components/StatusBadge'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
-import { isoDate, exportCsv } from '../lib/utils'
+import { isoDate, exportCsv, getPeriodEnd } from '../lib/utils'
 import { TransactionFormData, CardRecommendation, Transaction, Vendor } from '../lib/types'
 
 const EMPTY_FORM: TransactionFormData = {
@@ -372,6 +372,19 @@ export default function Transactions() {
         return parseFloat((formAmt * rate).toFixed(2))
       })()
     : null
+
+  // Cycle-end proximity warning — shown when tx date is within 5 days of cycle end
+  const cycleWarning = useMemo(() => {
+    if (!formCard || formCard.card_type === 'debit' || !form.transaction_date) return null
+    const [y, mo, d] = form.transaction_date.split('-').map(Number)
+    const txDate = new Date(y, mo - 1, d)
+    const statDay = statementDays.get(formCard.id)
+    const periodEnd = getPeriodEnd('monthly', txDate, statDay)
+    const daysLeft = Math.round((periodEnd.getTime() - txDate.getTime()) / 86400000)
+    if (daysLeft < 0 || daysLeft > 5) return null
+    const endLabel = periodEnd.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })
+    return { daysLeft, endLabel }
+  }, [formCard, form.transaction_date, statementDays])
 
   // MCC display helper
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
@@ -1011,6 +1024,21 @@ export default function Transactions() {
               <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
+
+          {/* Cycle-end proximity warning */}
+          {cycleWarning && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+              <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 leading-relaxed">
+                <span className="font-medium">
+                  {cycleWarning.daysLeft === 0
+                    ? 'Last day of billing cycle.'
+                    : `${cycleWarning.daysLeft} day${cycleWarning.daysLeft > 1 ? 's' : ''} left in billing cycle (ends ${cycleWarning.endLabel}).`}
+                </span>{' '}
+                If the bank posts this transaction in the next cycle, your cap resets and it may earn at the base rate instead.
+              </p>
+            </div>
+          )}
 
           {/* Payment method — auto-filled from card default; affects cap tracking */}
           <div>
