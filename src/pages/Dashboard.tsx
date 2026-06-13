@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
 import { SpendingCap } from '../lib/types'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
-import { currentMonthLabel, getPeriodLabel, getPeriodEnd, formatSGD } from '../lib/utils'
+import { currentMonthLabel, getPeriodLabel, getPeriodStart, getPeriodEnd, formatSGD } from '../lib/utils'
 import { isOnboarded, markOnboarded } from './Onboarding'
 
 export default function Dashboard() {
@@ -160,22 +160,28 @@ export default function Dashboard() {
         }
       }).sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
 
-      const monthlySpent = monthTxns
-        .filter(t => t.card_id === card.id)
-        .reduce((s, t) => s + t.amount, 0)
+      // Use the card's billing cycle bounds for per-card stats and category breakdown,
+      // so statement-cycle cards don't bleed in spend from the previous cycle.
+      const cardStatDay = card.cap_cycle === 'statement' ? statementDays.get(card.id) : undefined
+      const cardPeriodStart = getPeriodStart('monthly', now, cardStatDay)
+      const cardPeriodEnd   = getPeriodEnd('monthly', now, cardStatDay)
+      const cardTxns = transactions.filter(t => {
+        if (t.card_id !== card.id) return false
+        const d = new Date(t.transaction_date)
+        return d >= cardPeriodStart && d <= cardPeriodEnd
+      })
 
-      const monthlyMiles = monthTxns
-        .filter(t => t.card_id === card.id)
-        .reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+      const monthlySpent = cardTxns.reduce((s, t) => s + t.amount, 0)
+      const monthlyMiles = cardTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
 
-      // Uncapped spend breakdown — all categories used this month that don't already
+      // Uncapped spend breakdown — all categories used this period that don't already
       // have a cap bar. For selectable cards, the chosen categories appear first.
       const coveredCatIds = new Set(capRows.flatMap(r => r.catIds))
 
-      // Tally per-category spend for this card this month
+      // Tally per-category spend for this card this billing period
       const catTotals = new Map<string, number>()
-      for (const t of monthTxns) {
-        if (t.card_id !== card.id || !t.category_id) continue
+      for (const t of cardTxns) {
+        if (!t.category_id) continue
         if (coveredCatIds.has(t.category_id)) continue
         catTotals.set(t.category_id, (catTotals.get(t.category_id) ?? 0) + t.amount)
       }
@@ -203,7 +209,7 @@ export default function Dashboard() {
 
       return { card, capRows, spendRows, monthlySpent, monthlyMiles }
     })
-  }, [cards, effectiveCaps, categories, periodSpending, monthTxns, overrides])
+  }, [cards, effectiveCaps, categories, periodSpending, transactions, statementDays, overrides])
 
   // Wallet filter
   const [walletFilter, setWalletFilter] = useState<string>('all')
