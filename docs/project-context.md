@@ -22,7 +22,8 @@ Browser (React + Vite + TypeScript)
     │
     ├─ pages/             — Route-level components
     │   ├─ Dashboard      — Monthly stats, wallet cap bars, recent transactions
-    │   ├─ Expenses       — Full spend breakdown: by type, category, card
+    │   ├─ Expenses       — Full spend breakdown: by type, category, card; Trends tab with Recharts bar charts
+    │   ├─ MileValue      — Static mile value calculator (ticket price + miles → cpp vs 1.5¢ benchmark)
     │   ├─ Cards          — Card library browser with type/bank filters; wallet management
     │   ├─ Recommend      — Ad-hoc card recommender for a given category + amount
     │   ├─ Transactions   — Transaction log with filters, sort, inline miles/cashback
@@ -30,7 +31,7 @@ Browser (React + Vite + TypeScript)
     │   ├─ Login          — Auth entry point
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, ExpensesTrends)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine
         ├─ types.ts            — All TypeScript interfaces
@@ -85,7 +86,10 @@ Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/
 | [src/lib/utils.ts](../src/lib/utils.ts) | `getPeriodStart()`, formatting helpers, constants |
 | [src/lib/starterCards.ts](../src/lib/starterCards.ts) | Default SG cards used during onboarding |
 | [src/pages/Dashboard.tsx](../src/pages/Dashboard.tsx) | Monthly stats (miles, cashback, total spent), wallet cap bars, spend milestones, recent transactions |
-| [src/pages/Expenses.tsx](../src/pages/Expenses.tsx) | Full expense breakdown: spend by card type, by category (bars), by card with rewards earned |
+| [src/pages/Expenses.tsx](../src/pages/Expenses.tsx) | Full expense breakdown: Overview (spend by type, category bars, by card) and Trends tab (3 Recharts grouped bar charts) |
+| [src/pages/MileValue.tsx](../src/pages/MileValue.tsx) | Static mile value calculator — ticket price + miles + optional co-payment → cents per mile with colour-coded benchmark |
+| [src/components/ExpensesTrends.tsx](../src/components/ExpensesTrends.tsx) | Trends tab charts — fetches directly from Supabase for cross-year support; useIsMobile hook for responsive config |
+| [src/components/StatementDayPrompt.tsx](../src/components/StatementDayPrompt.tsx) | Auto-popup in Layout for any statement-cycle card missing a statement_day; dismissed per-session |
 | [src/pages/Transactions.tsx](../src/pages/Transactions.tsx) | Transaction log with month/category/card filters, wildcard search, sort; add/edit modal with live recs, MCC lookup, cashback preview |
 | [src/pages/Recommend.tsx](../src/pages/Recommend.tsx) | Ad-hoc card recommender for a given category + amount |
 | [src/pages/Cards.tsx](../src/pages/Cards.tsx) | Library browser with type/bank filter chips and card type badges; add/remove cards from wallet |
@@ -114,6 +118,7 @@ Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/
 | [supabase/migrations/023_add_prvi_mastercard_amex_ascend.sql](../supabase/migrations/023_add_prvi_mastercard_amex_ascend.sql) | Adds UOB PRVI Miles Mastercard (card 018) and Amex KrisFlyer Ascend (card 019) |
 | [supabase/migrations/024_expense_tracking.sql](../supabase/migrations/024_expense_tracking.sql) | Adds card_type + cashback_rate to card_library; cashback_earned to transactions; library_cashback_rates table; seeds cashback and debit cards (020–023) |
 | [supabase/migrations/025_personal_amount.sql](../supabase/migrations/025_personal_amount.sql) | Adds personal_amount NUMERIC to transactions for group-spend splitting |
+| [supabase/migrations/026_visa_sig_statement_cycle.sql](../supabase/migrations/026_visa_sig_statement_cycle.sql) | Corrects UOB Visa Signature cap_cycle from 'calendar' to 'statement' |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
 
 ---
@@ -185,6 +190,13 @@ The app is a functional MVP. All core features are implemented:
 | Expenses: Export Excel (.xlsx) — 5-sheet workbook with Definitions, Summary, By Category, By Card, Transactions | Complete |
 | Expenses Excel: Card Spend and My Spend columns side-by-side on every sheet (no pre-toggle needed) | Complete |
 | Onboarding race condition fix — dataLoaded guard (allCards.length > 0) prevents false redirect | Complete |
+| Mile Value Calculator (/calculator) — ticket price + miles + optional co-payment → cpp vs 1.5¢ benchmark | Complete |
+| Expenses: Trends tab — 3 grouped bar charts (spend by card type, rewards, top categories); 3M/6M/12M + custom range | Complete |
+| UOB Visa Signature cap_cycle corrected to 'statement' (migration 026) | Complete |
+| StatementDayPrompt — auto-popup for statement-cycle cards with no statement_day; per-session dismissal | Complete |
+| Billing cycle label fix — 'closing day' → 'starts on day' throughout to match engine semantics | Complete |
+| Cycle-end proximity warning in transaction form — amber alert within 5 days of cycle end | Complete |
+| Trends charts: mobile improvements — angled labels, compact Y-axis, 3M default, legend top, distinct colours | Complete |
 
 **Card library (23 cards):**
 
@@ -220,7 +232,7 @@ The app is a functional MVP. All core features are implemented:
 - **Silent failures on pages other than Dashboard** — If a Supabase query fails on Cards, Recommend, or Transactions, the page shows an empty state with no error message.
 - **No pagination or date-range control on transactions** — Loads the entire current year. Will become slow with very high transaction volumes.
 - **No push notifications or reminders** — Users must actively open the app; there is no proactive "cap almost reached" alert.
-- **No export** — No way to export transaction history to CSV or another format.
+- **Mobile dashboard navigation** — Dashboard can be long on phones (stats, milestones, wallet bars, recent transactions all on one scroll). Ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design — not implementing for now.
 
 ---
 

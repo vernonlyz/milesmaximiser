@@ -58,13 +58,20 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-12  Both Card Spend and My Spend columns in every sheet — no toggle needed before exporting
 2026-06-12  Personal Share column always populated (personal_amount ?? amount) in all exports
 2026-06-12  Fix onboarding race condition — gate redirect on allCards.length > 0 (dataLoaded guard)
+2026-06-13  Add Mile Value Calculator page (/calculator) — ticket price + miles + optional co-payment → cents per mile with colour-coded benchmark and polished 1.5¢ note
+2026-06-13  Add Trends tab to Expenses — 3 grouped bar charts (spend by card type, rewards earned, top categories) with 3M/6M/12M + custom date range; own Supabase fetch independent of AppContext
+2026-06-13  UOB Visa Signature: correct cap_cycle to 'statement' in library_seed.sql (migration 026 — run in Supabase)
+2026-06-13  Add StatementDayPrompt — auto-popup in Layout for any statement-cycle card in wallet with no statement_day set; dismissed per-session; saves via existing saveStatementDay
+2026-06-13  Fix billing cycle labels everywhere — 'statement closing day' → 'billing cycle starts on day' to match engine semantics
+2026-06-13  Add cycle-end proximity warning in transaction form — amber inline alert when transaction date is within 5 days of the card's billing cycle end; uses getPeriodEnd from utils
+2026-06-13  Improve Trends charts on mobile — angled X-axis labels, compact Y-axis ($1k format), 3M default, legend at top, distinct category colours (cyan replaces violet)
 ```
 
 ---
 
 ## Completed
 
-Everything listed below is in a working, committed state on `main` (tagged `v4.0-smilemax`):
+Everything listed below is in a working, committed state on `main`:
 
 - **Auth** — Email/password and Google OAuth, per-user RLS, protected routes
 - **Card library model** — Centralised read-only `card_library` with 23 SG cards, seeded via `library_seed.sql`
@@ -117,6 +124,13 @@ Everything listed below is in a working, committed state on `main` (tagged `v4.0
 - **CSV export on Transactions page** — "Export CSV" button exports the currently filtered view. Columns: Date, Vendor, Category (plain name, no emoji), Card, Amount, Personal Share (personal_amount ?? amount so always populated), Payment Channel, Miles Earned, MPD, Cashback Earned, Notes.
 - **Excel export on Expenses page** — "Export Excel" button downloads `expenses_YYYY-MM.xlsx` via SheetJS. 5-sheet workbook: **Definitions** (term/definition table), **Summary** (totals), **By Category**, **By Card**, **Transactions**. Every breakdown sheet has both Card Spend and My Spend columns computed independently — no need to toggle the view before exporting. Personal Share column always filled (full charge when no group split). Data starts on row 1 of every sheet; all definitions live in the Definitions tab.
 - **Onboarding race condition fix** — Added `dataLoaded = allCards.length > 0` guard to the redirect condition. Without this, there was a one-frame window after auth resolved where `loading = false` and `user ≠ null` but `cards = []` and `transactions = []` (data not yet fetched), causing existing users on new devices to be incorrectly sent to onboarding.
+- **Mile Value Calculator** — Static `/calculator` page. Inputs: retail ticket price (S$), miles required, optional cash co-payment. Outputs cents per mile with a colour-coded grade (green/yellow/orange/red) and a progress bar with a 1.5¢ benchmark marker. Breakdown rows show price, co-payment deducted, value covered, and exact cpp.
+- **Expenses: Trends tab** — Second tab alongside Overview on the Expenses page. Three grouped bar charts built with Recharts: (1) Monthly Spend by Card Type (miles/cashback/debit), (2) Rewards Earned (miles left axis, cashback right axis, dual-Y), (3) Top Categories by Month (top 5). Date range: 3M/6M/12M quick buttons or custom month-to-month picker. Data is fetched directly from Supabase (not AppContext) so cross-year ranges work.
+- **UOB Visa Signature cap_cycle fix** — Corrected `cap_cycle` from `'calendar'` to `'statement'` in `library_seed.sql`. Migration 026 (`supabase/migrations/026_visa_sig_statement_cycle.sql`) updates the live database row.
+- **StatementDayPrompt** — Modal auto-shown in `Layout.tsx` when the user has any `cap_cycle = 'statement'` card in their wallet with no `statement_day` set. Dismissed per-session only (not persisted). Shows one pending card at a time; saves via `saveStatementDay` from AppContext.
+- **Billing cycle label fix** — All UI copy referring to "statement closing day" changed to "billing cycle starts on day" to match engine semantics (`getPeriodStart` already treats the value as the cycle start, not the closing date).
+- **Cycle-end proximity warning** — Amber inline banner in the transaction form when the selected card is a miles/cashback card and the transaction date is within 5 days of the billing cycle end. Computed via `getPeriodEnd` from `utils.ts`. Warns that the posting date may fall in the next cycle.
+- **Trends charts: mobile improvements** — `useIsMobile()` hook (< 640px) drives responsive chart config: X labels angled at −40°, compact Y-axis (`$1k` format), 3M default range, legend at top, narrower bar category gap. Category chart uses `['#6366f1','#10b981','#f59e0b','#ef4444','#06b6d4']` (cyan replaces violet to avoid indigo/violet confusion).
 
 ---
 
@@ -134,11 +148,13 @@ The card library (rates, caps, new cards) is updated via manual SQL in the Supab
 
 ## Likely next task
 
-The core recommendation, tracking, expense, and group-spend features are now complete and accurate (tagged `v4.0-smilemax`). The most likely next candidates are:
+The core recommendation, tracking, expense, trends, and utility features are now in a strong state. The most likely next candidates are:
 
-1. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested. A regression in any of these paths is invisible without tests.
-2. **Error handling on Cards/Recommend/Transactions pages** — Currently shows silent empty states on Supabase failures.
-3. **Pagination or date-range filter on transactions** — Currently loads the full current year; will slow down as volume grows.
-4. **More cashback cards** — Other cashback products (OCBC 365, DBS Live Fresh, etc.) are not yet in the library.
-5. **Run migration 025 in Supabase** — `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personal_amount NUMERIC;` — required before any group-spend data can be saved in production.
-6. **Error handling on Cards/Recommend/Transactions pages** — Currently shows silent empty states on Supabase failures.
+1. **Run pending migrations in Supabase SQL Editor:**
+   - Migration 025: `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personal_amount NUMERIC;`
+   - Migration 026: `UPDATE card_library SET cap_cycle = 'statement' WHERE id = '00000000-0000-0000-0001-000000000012';`
+2. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested. A regression in any of these paths is invisible without tests.
+3. **Error handling on Cards/Recommend/Transactions pages** — Currently shows silent empty states on Supabase failures.
+4. **Pagination or date-range filter on transactions** — Currently loads the full current year; will slow down as volume grows.
+5. **More cashback cards** — Other cashback products (OCBC 365, DBS Live Fresh, etc.) are not yet in the library.
+6. **Mobile dashboard navigation** — Dashboard can be long on phones; ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design decision.

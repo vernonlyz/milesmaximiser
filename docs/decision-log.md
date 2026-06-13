@@ -384,6 +384,75 @@ Captures key architectural choices made during development — what was decided,
 
 ---
 
+## 2026-06-13 — Trends tab: own Supabase fetch rather than AppContext transactions
+
+**Decision:** `ExpensesTrends` fetches its own data directly from Supabase using a date-range query, independent of the `transactions` array in AppContext.
+
+**Background:** AppContext loads only the current calendar year's transactions. A 12-month or custom range that spans into a prior year would silently show incomplete data if the component read from AppContext.
+
+**Alternatives considered:**
+- Extend AppContext to accept an arbitrary date range — AppContext is designed as a session-wide cache; parameterising its fetch would either require a re-fetch every time the Trends range changes or a much more complex cache.
+- Load all transactions in AppContext — unbounded over time; no natural ceiling.
+
+**Why:** A standalone query is the minimal-change solution. Trends is the only view that needs cross-year data; isolating the fetch to the component that needs it keeps AppContext simple and avoids re-fetching data that other views don't need.
+
+**Trade-off:** Two places now load from the `transactions` table (AppContext and ExpensesTrends). If a user adds a transaction during the same session, ExpensesTrends will not reflect it until the user changes the date range (triggering a re-fetch). Acceptable for an analytics view.
+
+---
+
+## 2026-06-13 — Statement day semantics: cycle START day, not closing day
+
+**Decision:** `statement_day` in `user_card_selections` is defined as the day the billing cycle **starts**, not the day it closes. All UI labels are updated to say "billing cycle starts on day N" instead of "statement closes day N".
+
+**Background:** The engine (`getPeriodStart` in `utils.ts`) already computed the period start as the month containing `statement_day`. If a user entered day 23 and the engine treated it as the start, then "your cycle starts on the 23rd" is correct. The original UI labels said "statement closes day" which implied a different value (e.g. closing on the 23rd implies a cycle start around the 24th).
+
+**Why:** The label was wrong; the logic was right. Fixing only labels avoids any data or engine changes. A user who enters day 1 gets a cycle that starts on the 1st, which also ends on the 30th/31st of the prior month — both interpretations are consistent.
+
+**Trade-off:** Users who previously entered their closing date (rather than start date) may now have an off-by-one-month cycle. They can correct the value on the My Cards page at any time.
+
+---
+
+## 2026-06-13 — Cycle-end proximity warning: 5-day threshold
+
+**Decision:** Show an amber warning in the transaction form when the selected card is a miles or cashback card and the transaction date is within 5 days of the billing cycle end (inclusive of the end day itself). Computed via `getPeriodEnd` from `utils.ts`.
+
+**Alternatives considered:**
+- 3 days — too tight; bank posting can take 2–3 business days.
+- 7 days — reasonable but produces warnings for a full week, which users may start ignoring.
+- Show only on the exact cutoff day — too late to be actionable.
+
+**Why:** 5 days gives enough notice to be useful (posting may cross the cutoff) without being noisy. The warning is informational only — it does not block saving the transaction. Debit cards are excluded because they have no cap cycle and their spend is not reward-relevant.
+
+---
+
+## 2026-06-13 — StatementDayPrompt: per-session dismissal, not persisted
+
+**Decision:** The `StatementDayPrompt` modal is dismissed per-session only (local `useState`). Closing it without saving will show it again on the next page load. No localStorage or Supabase persistence for the dismissed state.
+
+**Alternatives considered:**
+- Persist dismissed state in localStorage — user sees the prompt once per device, then never again even if they still haven't set a statement day. Too easy to permanently ignore.
+- Persist in Supabase (`user_card_selections.prompted_at`) — requires a schema column just for UI state.
+- Show on every page transition — too aggressive; a single-session dismissal is enough to avoid interrupting a workflow mid-session.
+
+**Why:** The prompt is gating-important information (cycle start day) that affects cap accuracy. Showing it once per session (until they save) is a good balance: non-blocking within a session, but persistent enough to eventually get the user to set the value. The "Remind me later" button is an honest label — it reminds them next session.
+
+---
+
+## 2026-06-13 — Mobile Trends charts: 3M default, angled labels, useIsMobile hook
+
+**Decision:** On screens narrower than 640px, `ExpensesTrends` defaults to 3-month range, angles X-axis labels at −40°, uses compact Y-axis tick formatting (`$1k`), moves the chart legend to the top, and reduces `barCategoryGap` to `"12%"`. A `useIsMobile()` hook (`useState(() => window.innerWidth < 640)` + resize listener) drives all responsive config.
+
+**Background:** Six months of grouped bars (18 bars per chart on mobile) were unreadably cramped on small screens. X-axis labels overlapped; Y-axis dollar values were too long.
+
+**Alternatives considered:**
+- Horizontal bar charts on mobile — avoids label crowding, but Recharts horizontal bars are less intuitive for time-series grouped data.
+- Scrollable chart container — allows full 6M view but users may not discover horizontal scroll; also causes swipe conflicts on touch.
+- Reduce to 2 bars per month on mobile (merge cashback+debit) — loses useful detail.
+
+**Why:** Fewer bars (3M default) + angled labels + compact numbers is the least-invasive change that makes the chart readable without restructuring the chart type. The user can still select 6M or 12M if they want; the 3M default is just the sensible mobile starting point.
+
+---
+
 ## 2026-06-12 — Onboarding redirect: dataLoaded guard via allCards.length
 
 **Decision:** Add `dataLoaded = allCards.length > 0` as an additional condition on the Dashboard onboarding redirect. The redirect only fires when `!loading && dataLoaded && !error && user && !hasActivity && !isOnboarded(user.id)`.
