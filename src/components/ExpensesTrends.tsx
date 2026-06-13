@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { Transaction } from '../lib/types'
 
-const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4']
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 640)
