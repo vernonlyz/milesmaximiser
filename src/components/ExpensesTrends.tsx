@@ -9,6 +9,16 @@ import { Transaction } from '../lib/types'
 
 const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 640)
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 640)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return mobile
+}
+
 function currentMonth() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -38,14 +48,22 @@ function buildMonthRange(from: string, to: string) {
 
 function r2(n: number) { return Math.round(n * 100) / 100 }
 
+// Compact dollar formatter for Y-axis ticks
+function fmtY(v: number) {
+  if (v >= 1000) return `$${(v / 1000).toFixed(0)}k`
+  return `$${v}`
+}
+
 type QuickRange = 3 | 6 | 12
 
 export default function ExpensesTrends() {
   const { allCards, categories } = useApp()
+  const isMobile = useIsMobile()
 
-  const [quickRange, setQuickRange] = useState<QuickRange>(6)
+  const defaultRange: QuickRange = window.innerWidth < 640 ? 3 : 6
+  const [quickRange, setQuickRange] = useState<QuickRange>(defaultRange)
   const [isCustom, setIsCustom]   = useState(false)
-  const [fromMonth, setFromMonth] = useState(() => monthsBack(6))
+  const [fromMonth, setFromMonth] = useState(() => monthsBack(defaultRange))
   const [toMonth, setToMonth]     = useState(currentMonth)
   const [txns, setTxns]           = useState<Transaction[]>([])
   const [loading, setLoading]     = useState(false)
@@ -83,18 +101,18 @@ export default function ExpensesTrends() {
     return m
   }, [allCards])
 
-  // Chart 1: spend by card type per month
+  // Chart 1
   const spendData = useMemo(() => months.map(mk => {
     const mt = txns.filter(t => t.transaction_date.startsWith(mk))
     return {
       month: shortLabel(mk),
-      'Miles Cards':    r2(mt.filter(t => cardTypeMap.get(t.card_id ?? '') === 'miles')   .reduce((s, t) => s + t.amount, 0)),
-      'Cashback Cards': r2(mt.filter(t => cardTypeMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + t.amount, 0)),
-      'Cash/Debit':     r2(mt.filter(t => cardTypeMap.get(t.card_id ?? '') === 'debit')   .reduce((s, t) => s + t.amount, 0)),
+      'Miles':    r2(mt.filter(t => cardTypeMap.get(t.card_id ?? '') === 'miles')   .reduce((s, t) => s + t.amount, 0)),
+      'Cashback': r2(mt.filter(t => cardTypeMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + t.amount, 0)),
+      'Debit':    r2(mt.filter(t => cardTypeMap.get(t.card_id ?? '') === 'debit')   .reduce((s, t) => s + t.amount, 0)),
     }
   }), [months, txns, cardTypeMap])
 
-  // Chart 2: rewards per month
+  // Chart 2
   const rewardsData = useMemo(() => months.map(mk => {
     const mt = txns.filter(t => t.transaction_date.startsWith(mk))
     return {
@@ -107,7 +125,7 @@ export default function ExpensesTrends() {
   const hasMiles    = rewardsData.some(d => d.Miles > 0)
   const hasCashback = rewardsData.some(d => d['Cashback (S$)'] > 0)
 
-  // Chart 3: top 5 categories per month
+  // Chart 3
   const { topCats, catData } = useMemo(() => {
     const totals = new Map<string, number>()
     for (const t of txns) {
@@ -131,6 +149,32 @@ export default function ExpensesTrends() {
   }, [months, txns, categories])
 
   const maxMonth = currentMonth()
+
+  // Responsive chart config
+  const xProps = {
+    dataKey: 'month',
+    tick: { fontSize: isMobile ? 10 : 12, fill: '#9ca3af' },
+    angle: isMobile ? -40 : 0,
+    textAnchor: (isMobile ? 'end' : 'middle') as 'end' | 'middle',
+    height: isMobile ? 52 : 25,
+    axisLine: false as const,
+    tickLine: false as const,
+  }
+  const yProps = {
+    tick: { fontSize: 10, fill: '#9ca3af' },
+    axisLine: false as const,
+    tickLine: false as const,
+    tickFormatter: fmtY,
+    width: isMobile ? 34 : 48,
+  }
+  const legendProps = {
+    verticalAlign: (isMobile ? 'top' : 'bottom') as 'top' | 'bottom',
+    iconSize: isMobile ? 8 : 10,
+    wrapperStyle: { fontSize: isMobile ? 10 : 12, paddingBottom: isMobile ? 4 : 0, paddingTop: isMobile ? 0 : 0 },
+  }
+  const chartH    = 280
+  const barGap    = isMobile ? 2 : 3
+  const catGap    = isMobile ? '12%' : '28%'
 
   return (
     <div className="space-y-5">
@@ -162,7 +206,7 @@ export default function ExpensesTrends() {
         </div>
 
         {isCustom && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="month"
               value={fromMonth}
@@ -191,71 +235,71 @@ export default function ExpensesTrends() {
         </div>
       ) : (
         <>
-          {/* Chart 1 */}
-          <div className="card p-5">
-            <h2 className="font-semibold text-gray-800 mb-4">Monthly Spend by Card Type</h2>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={spendData} barGap={3} barCategoryGap="28%">
+          {/* Chart 1: Spend by card type */}
+          <div className="card p-4 sm:p-5">
+            <h2 className="font-semibold text-gray-800 mb-3">Monthly Spend by Card Type</h2>
+            <ResponsiveContainer width="100%" height={chartH}>
+              <BarChart data={spendData} barGap={barGap} barCategoryGap={catGap}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `S$${v}`} width={55} />
+                <XAxis {...xProps} />
+                <YAxis {...yProps} />
                 <Tooltip
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   formatter={(v: any) => [`S$${Number(v).toFixed(2)}`]}
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="Miles Cards"    fill="#6366f1" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="Cashback Cards" fill="#10b981" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="Cash/Debit"     fill="#94a3b8" radius={[3, 3, 0, 0]} />
+                <Legend {...legendProps} />
+                <Bar dataKey="Miles"    fill="#6366f1" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Cashback" fill="#10b981" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="Debit"    fill="#94a3b8" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Chart 2 */}
+          {/* Chart 2: Rewards earned */}
           {(hasMiles || hasCashback) && (
-            <div className="card p-5">
+            <div className="card p-4 sm:p-5">
               <h2 className="font-semibold text-gray-800 mb-1">Rewards Earned</h2>
               {hasMiles && hasCashback && (
                 <p className="text-xs text-gray-400 mb-3">Miles — left axis &nbsp;·&nbsp; Cashback (S$) — right axis</p>
               )}
-              {!(hasMiles && hasCashback) && <div className="mb-4" />}
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={rewardsData} barGap={3} barCategoryGap="28%">
+              {!(hasMiles && hasCashback) && <div className="mb-3" />}
+              <ResponsiveContainer width="100%" height={chartH}>
+                <BarChart data={rewardsData} barGap={barGap} barCategoryGap={catGap}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <XAxis {...xProps} />
                   {hasMiles && (
                     <YAxis
                       yAxisId="miles"
                       orientation="left"
-                      tick={{ fontSize: 11, fill: '#9ca3af' }}
+                      tick={{ fontSize: 10, fill: '#9ca3af' }}
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
-                      width={45}
+                      width={isMobile ? 34 : 44}
                     />
                   )}
                   {hasCashback && (
                     <YAxis
                       yAxisId="cashback"
                       orientation={hasMiles ? 'right' : 'left'}
-                      tick={{ fontSize: 11, fill: '#9ca3af' }}
+                      tick={{ fontSize: 10, fill: '#9ca3af' }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={v => `S$${v}`}
-                      width={55}
+                      tickFormatter={fmtY}
+                      width={isMobile ? 34 : 44}
                     />
                   )}
                   <Tooltip
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  formatter={(v: any, name: any) =>
+                    formatter={(v: any, name: any) =>
                       name === 'Miles'
                         ? [`${Number(v).toLocaleString()} mi`, 'Miles']
                         : [`S$${Number(v).toFixed(2)}`, 'Cashback']
                     }
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Legend {...legendProps} />
                   {hasMiles    && <Bar yAxisId="miles"    dataKey="Miles"         fill="#6366f1" radius={[3, 3, 0, 0]} />}
                   {hasCashback && <Bar yAxisId="cashback" dataKey="Cashback (S$)" fill="#10b981" radius={[3, 3, 0, 0]} />}
                 </BarChart>
@@ -263,21 +307,21 @@ export default function ExpensesTrends() {
             </div>
           )}
 
-          {/* Chart 3 */}
+          {/* Chart 3: Top categories */}
           {topCats.length > 0 && (
-            <div className="card p-5">
-              <h2 className="font-semibold text-gray-800 mb-4">Top Categories by Month</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={catData} barGap={3} barCategoryGap="28%">
+            <div className="card p-4 sm:p-5">
+              <h2 className="font-semibold text-gray-800 mb-3">Top Categories by Month</h2>
+              <ResponsiveContainer width="100%" height={chartH}>
+                <BarChart data={catData} barGap={barGap} barCategoryGap={catGap}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `S$${v}`} width={55} />
+                  <XAxis {...xProps} />
+                  <YAxis {...yProps} />
                   <Tooltip
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  formatter={(v: any) => [`S$${Number(v).toFixed(2)}`]}
+                    formatter={(v: any) => [`S$${Number(v).toFixed(2)}`]}
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Legend {...legendProps} />
                   {topCats.map(({ label }, i) => (
                     <Bar key={label} dataKey={label} fill={CAT_COLORS[i % CAT_COLORS.length]} radius={[3, 3, 0, 0]} />
                   ))}
