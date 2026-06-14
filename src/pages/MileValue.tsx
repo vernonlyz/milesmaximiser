@@ -29,7 +29,7 @@ export default function MileValue() {
   const g = result ? grade(result.cpp) : null
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Calculator size={22} className="text-indigo-500" />
