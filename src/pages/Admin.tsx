@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bug, Lightbulb, CheckCircle, Circle, RefreshCw } from 'lucide-react'
+import { Bug, Lightbulb, CheckCircle, Circle, RefreshCw, Download } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { exportCsv } from '../lib/utils'
 
 const ADMIN_EMAIL = 'vernonlyz@gmail.com'
 
@@ -25,6 +26,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>('open')
   const [toggling, setToggling] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     if (user?.email !== ADMIN_EMAIL) {
@@ -53,6 +55,43 @@ export default function Admin() {
     setToggling(null)
   }
 
+  async function handleExport() {
+    setExporting(true)
+    const [{ data: txns }, { data: cardLib }, { data: cats }] = await Promise.all([
+      supabase
+        .from('transactions')
+        .select('transaction_date, amount, personal_amount, vendor_name, notes, category_id, card_id')
+        .order('transaction_date', { ascending: false }),
+      supabase.from('card_library').select('id, bank, name'),
+      supabase.from('categories').select('id, name'),
+    ])
+
+    const cardMap = new Map((cardLib ?? []).map((c: { id: string; bank: string; name: string }) => [c.id, `${c.bank} ${c.name}`]))
+    const catMap  = new Map((cats  ?? []).map((c: { id: string; name: string }) => [c.id, c.name]))
+
+    const headers = ['Category', 'Vendor', 'Notes', 'Date', 'Date', 'Amount', 'Personal Expense', 'Card Used']
+    const csvRows = (txns ?? []).map((t: {
+      transaction_date: string; amount: number; personal_amount: number | null;
+      vendor_name: string | null; notes: string | null; category_id: string | null; card_id: string | null
+    }) => {
+      const [y, m, d] = t.transaction_date.split('-')
+      const dateFmt = `${d}/${m}/${y}`
+      return [
+        catMap.get(t.category_id ?? '') ?? '',
+        t.vendor_name ?? '',
+        t.notes ?? '',
+        dateFmt,
+        t.transaction_date,
+        t.amount,
+        t.personal_amount ?? t.amount,
+        cardMap.get(t.card_id ?? '') ?? '',
+      ]
+    })
+
+    exportCsv('smilemax_transactions.csv', headers, csvRows)
+    setExporting(false)
+  }
+
   const displayed = rows.filter(r => filter === 'all' || r.status === filter)
   const openCount     = rows.filter(r => r.status === 'open').length
   const resolvedCount = rows.filter(r => r.status === 'resolved').length
@@ -66,13 +105,23 @@ export default function Admin() {
             {openCount} open · {resolvedCount} resolved
           </p>
         </div>
-        <button
-          onClick={load}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          <RefreshCw size={14} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 transition-colors disabled:opacity-40"
+          >
+            <Download size={14} />
+            {exporting ? 'Exporting…' : 'Export Transactions'}
+          </button>
+          <button
+            onClick={load}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            <RefreshCw size={14} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filter tabs */}
