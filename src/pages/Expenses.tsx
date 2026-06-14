@@ -1,25 +1,94 @@
 import { useMemo, useState } from 'react'
 import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info, Download, LineChart } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import { currentMonthLabel, formatSGD, isoDate } from '../lib/utils'
+import { formatSGD } from '../lib/utils'
 import * as XLSX from 'xlsx'
 import { Transaction } from '../lib/types'
 import ExpensesTrends from '../components/ExpensesTrends'
 
+type QuickMode = 'month' | 'lastMonth' | '3m' | '6m' | 'all' | 'custom'
+
+function currentMonth() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function prevMonth() {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function monthsBack(n: number) {
+  const d = new Date()
+  d.setMonth(d.getMonth() - (n - 1))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function fmtMonth(ym: string) {
+  const [y, m] = ym.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleString('en-SG', { month: 'long', year: 'numeric' })
+}
+
+function periodLabel(from: string, to: string) {
+  if (!from && !to) return 'All time'
+  if (from === to) return fmtMonth(from)
+  return `${fmtMonth(from)} – ${fmtMonth(to)}`
+}
+
+const QUICK_BTNS: { key: QuickMode; label: string }[] = [
+  { key: 'month',     label: 'This Month' },
+  { key: 'lastMonth', label: 'Last Month' },
+  { key: '3m',        label: '3M' },
+  { key: '6m',        label: '6M' },
+  { key: 'all',       label: 'All time' },
+  { key: 'custom',    label: 'Custom' },
+]
+
 export default function Expenses() {
   const { cards, allCards, categories, transactions, loading, error, refresh } = useApp()
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'trends'>('overview')
-  const [viewMode, setViewMode] = useState<'card' | 'personal'>('card')
+  const [activeTab,  setActiveTab]  = useState<'overview' | 'trends'>('overview')
+  const [viewMode,   setViewMode]   = useState<'card' | 'personal'>('card')
+  const [quickMode,  setQuickMode]  = useState<QuickMode>('month')
+  const [customFrom, setCustomFrom] = useState(() => monthsBack(6))
+  const [customTo,   setCustomTo]   = useState(currentMonth)
 
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
-  const monthTxns = transactions.filter(t => t.transaction_date >= monthStart)
+  const maxMonth = currentMonth()
 
-  // True if any transaction this month has a personal split recorded
-  const hasGroupSpends = monthTxns.some(t => t.personal_amount != null && t.personal_amount !== t.amount)
+  const filterFrom =
+    quickMode === 'month'     ? maxMonth    :
+    quickMode === 'lastMonth' ? prevMonth() :
+    quickMode === '3m'        ? monthsBack(3) :
+    quickMode === '6m'        ? monthsBack(6) :
+    quickMode === 'all'       ? ''          :
+    customFrom
 
-  // Returns the spend amount to count based on view mode
+  const filterTo =
+    quickMode === 'month'     ? maxMonth    :
+    quickMode === 'lastMonth' ? prevMonth() :
+    quickMode === 'all'       ? ''          :
+    quickMode === 'custom'    ? customTo    :
+    maxMonth
+
+  const filteredTxns = useMemo(() => {
+    if (!filterFrom && !filterTo) return transactions
+    const fromDate = filterFrom ? `${filterFrom}-01` : null
+    let toDate: string | null = null
+    if (filterTo) {
+      const [y, m] = filterTo.split('-').map(Number)
+      toDate = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+    }
+    return transactions.filter(t => {
+      if (fromDate && t.transaction_date < fromDate) return false
+      if (toDate   && t.transaction_date >= toDate)  return false
+      return true
+    })
+  }, [transactions, filterFrom, filterTo])
+
+  const hasGroupSpends = filteredTxns.some(t => t.personal_amount != null && t.personal_amount !== t.amount)
+
   function eff(t: Transaction) {
     return viewMode === 'personal' ? (t.personal_amount ?? t.amount) : t.amount
   }
@@ -30,28 +99,27 @@ export default function Expenses() {
     return m
   }, [allCards])
 
-  const totalSpent     = monthTxns.reduce((s, t) => s + eff(t), 0)
-  const milesSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'miles')   .reduce((s, t) => s + eff(t), 0)
-  const cashbackSpend  = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'cashback').reduce((s, t) => s + eff(t), 0)
-  const debitSpend     = monthTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'debit')   .reduce((s, t) => s + eff(t), 0)
-  // Rewards are always based on full card amount — unaffected by split view
-  const totalMiles     = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
-  const totalCashback  = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+  const totalSpent    = filteredTxns.reduce((s, t) => s + eff(t), 0)
+  const milesSpend    = filteredTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'miles')   .reduce((s, t) => s + eff(t), 0)
+  const cashbackSpend = filteredTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'cashback').reduce((s, t) => s + eff(t), 0)
+  const debitSpend    = filteredTxns.filter(t => t.card_id && cardTypeMap.get(t.card_id) === 'debit')   .reduce((s, t) => s + eff(t), 0)
+  const totalMiles    = filteredTxns.reduce((s, t) => s + (t.miles_earned    ?? 0), 0)
+  const totalCashback = filteredTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
 
   const catSpend = useMemo(() => {
     const map = new Map<string, number>()
-    for (const t of monthTxns) {
+    for (const t of filteredTxns) {
       if (!t.category_id) continue
       map.set(t.category_id, (map.get(t.category_id) ?? 0) + eff(t))
     }
     return Array.from(map.entries())
       .sort(([, a], [, b]) => b - a)
       .map(([catId, amt]) => ({ catId, amt, cat: categories.find(c => c.id === catId) }))
-  }, [monthTxns, categories, viewMode])
+  }, [filteredTxns, categories, viewMode])
 
   const cardSpend = useMemo(() => {
     const map = new Map<string, number>()
-    for (const t of monthTxns) {
+    for (const t of filteredTxns) {
       if (!t.card_id) continue
       map.set(t.card_id, (map.get(t.card_id) ?? 0) + eff(t))
     }
@@ -63,29 +131,32 @@ export default function Expenses() {
         card: cards.find(c => c.id === cardId) ?? allCards.find(c => c.id === cardId),
       }))
       .filter(r => r.card)
-  }, [monthTxns, cards, allCards, viewMode])
+  }, [filteredTxns, cards, allCards, viewMode])
 
   function handleExport() {
-    const month = isoDate().slice(0, 7)
+    const period = !filterFrom && !filterTo
+      ? 'all'
+      : filterFrom === filterTo
+        ? filterFrom
+        : `${filterFrom}_to_${filterTo}`
+
     const wb = XLSX.utils.book_new()
 
-    // Compute both views independently — no dependency on current toggle state
-    const cardAmt  = (t: Transaction) => t.amount
-    const myAmt    = (t: Transaction) => t.personal_amount ?? t.amount
-    const cardTypeMap = new Map(allCards.map(c => [c.id, c.card_type]))
+    const cardAmt = (t: Transaction) => t.amount
+    const myAmt   = (t: Transaction) => t.personal_amount ?? t.amount
+    const ctMap   = new Map(allCards.map(c => [c.id, c.card_type]))
 
-    const cTotal   = monthTxns.reduce((s, t) => s + cardAmt(t), 0)
-    const mTotal   = monthTxns.reduce((s, t) => s + myAmt(t), 0)
-    const cMiles   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'miles').reduce((s, t) => s + cardAmt(t), 0)
-    const mMiles   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'miles').reduce((s, t) => s + myAmt(t), 0)
-    const cCash    = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + cardAmt(t), 0)
-    const mCash    = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + myAmt(t), 0)
-    const cDebit   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'debit').reduce((s, t) => s + cardAmt(t), 0)
-    const mDebit   = monthTxns.filter(t => cardTypeMap.get(t.card_id ?? '') === 'debit').reduce((s, t) => s + myAmt(t), 0)
-    const totMiles = monthTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
-    const totCashback = monthTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+    const cTotal      = filteredTxns.reduce((s, t) => s + cardAmt(t), 0)
+    const mTotal      = filteredTxns.reduce((s, t) => s + myAmt(t), 0)
+    const cMiles      = filteredTxns.filter(t => ctMap.get(t.card_id ?? '') === 'miles')   .reduce((s, t) => s + cardAmt(t), 0)
+    const mMiles      = filteredTxns.filter(t => ctMap.get(t.card_id ?? '') === 'miles')   .reduce((s, t) => s + myAmt(t), 0)
+    const cCash       = filteredTxns.filter(t => ctMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + cardAmt(t), 0)
+    const mCash       = filteredTxns.filter(t => ctMap.get(t.card_id ?? '') === 'cashback').reduce((s, t) => s + myAmt(t), 0)
+    const cDebit      = filteredTxns.filter(t => ctMap.get(t.card_id ?? '') === 'debit')   .reduce((s, t) => s + cardAmt(t), 0)
+    const mDebit      = filteredTxns.filter(t => ctMap.get(t.card_id ?? '') === 'debit')   .reduce((s, t) => s + myAmt(t), 0)
+    const totMiles    = filteredTxns.reduce((s, t) => s + (t.miles_earned    ?? 0), 0)
+    const totCashback = filteredTxns.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
 
-    // Sheet 1: Definitions
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ['Term', 'Definition'],
       ['Card Spend', 'Full amount charged to your card. This is what miles and cashback are earned on.'],
@@ -99,10 +170,9 @@ export default function Expenses() {
       ['% of My Total', 'This category\'s My Spend as a percentage of all My Spend this month.'],
     ]), 'Definitions')
 
-    // Sheet 2: Summary
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ['Metric', 'Card Spend (S$)', 'My Spend (S$)'],
-      ['Month', month, ''],
+      ['Period', periodLabel(filterFrom, filterTo), ''],
       [],
       ['Total Spent',    parseFloat(cTotal.toFixed(2)),  parseFloat(mTotal.toFixed(2))],
       ['Miles Cards',    parseFloat(cMiles.toFixed(2)),  parseFloat(mMiles.toFixed(2))],
@@ -113,9 +183,8 @@ export default function Expenses() {
       ['Cashback Earned (on card amount)', parseFloat(totCashback.toFixed(4)), '(same — rewards on full charge)'],
     ]), 'Summary')
 
-    // Sheet 3: By Category
     const catMap = new Map<string, { card: number; my: number }>()
-    for (const t of monthTxns) {
+    for (const t of filteredTxns) {
       if (!t.category_id) continue
       const prev = catMap.get(t.category_id) ?? { card: 0, my: 0 }
       catMap.set(t.category_id, { card: prev.card + cardAmt(t), my: prev.my + myAmt(t) })
@@ -137,9 +206,8 @@ export default function Expenses() {
       ...catRows,
     ]), 'By Category')
 
-    // Sheet 4: By Card
     const cardIdMap = new Map<string, { card: number; my: number }>()
-    for (const t of monthTxns) {
+    for (const t of filteredTxns) {
       if (!t.card_id) continue
       const prev = cardIdMap.get(t.card_id) ?? { card: 0, my: 0 }
       cardIdMap.set(t.card_id, { card: prev.card + cardAmt(t), my: prev.my + myAmt(t) })
@@ -148,14 +216,14 @@ export default function Expenses() {
       .sort(([, a], [, b]) => b.card - a.card)
       .map(([cardId, { card, my }]) => {
         const c = cards.find(x => x.id === cardId) ?? allCards.find(x => x.id === cardId)
-        const milesEarned = monthTxns.filter(t => t.card_id === cardId).reduce((s, t) => s + (t.miles_earned ?? 0), 0)
-        const cashbackEarned = monthTxns.filter(t => t.card_id === cardId).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+        const milesEarned    = filteredTxns.filter(t => t.card_id === cardId).reduce((s, t) => s + (t.miles_earned    ?? 0), 0)
+        const cashbackEarned = filteredTxns.filter(t => t.card_id === cardId).reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
         return [
           c ? (c.card_type === 'debit' ? c.name : `${c.bank} ${c.name}`) : '—',
           c?.card_type ?? '',
           parseFloat(card.toFixed(2)),
           parseFloat(my.toFixed(2)),
-          milesEarned > 0 ? Math.round(milesEarned) : '',
+          milesEarned    > 0 ? Math.round(milesEarned)              : '',
           cashbackEarned > 0 ? parseFloat(cashbackEarned.toFixed(4)) : '',
         ]
       })
@@ -164,10 +232,9 @@ export default function Expenses() {
       ...byCardRows,
     ]), 'By Card')
 
-    // Sheet 5: Transactions
     const txHeaders = ['Date', 'Vendor', 'Category', 'Card', 'Card Charge (S$)', 'Personal Share (S$)', 'Payment Channel', 'Miles Earned', 'MPD', 'Cashback Earned (S$)', 'Notes']
-    const txRows = monthTxns.map(t => {
-      const c = cards.find(x => x.id === t.card_id) ?? allCards.find(x => x.id === t.card_id)
+    const txRows = filteredTxns.map(t => {
+      const c   = cards.find(x => x.id === t.card_id) ?? allCards.find(x => x.id === t.card_id)
       const cat = categories.find(x => x.id === t.category_id)
       return [
         t.transaction_date,
@@ -177,15 +244,15 @@ export default function Expenses() {
         t.amount,
         t.personal_amount ?? t.amount,
         t.payment_channel ?? '',
-        t.miles_earned != null ? Math.round(t.miles_earned) : '',
-        t.effective_mpd != null ? parseFloat(t.effective_mpd.toFixed(4)) : '',
+        t.miles_earned    != null ? Math.round(t.miles_earned)              : '',
+        t.effective_mpd   != null ? parseFloat(t.effective_mpd.toFixed(4))  : '',
         t.cashback_earned != null ? parseFloat(t.cashback_earned.toFixed(4)) : '',
         t.description ?? '',
       ]
     })
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]), 'Transactions')
 
-    XLSX.writeFile(wb, `expenses_${month}.xlsx`)
+    XLSX.writeFile(wb, `expenses_${period}.xlsx`)
   }
 
   if (loading) return (
@@ -208,10 +275,9 @@ export default function Expenses() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{currentMonthLabel()}</p>
+          <p className="text-sm text-gray-500 mt-0.5">{periodLabel(filterFrom, filterTo)}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* View toggle — only shown on overview when group spends exist */}
           {activeTab === 'overview' && hasGroupSpends && (
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
               {(['card', 'personal'] as const).map(mode => (
@@ -230,7 +296,7 @@ export default function Expenses() {
               ))}
             </div>
           )}
-          {activeTab === 'overview' && monthTxns.length > 0 && (
+          {activeTab === 'overview' && filteredTxns.length > 0 && (
             <button onClick={handleExport} className="btn-secondary text-xs">
               <Download size={13} />
               <span className="hidden sm:inline">Export Excel</span>
@@ -242,6 +308,43 @@ export default function Expenses() {
         </div>
       </div>
 
+      {/* Unified date filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        {QUICK_BTNS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setQuickMode(key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              quickMode === key
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white border border-gray-200 text-gray-600 hover:border-indigo-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        {quickMode === 'custom' && (
+          <div className="flex items-center gap-2 flex-wrap ml-1">
+            <input
+              type="month"
+              value={customFrom}
+              max={customTo || maxMonth}
+              onChange={e => setCustomFrom(e.target.value)}
+              className="input text-xs py-1 w-36"
+            />
+            <span className="text-gray-400 text-xs">–</span>
+            <input
+              type="month"
+              value={customTo}
+              min={customFrom}
+              max={maxMonth}
+              onChange={e => setCustomTo(e.target.value)}
+              className="input text-xs py-1 w-36"
+            />
+          </div>
+        )}
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
         <TabBtn label="Overview" icon={<BarChart2 size={14} />} active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
@@ -249,11 +352,10 @@ export default function Expenses() {
       </div>
 
       {/* Trends tab */}
-      {activeTab === 'trends' && <ExpensesTrends />}
+      {activeTab === 'trends' && <ExpensesTrends from={filterFrom} to={filterTo} />}
 
       {/* Overview tab */}
       {activeTab === 'overview' && <>
-      {/* Spend by type — 4 stat chips */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatChip label="Miles Cards"     value={formatSGD(milesSpend)}    icon={<TrendingUp size={16} className="text-indigo-600" />} bg="bg-indigo-50" />
         <StatChip label="Cashback Cards"  value={formatSGD(cashbackSpend)} icon={<Percent    size={16} className="text-emerald-600" />} bg="bg-emerald-50" />
@@ -261,7 +363,6 @@ export default function Expenses() {
         <StatChip label="Total Spent"     value={formatSGD(totalSpent)}    icon={<Receipt    size={16} className="text-sky-600" />}    bg="bg-sky-50" bold />
       </div>
 
-      {/* My spend mode banner */}
       {viewMode === 'personal' && hasGroupSpends && (
         <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
           <Info size={14} className="text-indigo-500 mt-0.5 shrink-0" />
@@ -272,7 +373,6 @@ export default function Expenses() {
         </div>
       )}
 
-      {/* Rewards earned — always based on card amount */}
       {(totalMiles > 0 || totalCashback > 0) && (
         <div className="card p-4 flex flex-wrap gap-6">
           {totalMiles > 0 && (
@@ -295,14 +395,13 @@ export default function Expenses() {
         </div>
       )}
 
-      {monthTxns.length === 0 ? (
+      {filteredTxns.length === 0 ? (
         <div className="card p-10 text-center text-gray-400">
           <BarChart2 size={32} className="mx-auto mb-3 opacity-40" />
-          <p className="font-medium">No transactions this month yet.</p>
+          <p className="font-medium">No transactions in this period.</p>
         </div>
       ) : (
         <>
-          {/* Spend by category */}
           <div className="card p-5">
             <h2 className="font-semibold text-gray-800 mb-4">Spend by Category</h2>
             <div className="space-y-3">
@@ -326,17 +425,16 @@ export default function Expenses() {
             </div>
           </div>
 
-          {/* Spend by card */}
           {cardSpend.length > 1 && (
             <div className="card p-5">
               <h2 className="font-semibold text-gray-800 mb-4">Spend by Card</h2>
               <div className="space-y-3">
                 {cardSpend.map(({ cardId, amt, card }) => {
                   const pct = totalSpent > 0 ? (amt / totalSpent) * 100 : 0
-                  const cashbackEarned = monthTxns
+                  const cashbackEarned = filteredTxns
                     .filter(t => t.card_id === cardId)
                     .reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
-                  const milesEarned = monthTxns
+                  const milesEarned = filteredTxns
                     .filter(t => t.card_id === cardId)
                     .reduce((s, t) => s + (t.miles_earned ?? 0), 0)
                   return (
