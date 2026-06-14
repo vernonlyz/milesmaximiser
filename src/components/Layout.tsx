@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Link, Outlet } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -10,6 +10,39 @@ import StatementDayPrompt from './StatementDayPrompt'
 import UpdatePrompt from './UpdatePrompt'
 
 const ADMIN_EMAIL = 'vernonlyz@gmail.com'
+
+// BeforeInstallPromptEvent is not in the standard TypeScript lib
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>
+  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+function useInstallPrompt() {
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !('MSStream' in window)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setDeferred(e as BeforeInstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  // Show button if: not already installed AND (native prompt available OR iOS fallback)
+  const showInstall = !isStandalone && (deferred !== null || isIOS)
+
+  async function triggerInstall() {
+    if (!deferred) return
+    await deferred.prompt()
+    const { outcome } = await deferred.userChoice
+    if (outcome === 'accepted') setDeferred(null)
+  }
+
+  return { showInstall, isIOS, triggerInstall }
+}
 
 const nav = [
   { to: '/',             label: 'Dashboard',    Icon: LayoutDashboard },
@@ -24,6 +57,8 @@ export default function Layout() {
   const [open, setOpen] = useState(false)
   const [disclaimer, setDisclaimer] = useState(false)
   const [feedback, setFeedback] = useState(false)
+  const [iosInstall, setIosInstall] = useState(false)
+  const { showInstall, isIOS, triggerInstall } = useInstallPrompt()
   const [fbType, setFbType] = useState<'bug' | 'suggestion'>('bug')
   const [fbMsg, setFbMsg] = useState('')
   const [fbSaving, setFbSaving] = useState(false)
@@ -153,6 +188,15 @@ export default function Layout() {
         </nav>
 
         <div className="px-4 py-4 border-t border-gray-700 space-y-1">
+          {showInstall && (
+            <button
+              onClick={isIOS ? () => setIosInstall(true) : triggerInstall}
+              className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-indigo-400 hover:bg-gray-800 hover:text-indigo-300 transition-colors text-left"
+            >
+              {isIOS ? <Share size={16} className="shrink-0" /> : <Download size={16} className="shrink-0" />}
+              <span>Add to Home Screen</span>
+            </button>
+          )}
           <button
             onClick={() => setFeedback(true)}
             className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors text-left"
@@ -204,6 +248,32 @@ export default function Layout() {
         <StatementDayPrompt />
         <UpdatePrompt />
       </div>
+
+      {iosInstall && (
+        <Modal title="Add SmileMax to your Home Screen" onClose={() => setIosInstall(false)}>
+          <div className="space-y-5">
+            <p className="text-sm text-gray-500">Follow these steps in Safari to install SmileMax as an app:</p>
+            <div className="space-y-4">
+              {[
+                { step: 1, icon: '⬆️', text: 'Tap the Share button at the bottom of your screen (the box with an arrow pointing up).' },
+                { step: 2, icon: '📲', text: 'Scroll down in the share sheet and tap "Add to Home Screen".' },
+                { step: 3, icon: '✅', text: 'Tap "Add" in the top-right corner. SmileMax will appear on your home screen.' },
+              ].map(({ step, icon, text }) => (
+                <div key={step} className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs shrink-0 mt-0.5">
+                    {step}
+                  </div>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    <span className="mr-1">{icon}</span>{text}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400">Note: this only works in Safari. If you're using Chrome or another browser on iOS, open this page in Safari first.</p>
+            <button onClick={() => setIosInstall(false)} className="btn-primary w-full">Got it</button>
+          </div>
+        </Modal>
+      )}
 
       {disclaimer && (
         <Modal title="Disclaimer" onClose={() => setDisclaimer(false)}>
