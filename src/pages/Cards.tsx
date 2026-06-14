@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Plus, Minus, Info, Pencil, CalendarDays } from 'lucide-react'
+import { Check, Plus, Minus, Info, Pencil, CalendarDays, ChevronDown, ChevronRight } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } from '../lib/recommendations'
 import { capPeriodLabel, isoDate } from '../lib/utils'
@@ -108,6 +108,17 @@ export default function Cards() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'miles' | 'cashback'>('all')
   const [bankFilter, setBankFilter] = useState<string>('all')
 
+  const [collapsedBanks, setCollapsedBanks] = useState<Set<string>>(new Set())
+
+  function toggleBank(bank: string) {
+    setCollapsedBanks(prev => {
+      const next = new Set(prev)
+      if (next.has(bank)) next.delete(bank)
+      else next.add(bank)
+      return next
+    })
+  }
+
   const libraryCards = useMemo(
     () => allCards.filter(c => c.active && c.card_type !== 'debit'),
     [allCards]
@@ -149,6 +160,7 @@ export default function Cards() {
   }, [selectableCategories])
 
   const walletCount = selectedCardIds.size
+  const allCollapsed = grouped.length > 0 && grouped.every(([bank]) => collapsedBanks.has(bank))
 
   return (
     <div className="space-y-6">
@@ -160,6 +172,17 @@ export default function Cards() {
             {walletCount} card{walletCount !== 1 ? 's' : ''} in your wallet
           </p>
         </div>
+        {grouped.length > 0 && (
+          <button
+            onClick={() => allCollapsed
+              ? setCollapsedBanks(new Set())
+              : setCollapsedBanks(new Set(grouped.map(([bank]) => bank)))
+            }
+            className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {allCollapsed ? 'Expand all' : 'Collapse all'}
+          </button>
+        )}
       </div>
 
       {/* Info banner */}
@@ -217,10 +240,22 @@ export default function Cards() {
       )}
 
       {/* Library grouped by bank */}
-      {grouped.map(([bank, bankCards]) => (
+      {grouped.map(([bank, bankCards]) => {
+        const isCollapsed = collapsedBanks.has(bank)
+        return (
         <div key={bank}>
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">{bank}</h2>
-          <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
+          <button
+            onClick={() => toggleBank(bank)}
+            className="flex items-center gap-2 mb-3 group w-full text-left"
+          >
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest group-hover:text-gray-600 transition-colors">
+              {bank}
+            </h2>
+            <span className="text-gray-300 group-hover:text-gray-500 transition-colors">
+              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+            </span>
+          </button>
+          {!isCollapsed && <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
             {bankCards.map(card => {
               const cardRates = resolveRates(rates.filter(r => r.card_id === card.id), today)
               const cardCaps  = resolveCaps(caps.filter(c => c.card_id === card.id), today)
@@ -469,9 +504,10 @@ export default function Cards() {
                 </div>
               )
             })}
-          </div>
+          </div>}
         </div>
-      ))}
+        )
+      })}
 
       {allCards.length === 0 && (
         <div className="card p-10 text-center border-dashed border-2 border-gray-200">
