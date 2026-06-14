@@ -1,17 +1,33 @@
 import { useEffect, useState } from 'react'
-import { useRegisterSW } from 'virtual:pwa-register/react'
+import { Workbox } from 'workbox-window'
 import { RefreshCw, X } from 'lucide-react'
 
 export default function UpdatePrompt() {
   const [show, setShow] = useState(false)
+  const [wb, setWb] = useState<Workbox | null>(null)
 
-  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
-    onRegistered(r: ServiceWorkerRegistration | undefined) {
-      if (r) setInterval(() => r.update(), 60 * 60 * 1000)
-    },
-  })
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || import.meta.env.DEV) return
 
-  useEffect(() => { if (needRefresh) setShow(true) }, [needRefresh])
+    const workbox = new Workbox('/sw.js')
+
+    // A new SW has installed and is waiting to activate
+    workbox.addEventListener('waiting', () => setShow(true))
+
+    workbox.register()
+    setWb(workbox)
+
+    // Poll for updates every hour while the tab is open
+    const timer = setInterval(() => workbox.update(), 60 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  function handleUpdate() {
+    if (!wb) return
+    wb.addEventListener('controlling', () => window.location.reload())
+    wb.messageSkipWaiting()
+    setShow(false)
+  }
 
   if (!show) return null
 
@@ -20,7 +36,7 @@ export default function UpdatePrompt() {
       <RefreshCw size={15} className="shrink-0 text-indigo-400" />
       <span className="flex-1">A new version is available.</span>
       <button
-        onClick={() => updateServiceWorker(true)}
+        onClick={handleUpdate}
         className="px-3 py-1 bg-indigo-500 hover:bg-indigo-400 rounded-lg font-medium transition-colors shrink-0"
       >
         Update
