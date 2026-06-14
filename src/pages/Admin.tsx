@@ -30,14 +30,13 @@ function toDisplayDate(iso: string) {
 
 export default function Admin() {
   const { user } = useAuth()
-  const { categories, allCards } = useApp()
+  const { categories, allCards, transactions } = useApp()
   const navigate = useNavigate()
 
   const [rows, setRows] = useState<FeedbackRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Filter>('open')
   const [toggling, setToggling] = useState<string | null>(null)
-  const [exporting, setExporting] = useState(false)
   const [exportMonth, setExportMonth] = useState(currentMonth)
 
   useEffect(() => {
@@ -67,36 +66,25 @@ export default function Admin() {
     setToggling(null)
   }
 
-  async function handleExport() {
-    setExporting(true)
-
-    // Build lookup maps from AppContext data (already loaded, no RLS risk)
+  function handleExport() {
+    // All data already loaded in AppContext — no Supabase query needed
     const catMap  = new Map(categories.map(c => [c.id, c.name]))
     const cardMap = new Map(allCards.map(c => [c.id, `${c.bank} ${c.name}`]))
 
-    let txnQuery = supabase
-      .from('transactions')
-      .select('transaction_date, amount, personal_amount, vendor_name, notes, category_id, card_id')
-      .order('transaction_date', { ascending: false })
-
+    let filtered = transactions
     if (exportMonth) {
       const [y, m] = exportMonth.split('-').map(Number)
       const nextM = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
-      txnQuery = txnQuery
-        .gte('transaction_date', `${exportMonth}-01`)
-        .lt('transaction_date', nextM)
+      filtered = transactions.filter(t =>
+        t.transaction_date >= `${exportMonth}-01` && t.transaction_date < nextM
+      )
     }
 
-    const { data: txns } = await txnQuery
-
     const headers = ['Category', 'Vendor', 'Notes', 'Date', 'Date', 'Amount', 'Personal Expense', 'Card Used']
-    const csvRows = (txns ?? []).map((t: {
-      transaction_date: string; amount: number; personal_amount: number | null
-      vendor_name: string | null; notes: string | null; category_id: string | null; card_id: string | null
-    }) => [
+    const csvRows = filtered.map(t => [
       catMap.get(t.category_id ?? '') ?? '',
       t.vendor_name ?? '',
-      t.notes ?? '',
+      t.description ?? '',
       toDisplayDate(t.transaction_date),
       toDisplayDate(t.transaction_date),
       t.amount,
@@ -108,7 +96,6 @@ export default function Admin() {
       ? `smilemax_${exportMonth}.csv`
       : 'smilemax_all_transactions.csv'
     exportCsv(filename, headers, csvRows)
-    setExporting(false)
   }
 
   const displayed    = rows.filter(r => filter === 'all' || r.status === filter)
@@ -158,10 +145,9 @@ export default function Admin() {
         </div>
         <button
           onClick={handleExport}
-          disabled={exporting}
-          className="btn-primary text-sm py-1.5 disabled:opacity-40 shrink-0"
+          className="btn-primary text-sm py-1.5 shrink-0"
         >
-          {exporting ? 'Exporting…' : 'Export CSV'}
+          Export CSV
         </button>
       </div>
 
