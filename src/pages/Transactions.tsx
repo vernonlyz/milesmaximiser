@@ -53,10 +53,16 @@ export default function Transactions() {
   const [splitInfoOpen, setSplitInfoOpen] = useState(false)
 
   // Filters
-  const [filterMonth, setFilterMonth] = useState(isoDate().slice(0, 7))
-  const [filterCat, setFilterCat] = useState('')
+  const nowYear = String(new Date().getFullYear())
+  const [filterYear,     setFilterYear]     = useState(nowYear)
+  const [filterMonthNum, setFilterMonthNum] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'))
+  const [filterCat,  setFilterCat]  = useState('')
   const [filterCard, setFilterCard] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Transactions pool — current year comes from AppContext; previous years fetched on demand
+  const [prevYearTxns, setPrevYearTxns] = useState<Transaction[]>([])
+  const [loadingYear,  setLoadingYear]  = useState(false)
 
   // Sort
   const [sortBy, setSortBy] = useState<SortCol>('date')
@@ -69,6 +75,29 @@ export default function Transactions() {
       window.history.replaceState({}, '')
     }
   }, [])
+
+  // Fetch previous year transactions from Supabase when filterYear changes
+  useEffect(() => {
+    if (filterYear === nowYear) {
+      setPrevYearTxns([])
+      return
+    }
+    let cancelled = false
+    setLoadingYear(true)
+    supabase
+      .from('transactions')
+      .select('id, transaction_date, amount, personal_amount, miles_earned, cashback_earned, effective_mpd, computed_mpd, manual_mpd, override_note, mcc, category_id, card_id, vendor_name, description, payment_channel')
+      .gte('transaction_date', `${filterYear}-01-01`)
+      .lt('transaction_date', `${parseInt(filterYear) + 1}-01-01`)
+      .order('transaction_date', { ascending: false })
+      .then(({ data }) => {
+        if (!cancelled) {
+          setPrevYearTxns((data as Transaction[]) ?? [])
+          setLoadingYear(false)
+        }
+      })
+    return () => { cancelled = true }
+  }, [filterYear])
 
   function toggleSort(col: SortCol) {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -94,8 +123,8 @@ export default function Transactions() {
         t.description ?? '',
       ]
     })
-    const month = filterMonth || isoDate().slice(0, 7)
-    exportCsv(`transactions_${month}.csv`, headers, rows)
+    const exportPeriod = filterMonthNum ? `${filterYear}-${filterMonthNum}` : filterYear
+    exportCsv(`transactions_${exportPeriod}.csv`, headers, rows)
   }
 
   // Engine-computed MPD for the current form selection
@@ -313,13 +342,17 @@ export default function Transactions() {
     if (catalogueMatch?.default_mcc) setMcc(catalogueMatch.default_mcc)
   }
 
+  // Active transaction pool — current year from AppContext, previous years from Supabase
+  const txPool = filterYear === nowYear ? transactions : prevYearTxns
+
   // Filtered + sorted transactions
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    const result = transactions.filter(t => {
-      if (filterMonth && !t.transaction_date.startsWith(filterMonth)) return false
-      if (filterCat && t.category_id !== filterCat) return false
-      if (filterCard && t.card_id !== filterCard) return false
+    const monthPrefix = filterMonthNum ? `${filterYear}-${filterMonthNum}` : null
+    const result = txPool.filter(t => {
+      if (monthPrefix && !t.transaction_date.startsWith(monthPrefix)) return false
+      if (filterCat  && t.category_id !== filterCat)  return false
+      if (filterCard && t.card_id     !== filterCard)  return false
       if (q && !t.vendor_name?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false
       return true
     })
@@ -331,16 +364,10 @@ export default function Transactions() {
       if (sortBy === 'mpd')    v = (a.effective_mpd ?? 0) - (b.effective_mpd ?? 0)
       return sortDir === 'desc' ? -v : v
     })
-  }, [transactions, filterMonth, filterCat, filterCard, searchQuery, sortBy, sortDir])
+  }, [txPool, filterYear, filterMonthNum, filterCat, filterCard, searchQuery, sortBy, sortDir])
 
   const totalMiles = filtered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = filtered.reduce((s, t) => s + t.amount, 0)
-
-  const months = useMemo(() => {
-    const set = new Set(transactions.map(t => t.transaction_date.slice(0, 7)))
-    set.add(isoDate().slice(0, 7))
-    return Array.from(set).sort().reverse()
-  }, [transactions])
 
   // Nominal MPD for the current form — strips out the rounding factor so we show "4 mpd"
   // rather than the slightly-lower effective value (e.g. 3.96 mpd on a $13.80 / $5-block card).
@@ -416,20 +443,36 @@ export default function Transactions() {
 
       {/* Filters */}
       <div className="card p-4 flex flex-wrap gap-3">
+        {/* Year select */}
         <div className="relative">
           <select
-            value={filterMonth}
-            onChange={e => setFilterMonth(e.target.value)}
-            className="input w-36 appearance-none pr-7 text-sm"
+            value={filterYear}
+            onChange={e => { setFilterYear(e.target.value); setFilterMonthNum('') }}
+            className="input w-24 appearance-none pr-7 text-sm"
           >
-            {months.map(m => (
-              <option key={m} value={m}>
-                {new Date(m + '-01').toLocaleDateString('en-SG', { month: 'short', year: 'numeric' })}
-              </option>
+            {Array.from({ length: parseInt(nowYear) - 2023 }, (_, i) => String(parseInt(nowYear) - i)).map(y => (
+              <option key={y} value={y}>{y}</option>
             ))}
           </select>
           <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         </div>
+
+        {/* Month select */}
+        <div className="relative">
+          <select
+            value={filterMonthNum}
+            onChange={e => setFilterMonthNum(e.target.value)}
+            className="input w-32 appearance-none pr-7 text-sm"
+          >
+            <option value="">All months</option>
+            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((name, i) => (
+              <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{name}</option>
+            ))}
+          </select>
+          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        </div>
+
+        {loadingYear && <span className="text-xs text-gray-400 self-center">Loading…</span>}
 
         <div className="relative">
           <select
