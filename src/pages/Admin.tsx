@@ -18,6 +18,15 @@ interface FeedbackRow {
 
 type Filter = 'all' | 'open' | 'resolved'
 
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7)
+}
+
+function toDisplayDate(iso: string) {
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
 export default function Admin() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -27,6 +36,7 @@ export default function Admin() {
   const [filter, setFilter] = useState<Filter>('open')
   const [toggling, setToggling] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [exportMonth, setExportMonth] = useState(currentMonth)
 
   useEffect(() => {
     if (user?.email !== ADMIN_EMAIL) {
@@ -57,47 +67,63 @@ export default function Admin() {
 
   async function handleExport() {
     setExporting(true)
+
+    let txnQuery = supabase
+      .from('transactions')
+      .select('transaction_date, amount, personal_amount, vendor_name, notes, category_id, card_id')
+      .order('transaction_date', { ascending: false })
+
+    if (exportMonth) {
+      const [y, m] = exportMonth.split('-').map(Number)
+      const nextM = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+      txnQuery = txnQuery
+        .gte('transaction_date', `${exportMonth}-01`)
+        .lt('transaction_date', nextM)
+    }
+
     const [{ data: txns }, { data: cardLib }, { data: cats }] = await Promise.all([
-      supabase
-        .from('transactions')
-        .select('transaction_date, amount, personal_amount, vendor_name, notes, category_id, card_id')
-        .order('transaction_date', { ascending: false }),
+      txnQuery,
       supabase.from('card_library').select('id, bank, name'),
       supabase.from('categories').select('id, name'),
     ])
 
-    const cardMap = new Map((cardLib ?? []).map((c: { id: string; bank: string; name: string }) => [c.id, `${c.bank} ${c.name}`]))
-    const catMap  = new Map((cats  ?? []).map((c: { id: string; name: string }) => [c.id, c.name]))
+    const cardMap = new Map(
+      (cardLib ?? []).map((c: { id: string; bank: string; name: string }) => [c.id, `${c.bank} ${c.name}`])
+    )
+    const catMap = new Map(
+      (cats ?? []).map((c: { id: string; name: string }) => [c.id, c.name])
+    )
 
     const headers = ['Category', 'Vendor', 'Notes', 'Date', 'Date', 'Amount', 'Personal Expense', 'Card Used']
     const csvRows = (txns ?? []).map((t: {
-      transaction_date: string; amount: number; personal_amount: number | null;
+      transaction_date: string; amount: number; personal_amount: number | null
       vendor_name: string | null; notes: string | null; category_id: string | null; card_id: string | null
-    }) => {
-      const [y, m, d] = t.transaction_date.split('-')
-      const dateFmt = `${d}/${m}/${y}`
-      return [
-        catMap.get(t.category_id ?? '') ?? '',
-        t.vendor_name ?? '',
-        t.notes ?? '',
-        dateFmt,
-        t.transaction_date,
-        t.amount,
-        t.personal_amount ?? t.amount,
-        cardMap.get(t.card_id ?? '') ?? '',
-      ]
-    })
+    }) => [
+      catMap.get(t.category_id ?? '') ?? '',
+      t.vendor_name ?? '',
+      t.notes ?? '',
+      toDisplayDate(t.transaction_date),
+      toDisplayDate(t.transaction_date),
+      t.amount,
+      t.personal_amount ?? t.amount,
+      cardMap.get(t.card_id ?? '') ?? '',
+    ])
 
-    exportCsv('smilemax_transactions.csv', headers, csvRows)
+    const filename = exportMonth
+      ? `smilemax_${exportMonth}.csv`
+      : 'smilemax_all_transactions.csv'
+    exportCsv(filename, headers, csvRows)
     setExporting(false)
   }
 
-  const displayed = rows.filter(r => filter === 'all' || r.status === filter)
-  const openCount     = rows.filter(r => r.status === 'open').length
+  const displayed    = rows.filter(r => filter === 'all' || r.status === filter)
+  const openCount    = rows.filter(r => r.status === 'open').length
   const resolvedCount = rows.filter(r => r.status === 'resolved').length
 
   return (
     <div className="max-w-3xl space-y-6">
+
+      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Feedback</h1>
@@ -105,26 +131,46 @@ export default function Admin() {
             {openCount} open · {resolvedCount} resolved
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 transition-colors disabled:opacity-40"
-          >
-            <Download size={14} />
-            {exporting ? 'Exporting…' : 'Export Transactions'}
-          </button>
-          <button
-            onClick={load}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-          >
-            <RefreshCw size={14} />
-            Refresh
-          </button>
-        </div>
+        <button
+          onClick={load}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+        >
+          <RefreshCw size={14} />
+          Refresh
+        </button>
       </div>
 
-      {/* Filter tabs */}
+      {/* Export card */}
+      <div className="card p-4 flex flex-wrap items-center gap-3">
+        <Download size={15} className="text-indigo-500 shrink-0" />
+        <span className="text-sm font-medium text-gray-700 shrink-0">Export Transactions</span>
+        <div className="flex items-center gap-2 flex-wrap flex-1">
+          <input
+            type="month"
+            value={exportMonth}
+            max={currentMonth()}
+            onChange={e => setExportMonth(e.target.value)}
+            className="input text-sm py-1 w-40"
+          />
+          {exportMonth && (
+            <button
+              onClick={() => setExportMonth('')}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              All time
+            </button>
+          )}
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="btn-primary text-sm py-1.5 disabled:opacity-40 shrink-0"
+        >
+          {exporting ? 'Exporting…' : 'Export CSV'}
+        </button>
+      </div>
+
+      {/* Feedback filter tabs */}
       <div className="flex gap-2">
         {(['open', 'resolved', 'all'] as Filter[]).map(f => (
           <button
@@ -155,14 +201,12 @@ export default function Admin() {
               className={`card p-4 transition-opacity ${row.status === 'resolved' ? 'opacity-60' : ''}`}
             >
               <div className="flex items-start gap-3">
-                {/* Type icon */}
                 <div className={`shrink-0 mt-0.5 p-1.5 rounded-lg ${
                   row.type === 'bug' ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'
                 }`}>
                   {row.type === 'bug' ? <Bug size={14} /> : <Lightbulb size={14} />}
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -181,7 +225,6 @@ export default function Admin() {
                   <p className="mt-1.5 text-sm text-gray-700 whitespace-pre-wrap">{row.message}</p>
                 </div>
 
-                {/* Status toggle */}
                 <button
                   onClick={() => toggleStatus(row)}
                   disabled={toggling === row.id}
