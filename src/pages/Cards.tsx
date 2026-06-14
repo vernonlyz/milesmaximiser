@@ -109,12 +109,22 @@ export default function Cards() {
   const [bankFilter, setBankFilter] = useState<string>('all')
 
   const [collapsedBanks, setCollapsedBanks] = useState<Set<string>>(new Set())
+  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set())
 
   function toggleBank(bank: string) {
     setCollapsedBanks(prev => {
       const next = new Set(prev)
       if (next.has(bank)) next.delete(bank)
       else next.add(bank)
+      return next
+    })
+  }
+
+  function toggleCard(cardId: string) {
+    setCollapsedCards(prev => {
+      const next = new Set(prev)
+      if (next.has(cardId)) next.delete(cardId)
+      else next.add(cardId)
       return next
     })
   }
@@ -281,6 +291,8 @@ export default function Cards() {
                 capGroupMap.set(key, list)
               }
 
+              const cardCollapsed = collapsedCards.has(card.id)
+
               return (
                 <div
                   key={card.id}
@@ -335,6 +347,7 @@ export default function Cards() {
                         )}
                       </div>
 
+                      {!cardCollapsed && <>
                       <p className="text-sm text-gray-500 mt-0.5">Base rate: {card.base_mpd} mpd</p>
 
                       {/* Bonus rates */}
@@ -480,10 +493,18 @@ export default function Cards() {
                           )}
                         </div>
                       )}
+                      </>}
                     </div>
 
-                    {/* Wallet toggle */}
-                    <div className="shrink-0">
+                    {/* Controls: collapse chevron + wallet toggle */}
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <button
+                        onClick={() => toggleCard(card.id)}
+                        className="text-gray-300 hover:text-gray-500 transition-colors p-0.5"
+                        title={cardCollapsed ? 'Expand' : 'Collapse'}
+                      >
+                        {cardCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                      </button>
                       {inWallet ? (
                         <button
                           onClick={() => removeCardSelection(card.id)}
