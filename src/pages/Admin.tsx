@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bug, Lightbulb, CheckCircle, Circle, RefreshCw, Download } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { exportCsv } from '../lib/utils'
 
@@ -29,6 +30,7 @@ function toDisplayDate(iso: string) {
 
 export default function Admin() {
   const { user } = useAuth()
+  const { categories, allCards } = useApp()
   const navigate = useNavigate()
 
   const [rows, setRows] = useState<FeedbackRow[]>([])
@@ -68,6 +70,10 @@ export default function Admin() {
   async function handleExport() {
     setExporting(true)
 
+    // Build lookup maps from AppContext data (already loaded, no RLS risk)
+    const catMap  = new Map(categories.map(c => [c.id, c.name]))
+    const cardMap = new Map(allCards.map(c => [c.id, `${c.bank} ${c.name}`]))
+
     let txnQuery = supabase
       .from('transactions')
       .select('transaction_date, amount, personal_amount, vendor_name, notes, category_id, card_id')
@@ -81,18 +87,7 @@ export default function Admin() {
         .lt('transaction_date', nextM)
     }
 
-    const [{ data: txns }, { data: cardLib }, { data: cats }] = await Promise.all([
-      txnQuery,
-      supabase.from('card_library').select('id, bank, name'),
-      supabase.from('categories').select('id, name'),
-    ])
-
-    const cardMap = new Map(
-      (cardLib ?? []).map((c: { id: string; bank: string; name: string }) => [c.id, `${c.bank} ${c.name}`])
-    )
-    const catMap = new Map(
-      (cats ?? []).map((c: { id: string; name: string }) => [c.id, c.name])
-    )
+    const { data: txns } = await txnQuery
 
     const headers = ['Category', 'Vendor', 'Notes', 'Date', 'Date', 'Amount', 'Personal Expense', 'Card Used']
     const csvRows = (txns ?? []).map((t: {
