@@ -299,6 +299,15 @@ export default function Cards() {
                   className={`card p-5 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
                 >
                   <div className="flex items-start gap-4">
+                    {/* Collapse chevron — top-left */}
+                    <button
+                      onClick={() => toggleCard(card.id)}
+                      className="shrink-0 mt-1 text-gray-300 hover:text-gray-500 transition-colors"
+                      title={cardCollapsed ? 'Expand' : 'Collapse'}
+                    >
+                      {cardCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                    </button>
+
                     {/* Bank colour badge */}
                     <div
                       className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
@@ -495,15 +504,6 @@ export default function Cards() {
                       )}
                       </>}
                     </div>
-
-                    {/* Collapse chevron */}
-                    <button
-                      onClick={() => toggleCard(card.id)}
-                      className="shrink-0 text-gray-300 hover:text-gray-500 transition-colors mt-1"
-                      title={cardCollapsed ? 'Expand' : 'Collapse'}
-                    >
-                      {cardCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                    </button>
 
                     {/* Wallet toggle */}
                     <div className="shrink-0">
