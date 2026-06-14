@@ -496,15 +496,8 @@ export default function Cards() {
                       </>}
                     </div>
 
-                    {/* Controls: collapse chevron + wallet toggle */}
-                    <div className="shrink-0 flex items-center gap-1.5">
-                      <button
-                        onClick={() => toggleCard(card.id)}
-                        className="text-gray-300 hover:text-gray-500 transition-colors p-0.5"
-                        title={cardCollapsed ? 'Expand' : 'Collapse'}
-                      >
-                        {cardCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                      </button>
+                    {/* Controls: wallet toggle + collapse chevron */}
+                    <div className="shrink-0 flex flex-col items-end gap-2">
                       {inWallet ? (
                         <button
                           onClick={() => removeCardSelection(card.id)}
@@ -520,6 +513,13 @@ export default function Cards() {
                           <Plus size={13} /> Add
                         </button>
                       )}
+                      <button
+                        onClick={() => toggleCard(card.id)}
+                        className="text-gray-300 hover:text-gray-500 transition-colors self-center"
+                        title={cardCollapsed ? 'Expand' : 'Collapse'}
+                      >
+                        {cardCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                      </button>
                     </div>
                   </div>
                 </div>
