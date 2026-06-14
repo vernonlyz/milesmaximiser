@@ -325,22 +325,9 @@ export default function Expenses() {
         ))}
         {quickMode === 'custom' && (
           <div className="flex items-center gap-2 flex-wrap ml-1">
-            <input
-              type="month"
-              value={customFrom}
-              max={customTo || maxMonth}
-              onChange={e => setCustomFrom(e.target.value)}
-              className="input text-xs py-1 w-36"
-            />
+            <MonthYearSelect value={customFrom} onChange={setCustomFrom} />
             <span className="text-gray-400 text-xs">–</span>
-            <input
-              type="month"
-              value={customTo}
-              min={customFrom}
-              max={maxMonth}
-              onChange={e => setCustomTo(e.target.value)}
-              className="input text-xs py-1 w-36"
-            />
+            <MonthYearSelect value={customTo} onChange={setCustomTo} />
           </div>
         )}
       </div>
@@ -500,6 +487,42 @@ function StatChip({ label, value, icon, bg, bold }: {
         <p className="text-xs text-gray-500 font-medium truncate">{label}</p>
         <p className={`text-base sm:text-lg font-bold leading-tight truncate ${bold ? 'text-gray-900' : 'text-gray-800'}`}>{value}</p>
       </div>
+    </div>
+  )
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const START_YEAR  = 2024
+
+function MonthYearSelect({ value, onChange }: { value: string; onChange: (ym: string) => void }) {
+  const [y, m] = value.split('-').map(Number)
+  const nowYear = new Date().getFullYear()
+  const years   = Array.from({ length: nowYear - START_YEAR + 1 }, (_, i) => START_YEAR + i)
+
+  function update(newYear: number, newMonth: number) {
+    onChange(`${newYear}-${String(newMonth).padStart(2, '0')}`)
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        value={m}
+        onChange={e => update(y, Number(e.target.value))}
+        className="input text-xs py-1"
+      >
+        {MONTH_NAMES.map((name, i) => (
+          <option key={i + 1} value={i + 1}>{name}</option>
+        ))}
+      </select>
+      <select
+        value={y}
+        onChange={e => update(Number(e.target.value), m)}
+        className="input text-xs py-1"
+      >
+        {years.map(yr => (
+          <option key={yr} value={yr}>{yr}</option>
+        ))}
+      </select>
     </div>
   )
 }
