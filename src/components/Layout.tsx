@@ -19,7 +19,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 function useInstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  const [isStandalone] = useState(() => window.matchMedia('(display-mode: standalone)').matches)
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !('MSStream' in window)
 
   useEffect(() => {
@@ -31,8 +31,8 @@ function useInstallPrompt() {
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
-  // Show button if: not already installed AND (native prompt available OR iOS fallback)
-  const showInstall = !isStandalone && (deferred !== null || isIOS)
+  // Always show when not already running as installed PWA
+  const showInstall = !isStandalone
 
   async function triggerInstall() {
     if (!deferred) return
@@ -41,7 +41,7 @@ function useInstallPrompt() {
     if (outcome === 'accepted') setDeferred(null)
   }
 
-  return { showInstall, isIOS, triggerInstall }
+  return { showInstall, isIOS, hasNativePrompt: deferred !== null, triggerInstall }
 }
 
 const nav = [
@@ -58,7 +58,14 @@ export default function Layout() {
   const [disclaimer, setDisclaimer] = useState(false)
   const [feedback, setFeedback] = useState(false)
   const [iosInstall, setIosInstall] = useState(false)
-  const { showInstall, isIOS, triggerInstall } = useInstallPrompt()
+  const [genericInstall, setGenericInstall] = useState(false)
+  const { showInstall, isIOS, hasNativePrompt, triggerInstall } = useInstallPrompt()
+
+  function handleInstallClick() {
+    if (isIOS) setIosInstall(true)
+    else if (hasNativePrompt) triggerInstall()
+    else setGenericInstall(true)
+  }
   const [fbType, setFbType] = useState<'bug' | 'suggestion'>('bug')
   const [fbMsg, setFbMsg] = useState('')
   const [fbSaving, setFbSaving] = useState(false)
@@ -190,7 +197,7 @@ export default function Layout() {
         <div className="px-4 py-4 border-t border-gray-700 space-y-1">
           {showInstall && (
             <button
-              onClick={isIOS ? () => setIosInstall(true) : triggerInstall}
+              onClick={handleInstallClick}
               className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-indigo-400 hover:bg-gray-800 hover:text-indigo-300 transition-colors text-left"
             >
               {isIOS ? <Share size={16} className="shrink-0" /> : <Download size={16} className="shrink-0" />}
@@ -248,6 +255,27 @@ export default function Layout() {
         <StatementDayPrompt />
         <UpdatePrompt />
       </div>
+
+      {genericInstall && (
+        <Modal title="Install SmileMax" onClose={() => setGenericInstall(false)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">Install SmileMax as an app using your browser's built-in option:</p>
+            <div className="space-y-3">
+              {[
+                { icon: '🖥️', text: 'Chrome / Edge desktop — click the ⊕ install icon in the address bar, or open the browser menu (⋮) and select "Install SmileMax".' },
+                { icon: '📱', text: 'Chrome on Android — tap the browser menu (⋮) and select "Add to Home Screen".' },
+                { icon: '🦊', text: 'Firefox — open the browser menu and select "Install" or "Add to Home Screen" if available.' },
+              ].map(({ icon, text }, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="text-xl shrink-0">{icon}</span>
+                  <p className="text-sm text-gray-700 leading-relaxed">{text}</p>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setGenericInstall(false)} className="btn-primary w-full">Got it</button>
+          </div>
+        </Modal>
+      )}
 
       {iosInstall && (
         <Modal title="Add SmileMax to your Home Screen" onClose={() => setIosInstall(false)}>
