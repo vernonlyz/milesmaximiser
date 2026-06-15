@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Link, Outlet } from 'react-router-dom'
+import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share,
 } from 'lucide-react'
@@ -20,7 +20,9 @@ interface BeforeInstallPromptEvent extends Event {
 function useInstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
   const [isStandalone] = useState(() => window.matchMedia('(display-mode: standalone)').matches)
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !('MSStream' in window)
+  const ua = navigator.userAgent
+  const isIOS     = /iphone|ipad|ipod/i.test(ua) && !('MSStream' in window)
+  const isAndroid = /android/i.test(ua)
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -31,7 +33,6 @@ function useInstallPrompt() {
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
-  // Always show when not already running as installed PWA
   const showInstall = !isStandalone
 
   async function triggerInstall() {
@@ -41,7 +42,7 @@ function useInstallPrompt() {
     if (outcome === 'accepted') setDeferred(null)
   }
 
-  return { showInstall, isIOS, hasNativePrompt: deferred !== null, triggerInstall }
+  return { showInstall, isIOS, isAndroid, hasNativePrompt: deferred !== null, triggerInstall }
 }
 
 const nav = [
@@ -59,12 +60,28 @@ export default function Layout() {
   const [feedback, setFeedback] = useState(false)
   const [iosInstall, setIosInstall] = useState(false)
   const [genericInstall, setGenericInstall] = useState(false)
-  const { showInstall, isIOS, hasNativePrompt, triggerInstall } = useInstallPrompt()
+  const [androidInstall, setAndroidInstall] = useState(false)
+  const { showInstall, isIOS, isAndroid, hasNativePrompt, triggerInstall } = useInstallPrompt()
+  const location = useLocation()
+  const [bannerVisible, setBannerVisible] = useState(
+    () => localStorage.getItem('installBannerDismissed') !== '1'
+  )
+
+  function dismissBanner() {
+    localStorage.setItem('installBannerDismissed', '1')
+    setBannerVisible(false)
+  }
 
   function handleInstallClick() {
     if (isIOS) setIosInstall(true)
     else if (hasNativePrompt) triggerInstall()
+    else if (isAndroid) setAndroidInstall(true)
     else setGenericInstall(true)
+  }
+
+  function handleBannerInstall() {
+    dismissBanner()
+    handleInstallClick()
   }
   const [fbType, setFbType] = useState<'bug' | 'suggestion'>('bug')
   const [fbMsg, setFbMsg] = useState('')
@@ -250,6 +267,30 @@ export default function Layout() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+          {showInstall && bannerVisible && location.pathname === '/' && (
+            <div className="mb-6 flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
+              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center shrink-0">
+                <Download size={15} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-indigo-900">Install SmileMax as an app</p>
+                <p className="text-xs text-indigo-600 mt-0.5">Add to your home screen for quick one-tap access.</p>
+              </div>
+              <button
+                onClick={handleBannerInstall}
+                className="shrink-0 text-xs font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Install
+              </button>
+              <button
+                onClick={dismissBanner}
+                className="shrink-0 text-indigo-400 hover:text-indigo-600 transition-colors"
+                title="Dismiss"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <Outlet />
         </main>
         <StatementDayPrompt />
@@ -273,6 +314,31 @@ export default function Layout() {
               ))}
             </div>
             <button onClick={() => setGenericInstall(false)} className="btn-primary w-full">Got it</button>
+          </div>
+        </Modal>
+      )}
+
+      {androidInstall && (
+        <Modal title="Add SmileMax to your Home Screen" onClose={() => setAndroidInstall(false)}>
+          <div className="space-y-5">
+            <p className="text-sm text-gray-500">Follow these steps in Chrome to install SmileMax:</p>
+            <div className="space-y-4">
+              {[
+                { step: 1, icon: '⋮', text: 'Tap the menu button (three dots) in the top-right corner of Chrome.' },
+                { step: 2, icon: '📲', text: 'Tap "Add to Home Screen" from the menu.' },
+                { step: 3, icon: '✅', text: 'Tap "Add" to confirm. SmileMax will appear on your home screen like a native app.' },
+              ].map(({ step, icon, text }) => (
+                <div key={step} className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs shrink-0 mt-0.5">
+                    {step}
+                  </div>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    <span className="mr-1 font-medium">{icon}</span>{text}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setAndroidInstall(false)} className="btn-primary w-full">Got it</button>
           </div>
         </Modal>
       )}
