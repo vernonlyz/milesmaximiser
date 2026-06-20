@@ -129,6 +129,21 @@ export function buildPeriodSpending(
 ): Map<string, number> {
   const result = new Map<string, number>()
 
+  // Payment channels that have a dedicated channel cap, per card. A transaction
+  // matching one of these is attributed to that channel cap (mirroring the engine,
+  // where a channel cap takes precedence) and must NOT also be counted toward a
+  // category/group cap on the same card — otherwise the same spend is double-counted
+  // (e.g. an online-shopping purchase tagged contactless hitting both bars).
+  const channelByCard = new Map<string, Set<string>>()
+  for (const cap of resolvedCaps) {
+    if (!cap.cap_payment_channel) continue
+    const set = channelByCard.get(cap.card_id) ?? new Set<string>()
+    set.add(cap.cap_payment_channel)
+    channelByCard.set(cap.card_id, set)
+  }
+  const countedByChannelCap = (t: Transaction): boolean =>
+    t.payment_channel != null && (channelByCard.get(t.card_id ?? '')?.has(t.payment_channel) ?? false)
+
   for (const cap of resolvedCaps) {
     if (cap.cap_period === 'per_transaction') continue
 
@@ -167,6 +182,7 @@ export function buildPeriodSpending(
             t.card_id === cap.card_id &&
             t.category_id !== null &&
             groupCatIds.includes(t.category_id) &&
+            !countedByChannelCap(t) &&
             d >= periodStart && d <= periodEnd
           )
         })
@@ -181,6 +197,7 @@ export function buildPeriodSpending(
         .filter(t => {
           if (t.card_id !== cap.card_id) return false
           if (cap.category_id !== null && t.category_id !== cap.category_id) return false
+          if (countedByChannelCap(t)) return false
           const d = new Date(t.transaction_date)
           return d >= periodStart && d <= periodEnd
         })
