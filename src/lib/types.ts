@@ -171,6 +171,22 @@ export interface MilesAdjustment {
   created_at: string
 }
 
+// A saved transaction template for quick reuse of recurring charges.
+// Stores only reusable inputs; miles/cashback are recomputed at log time.
+export interface TransactionFavourite {
+  id: string
+  user_id: string
+  label: string
+  card_id: string | null
+  category_id: string | null
+  vendor_name: string | null
+  mcc: string | null
+  payment_channel: 'contactless' | 'online' | 'chip' | null
+  amount: number | null
+  description: string | null
+  created_at: string
+}
+
 export interface TransactionFormData {
   card_id: string
   category_id: string

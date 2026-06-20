@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -9,7 +9,7 @@ import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
 import { isoDate, exportCsv, getPeriodEnd } from '../lib/utils'
-import { TransactionFormData, CardRecommendation, Transaction, Vendor } from '../lib/types'
+import { TransactionFormData, CardRecommendation, Transaction, Vendor, TransactionFavourite } from '../lib/types'
 
 const EMPTY_FORM: TransactionFormData = {
   card_id: '',
@@ -29,6 +29,7 @@ export default function Transactions() {
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<TransactionFormData>(EMPTY_FORM)
+  const [favourites, setFavourites] = useState<TransactionFavourite[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -340,6 +341,68 @@ export default function Transactions() {
     if (v.category_id) setField('category_id', v.category_id)
     const catalogueMatch = vendorCatalogue.find(c => c.name.toLowerCase() === v.name.toLowerCase())
     if (catalogueMatch?.default_mcc) setMcc(catalogueMatch.default_mcc)
+  }
+
+  // ---- favourites (saved transaction templates) ----
+  useEffect(() => { loadFavourites() }, [])
+
+  async function loadFavourites() {
+    const { data } = await supabase
+      .from('transaction_favourites')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setFavourites((data as TransactionFavourite[]) ?? [])
+  }
+
+  // Prefill the form from a favourite; date defaults to today, miles recompute live.
+  function applyFavourite(f: TransactionFavourite) {
+    setForm({
+      card_id: f.card_id ?? '',
+      category_id: f.category_id ?? '',
+      amount: f.amount != null ? String(f.amount) : '',
+      description: f.description ?? '',
+      transaction_date: isoDate(),
+    })
+    setVendorName(f.vendor_name ?? '')
+    setSelectedVendor(null)
+    setMcc(f.mcc ?? '')
+    setPaymentChannel(f.payment_channel)
+    setMpdOverrideActive(false)
+    setManualMpd('')
+    setOverrideNote('')
+    setSplitOpen(false)
+    setSplitN(null)
+    setSplitCustom('')
+    setError(null)
+  }
+
+  async function saveAsFavourite() {
+    if (!form.card_id && !vendorName.trim()) {
+      setError('Pick a card or vendor before saving a favourite.')
+      return
+    }
+    const fallback = vendorName.trim() || categories.find(c => c.id === form.category_id)?.name || 'Favourite'
+    const input = window.prompt('Name this favourite', fallback)
+    if (input === null) return
+    const label = input.trim() || fallback
+    const { error: e } = await supabase.from('transaction_favourites').insert({
+      user_id: user!.id,
+      label,
+      card_id: form.card_id || null,
+      category_id: form.category_id || null,
+      vendor_name: vendorName.trim() || null,
+      mcc: mcc.trim() || null,
+      payment_channel: paymentChannel,
+      amount: form.amount ? parseFloat(form.amount) : null,
+      description: form.description || null,
+    })
+    if (e) { setError(e.message); return }
+    loadFavourites()
+  }
+
+  async function deleteFavourite(id: string) {
+    await supabase.from('transaction_favourites').delete().eq('id', id)
+    setFavourites(prev => prev.filter(f => f.id !== id))
   }
 
   // Active transaction pool — current year from AppContext, previous years from Supabase
@@ -765,6 +828,39 @@ export default function Transactions() {
           title={editingId ? 'Edit Transaction' : 'Log Transaction'}
           onClose={() => setShowModal(false)}
         >
+          {/* Favourites — quick prefill, only when adding */}
+          {!editingId && favourites.length > 0 && (
+            <div>
+              <label className="label flex items-center gap-1">
+                <Star size={12} className="text-amber-400" /> Favourites
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {favourites.map(f => (
+                  <span
+                    key={f.id}
+                    className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-amber-800 overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyFavourite(f)}
+                      className="text-xs pl-2.5 pr-1.5 py-1 hover:bg-amber-100 transition-colors"
+                    >
+                      {f.label}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteFavourite(f.id)}
+                      title="Delete favourite"
+                      className="text-amber-400 hover:text-red-500 pr-1.5 py-1"
+                    >
+                      <X size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="label">Date</label>
             <input type="date" className="input" value={form.transaction_date}
@@ -1185,6 +1281,16 @@ export default function Transactions() {
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+          )}
+
+          {!editingId && (
+            <button
+              type="button"
+              onClick={saveAsFavourite}
+              className="flex items-center justify-center gap-1.5 w-full text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 py-1.5 rounded-lg transition-colors"
+            >
+              <Star size={12} /> Save as favourite for quick reuse
+            </button>
           )}
 
           <div className="flex gap-3 pt-2">
