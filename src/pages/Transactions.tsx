@@ -31,6 +31,9 @@ export default function Transactions() {
   const [form, setForm] = useState<TransactionFormData>(EMPTY_FORM)
   const [favourites, setFavourites] = useState<TransactionFavourite[]>([])
   const [favToDelete, setFavToDelete] = useState<TransactionFavourite | null>(null)
+  const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
+  const [favNameOpen, setFavNameOpen] = useState(false)
+  const [favNameInput, setFavNameInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -324,9 +327,10 @@ export default function Transactions() {
     refreshTransactions()
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this transaction?')) return
-    await supabase.from('transactions').delete().eq('id', id)
+  async function confirmDeleteTransaction() {
+    if (!txToDelete) return
+    await supabase.from('transactions').delete().eq('id', txToDelete.id)
+    setTxToDelete(null)
     refreshTransactions()
   }
 
@@ -384,15 +388,21 @@ export default function Transactions() {
     setError(null)
   }
 
-  async function saveAsFavourite() {
+  function favouriteFallbackName() {
+    return vendorName.trim() || categories.find(c => c.id === form.category_id)?.name || 'Favourite'
+  }
+
+  function openSaveFavourite() {
     if (!form.card_id && !vendorName.trim()) {
       setError('Pick a card or vendor before saving a favourite.')
       return
     }
-    const fallback = vendorName.trim() || categories.find(c => c.id === form.category_id)?.name || 'Favourite'
-    const input = window.prompt('Name this favourite', fallback)
-    if (input === null) return
-    const label = input.trim() || fallback
+    setFavNameInput(favouriteFallbackName())
+    setFavNameOpen(true)
+  }
+
+  async function submitFavourite() {
+    const label = favNameInput.trim() || favouriteFallbackName()
     const { error: e } = await supabase.from('transaction_favourites').insert({
       user_id: user!.id,
       label,
@@ -405,6 +415,7 @@ export default function Transactions() {
       description: form.description || null,
     })
     if (e) { setError(e.message); return }
+    setFavNameOpen(false)
     loadFavourites()
   }
 
@@ -683,7 +694,7 @@ export default function Transactions() {
                           <Pencil size={14} />
                         </button>
                         <button
-                          onClick={() => handleDelete(t.id)}
+                          onClick={() => setTxToDelete(t)}
                           className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
                           title="Delete"
                         >
@@ -814,7 +825,7 @@ export default function Transactions() {
                               <Pencil size={14} />
                             </button>
                             <button
-                              onClick={() => handleDelete(t.id)}
+                              onClick={() => setTxToDelete(t)}
                               className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
                               title="Delete"
                             >
@@ -1296,7 +1307,7 @@ export default function Transactions() {
           {!editingId && (
             <button
               type="button"
-              onClick={saveAsFavourite}
+              onClick={openSaveFavourite}
               className="flex items-center justify-center gap-1.5 w-full text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50 py-1.5 rounded-lg transition-colors"
             >
               <Star size={12} /> Save as favourite for quick reuse
@@ -1326,6 +1337,50 @@ export default function Transactions() {
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
               >
                 Remove
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {favNameOpen && (
+        <Modal title="Save as favourite" onClose={() => setFavNameOpen(false)}>
+          <div className="space-y-4">
+            <div>
+              <label className="label">Favourite name</label>
+              <input
+                autoFocus
+                value={favNameInput}
+                onChange={e => setFavNameInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submitFavourite() }}
+                placeholder="e.g. Netflix"
+                className="input"
+              />
+              <p className="text-xs text-gray-400 mt-1">Saves the card, category, vendor, payment method and amount for quick reuse.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setFavNameOpen(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={submitFavourite} className="btn-primary flex-1">Save favourite</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {txToDelete && (
+        <Modal title="Delete transaction" onClose={() => setTxToDelete(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Delete this transaction
+              {txToDelete.vendor_name ? <> at <span className="font-semibold text-gray-900">{txToDelete.vendor_name}</span></> : null}
+              {' '}for <span className="font-semibold text-gray-900">S${txToDelete.amount.toFixed(2)}</span>? This can't be undone.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setTxToDelete(null)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={confirmDeleteTransaction}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
+              >
+                Delete
               </button>
             </div>
           </div>

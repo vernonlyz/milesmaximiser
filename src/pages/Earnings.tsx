@@ -89,6 +89,9 @@ export default function Earnings() {
   function toggleCollapse(id: string) {
     setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
+  function toggleCollapseAll(cardIds: string[], allCollapsed: boolean) {
+    setCollapsed(allCollapsed ? new Set() : new Set(cardIds))
+  }
   function setView(id: string, v: 'chart' | 'numbers') {
     setCardView(prev => ({ ...prev, [id]: v }))
   }
@@ -187,6 +190,21 @@ export default function Earnings() {
         </div>
       ) : (
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-700">By card</p>
+            {(() => {
+              const ids = perCard.map(c => c.card.id)
+              const allCollapsed = ids.length > 0 && ids.every(id => collapsed.has(id))
+              return (
+                <button
+                  onClick={() => toggleCollapseAll(ids, allCollapsed)}
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                >
+                  {allCollapsed ? 'Expand all' : 'Collapse all'}
+                </button>
+              )
+            })()}
+          </div>
           {perCard.map(({ card, day, months, total }) => {
             const isCollapsed = collapsed.has(card.id)
             const view = cardView[card.id] ?? 'chart'

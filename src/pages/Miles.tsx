@@ -6,6 +6,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { MilesAccount, MilesAccountCard, MilesAdjustment } from '../lib/types'
+import Modal from '../components/Modal'
 
 interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
 
@@ -63,6 +64,11 @@ export default function Miles() {
   const [adjFormFor, setAdjFormFor] = useState<string | null>(null)
   const [adjDraft, setAdjDraft] = useState({ date: today(), miles: '', type: 'redeem' as 'redeem' | 'bonus', note: '' })
   const [addCardFor, setAddCardFor] = useState<string | null>(null)
+  // Dialog state (in-app modals replacing native prompt/confirm)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [reconcileFor, setReconcileFor] = useState<MilesAccount | null>(null)
+  const [accToDelete, setAccToDelete] = useState<MilesAccount | null>(null)
   // Collapsed by default; only expanded if the user previously opened it.
   const [helpOpen, setHelpOpen] = useState(() => localStorage.getItem('milesHelpCollapsed') === '0')
 
@@ -245,20 +251,16 @@ export default function Miles() {
   }
 
   // ---- reconcile: set opening = current total, as-of = today, clears running drift ----
-  async function reconcile(a: MilesAccount) {
+  async function confirmReconcile() {
+    const a = reconcileFor
+    if (!a) return
     const total = a.opening_miles + earnedFor(a) + adjSum(a)
-    const ok = window.confirm(
-      `Reconcile "${a.name}"?\n\n` +
-      `This sets the opening balance to your current total of ${total.toLocaleString()} miles, ` +
-      `as of today (${fmtDate(today())}), and starts counting earned miles and adjustments fresh from now.\n\n` +
-      `Your redemption history is kept. Use this when your numbers have drifted from your bank's.`
-    )
-    if (!ok) return
     await supabase.from('miles_accounts').update({
       opening_miles: total,
       as_of_date: today(),
       updated_at: new Date().toISOString(),
     }).eq('id', a.id)
+    setReconcileFor(null)
     reload()
   }
 
@@ -320,23 +322,28 @@ export default function Miles() {
 
   // Create a standalone miles balance not tied to a card (e.g. KrisFlyer miles
   // held directly from transfers). Total = opening + adjustments (no card earn).
-  async function addAccount() {
-    const name = window.prompt('Name this miles balance (e.g. KrisFlyer miles)', 'KrisFlyer miles')
-    if (name === null) return
+  function openAddBalance() {
+    setAddName('')
+    setAddOpen(true)
+  }
+
+  async function submitAddBalance() {
     await supabase.from('miles_accounts').insert({
       user_id: user!.id,
-      name: name.trim() || 'Miles balance',
+      name: addName.trim() || 'Miles balance',
       opening_miles: 0,
       as_of_date: today(),
     })
+    setAddOpen(false)
     reload()
   }
 
   // Delete a standalone balance (no linked cards). Card-linked accounts are not
   // deletable here — they'd just be auto-recreated from the wallet on reload.
-  async function deleteAccount(a: MilesAccount) {
-    if (!confirm(`Remove the balance "${a.name}"? This deletes its opening balance and adjustment history.`)) return
-    await supabase.from('miles_accounts').delete().eq('id', a.id)
+  async function confirmDeleteAccount() {
+    if (!accToDelete) return
+    await supabase.from('miles_accounts').delete().eq('id', accToDelete.id)
+    setAccToDelete(null)
     reload()
   }
 
@@ -362,7 +369,7 @@ export default function Miles() {
           </p>
         </div>
         <button
-          onClick={addAccount}
+          onClick={openAddBalance}
           className="flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"
         >
           <Plus size={14} /> Add balance
@@ -493,7 +500,7 @@ export default function Miles() {
                     </div>
                     {linkedCards.length === 0 && (
                       <button
-                        onClick={() => deleteAccount(account)}
+                        onClick={() => setAccToDelete(account)}
                         title="Remove balance"
                         className="text-gray-300 hover:text-red-500 transition-colors mt-1"
                       >
@@ -667,7 +674,7 @@ export default function Miles() {
                     </div>
                   )}
                   <button
-                    onClick={() => reconcile(account)}
+                    onClick={() => setReconcileFor(account)}
                     title="Re-baseline: set opening to your current total as of today. Use when your numbers drift from the bank's."
                     className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5"
                   >
@@ -688,6 +695,72 @@ export default function Miles() {
             )
           })}
         </div>
+      )}
+
+      {/* Add balance modal */}
+      {addOpen && (
+        <Modal title="Add a miles balance" onClose={() => setAddOpen(false)}>
+          <div className="space-y-4">
+            <div>
+              <label className="label">Name</label>
+              <input
+                autoFocus
+                value={addName}
+                onChange={e => setAddName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submitAddBalance() }}
+                placeholder="e.g. KrisFlyer miles"
+                className="input"
+              />
+              <p className="text-xs text-gray-400 mt-1">A standalone balance not tied to a card — set its opening balance and log redemptions after.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setAddOpen(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={submitAddBalance} className="btn-primary flex-1">Add balance</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Reconcile confirmation modal */}
+      {reconcileFor && (
+        <Modal title="Reconcile balance" onClose={() => setReconcileFor(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Set <span className="font-semibold text-gray-900">"{reconcileFor.name}"</span> opening balance to its current
+              total of{' '}
+              <span className="font-semibold text-indigo-600">
+                {Math.round(reconcileFor.opening_miles + earnedFor(reconcileFor) + adjSum(reconcileFor)).toLocaleString()} miles
+              </span>{' '}
+              as of today ({fmtDate(today())}), and start counting earned miles and adjustments fresh from now.
+            </p>
+            <p className="text-xs text-gray-400">Your redemption history is kept. Use this when your numbers have drifted from your bank's.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setReconcileFor(null)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={confirmReconcile} className="btn-primary flex-1">Reconcile</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete balance confirmation modal */}
+      {accToDelete && (
+        <Modal title="Remove balance" onClose={() => setAccToDelete(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Remove <span className="font-semibold text-gray-900">"{accToDelete.name}"</span>? This deletes its opening
+              balance and adjustment history. It won't affect any transactions you've logged.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setAccToDelete(null)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={confirmDeleteAccount}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )
