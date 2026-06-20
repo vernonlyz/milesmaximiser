@@ -108,10 +108,11 @@ export default function Miles() {
     }
 
     // Seed a default standalone "KrisFlyer miles" balance once per user. Keyed in
-    // localStorage so it isn't recreated if the user later deletes it.
-    const seedKey = `milesKrisflyerSeeded:${user!.id}`
+    // localStorage so it isn't recreated if the user later deletes it. Match the
+    // exact name so a "UOB KrisFlyer Visa" card account doesn't suppress seeding.
+    const seedKey = `milesKrisflyerSeeded2:${user!.id}`
     if (!localStorage.getItem(seedKey)) {
-      const hasKrisflyer = acc.some(a => a.name.toLowerCase().includes('krisflyer'))
+      const hasKrisflyer = acc.some(a => a.name.trim().toLowerCase() === 'krisflyer miles')
       if (!hasKrisflyer) {
         await supabase.from('miles_accounts').insert({
           user_id: user!.id, name: 'KrisFlyer miles', opening_miles: 0, as_of_date: today(),
