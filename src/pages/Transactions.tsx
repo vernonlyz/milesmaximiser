@@ -30,6 +30,7 @@ export default function Transactions() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<TransactionFormData>(EMPTY_FORM)
   const [favourites, setFavourites] = useState<TransactionFavourite[]>([])
+  const [favToDelete, setFavToDelete] = useState<TransactionFavourite | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -400,10 +401,11 @@ export default function Transactions() {
     loadFavourites()
   }
 
-  async function deleteFavourite(f: TransactionFavourite) {
-    if (!confirm(`Remove the favourite "${f.label}"?`)) return
-    await supabase.from('transaction_favourites').delete().eq('id', f.id)
-    setFavourites(prev => prev.filter(x => x.id !== f.id))
+  async function confirmDeleteFavourite() {
+    if (!favToDelete) return
+    await supabase.from('transaction_favourites').delete().eq('id', favToDelete.id)
+    setFavourites(prev => prev.filter(x => x.id !== favToDelete.id))
+    setFavToDelete(null)
   }
 
   // Active transaction pool — current year from AppContext, previous years from Supabase
@@ -850,7 +852,7 @@ export default function Transactions() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteFavourite(f)}
+                      onClick={() => setFavToDelete(f)}
                       title="Delete favourite"
                       className="text-amber-400 hover:text-red-500 pr-1.5 py-1"
                     >
@@ -1299,6 +1301,26 @@ export default function Transactions() {
             <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
               {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {favToDelete && (
+        <Modal title="Remove favourite" onClose={() => setFavToDelete(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Remove <span className="font-semibold text-gray-900">"{favToDelete.label}"</span> from your favourites?
+              This won't affect any transactions you've already logged.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setFavToDelete(null)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={confirmDeleteFavourite}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
           </div>
         </Modal>
       )}
