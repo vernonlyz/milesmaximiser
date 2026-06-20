@@ -168,6 +168,13 @@ export default function Transactions() {
       const newCard = cards.find(c => c.id === v)
       setPaymentChannel(newCard?.default_payment_channel ?? null)
     }
+    if (k === 'category_id') {
+      // Online Shopping is inherently card-not-present, so default its channel to
+      // 'online' — this keeps it in the Online Shopping cap rather than a card's
+      // contactless cap (e.g. UOB Preferred Platinum defaults to contactless).
+      const cat = categories.find(c => c.id === v)
+      if (cat?.name === 'Online Shopping') setPaymentChannel('online')
+    }
     setForm(f => ({ ...f, [k]: v }))
   }
 
