@@ -571,9 +571,14 @@ export default function Miles() {
                             <button
                               key={c.id}
                               onClick={() => moveCardToAccount(c.id, account.id)}
-                              className="block w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 text-gray-700"
+                              className="flex items-center gap-2 w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 text-gray-700"
                             >
-                              {c.name}
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ background: c.color ?? '#6366f1' }}
+                              />
+                              <span className="font-medium text-gray-700">{c.bank}</span>
+                              <span className="text-gray-500">{c.name}</span>
                             </button>
                           ))}
                         </div>
