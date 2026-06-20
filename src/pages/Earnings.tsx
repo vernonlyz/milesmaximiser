@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TrendingUp, CalendarDays, FileText } from 'lucide-react'
+import { TrendingUp, CalendarDays, FileText, ChevronDown, ChevronRight, BarChart2, List } from 'lucide-react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -42,12 +42,56 @@ function statementRangeLabel(year: number, monthIdx: number, day: number): strin
   return `${start.getDate()} ${MONTHS[start.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]}`
 }
 
+const compact = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n)
+
+interface ChartRow { month: string; earned: number; cumulative: number }
+
+// Build chart rows (monthly earned + running cumulative) from a 12-month array.
+function buildRows(months: number[], lastMonthIdx: number): ChartRow[] {
+  let running = 0
+  const rows: ChartRow[] = []
+  for (let i = 0; i <= lastMonthIdx; i++) {
+    running += months[i]
+    rows.push({ month: MONTHS[i], earned: Math.round(months[i]), cumulative: Math.round(running) })
+  }
+  return rows
+}
+
+function EarnChart({ data, height }: { data: ChartRow[]; height: number }) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+        <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={compact} />
+        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={compact} />
+        <Tooltip
+          formatter={(value, name) => [Math.round(Number(value)).toLocaleString(), name === 'earned' ? 'This month' : 'Cumulative']}
+          contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+        />
+        <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => v === 'earned' ? 'This month' : 'Cumulative'} />
+        <Bar yAxisId="left" dataKey="earned" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />
+        <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#059669" strokeWidth={2} dot={{ r: 3 }} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  )
+}
+
 export default function Earnings() {
   const { cards, statementDays } = useApp()
   const nowYear = new Date().getFullYear()
   const [year, setYear] = useState(nowYear)
   const [txns, setTxns] = useState<EarnRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [cardView, setCardView] = useState<Record<string, 'chart' | 'numbers'>>({})
+
+  function toggleCollapse(id: string) {
+    setCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function setView(id: string, v: 'chart' | 'numbers') {
+    setCardView(prev => ({ ...prev, [id]: v }))
+  }
 
   const milesCards = useMemo(() => cards.filter(c => c.card_type === 'miles'), [cards])
   const years = Array.from({ length: nowYear - START_YEAR + 1 }, (_, i) => START_YEAR + i)
@@ -89,17 +133,10 @@ export default function Earnings() {
 
   // Combined monthly totals across all cards, with a running cumulative total.
   const chartData = useMemo(() => {
-    let running = 0
-    const rows = []
-    for (let idx = 0; idx <= lastMonthIdx; idx++) {
-      const earned = perCard.reduce((s, c) => s + c.months[idx], 0)
-      running += earned
-      rows.push({ month: MONTHS[idx], earned: Math.round(earned), cumulative: Math.round(running) })
-    }
-    return rows
+    const months = new Array(12).fill(0)
+    for (const c of perCard) for (let i = 0; i < 12; i++) months[i] += c.months[i]
+    return buildRows(months, lastMonthIdx)
   }, [perCard, lastMonthIdx])
-
-  const compact = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n)
 
   return (
     <div className="space-y-6">
@@ -134,36 +171,11 @@ export default function Earnings() {
         </div>
       </div>
 
-      {/* Chart: monthly bars + cumulative line */}
+      {/* Combined chart: monthly bars + cumulative line across all cards */}
       {!loading && milesCards.length > 0 && chartData.length > 0 && (
         <div className="card p-5">
-          <p className="text-sm font-semibold text-gray-800 mb-4">Earned per month &amp; cumulative</p>
-          <ResponsiveContainer width="100%" height={280}>
-            <ComposedChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <YAxis
-                yAxisId="left"
-                tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
-                tickFormatter={compact}
-              />
-              <YAxis
-                yAxisId="right" orientation="right"
-                tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
-                tickFormatter={compact}
-              />
-              <Tooltip
-                formatter={(value, name) => [Math.round(Number(value)).toLocaleString(), name === 'earned' ? 'This month' : 'Cumulative']}
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: 12 }}
-                formatter={(v: string) => v === 'earned' ? 'This month' : 'Cumulative'}
-              />
-              <Bar yAxisId="left" dataKey="earned" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#059669" strokeWidth={2} dot={{ r: 3 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <p className="text-sm font-semibold text-gray-800 mb-4">All cards — earned per month &amp; cumulative</p>
+          <EarnChart data={chartData} height={280} />
         </div>
       )}
 
@@ -175,50 +187,90 @@ export default function Earnings() {
         </div>
       ) : (
         <div className="space-y-4">
-          {perCard.map(({ card, day, months, total }) => (
-            <div key={card.id} className="card p-5 space-y-3">
-              {/* Card header */}
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                  style={{ background: card.color ?? '#6366f1' }}
-                >
-                  {card.bank.slice(0, 2).toUpperCase()}
+          {perCard.map(({ card, day, months, total }) => {
+            const isCollapsed = collapsed.has(card.id)
+            const view = cardView[card.id] ?? 'chart'
+            return (
+              <div key={card.id} className="card p-5 space-y-3">
+                {/* Card header */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggleCollapse(card.id)}
+                    className="shrink-0 text-gray-300 hover:text-gray-500 transition-colors"
+                    title={isCollapsed ? 'Expand' : 'Collapse'}
+                  >
+                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  <div
+                    className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                    style={{ background: card.color ?? '#6366f1' }}
+                  >
+                    {card.bank.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{card.bank} {card.name}</p>
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      {day === 0
+                        ? <><CalendarDays size={11} /> Calendar month</>
+                        : <><FileText size={11} /> Statement cycle · closes day {day}</>}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xl font-bold text-indigo-600">{Math.round(total).toLocaleString()}</p>
+                    <p className="text-xs text-gray-400">miles in {year}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{card.bank} {card.name}</p>
-                  <p className="text-xs text-gray-400 flex items-center gap-1">
-                    {day === 0
-                      ? <><CalendarDays size={11} /> Calendar month</>
-                      : <><FileText size={11} /> Statement cycle · closes day {day}</>}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xl font-bold text-indigo-600">{Math.round(total).toLocaleString()}</p>
-                  <p className="text-xs text-gray-400">miles in {year}</p>
-                </div>
-              </div>
 
-              {/* Monthly breakdown */}
-              <div className="border-t border-gray-100 pt-1">
-                {months.map((miles, idx) => {
-                  if (idx > lastMonthIdx) return null
-                  return (
-                    <div key={idx} className="flex items-center gap-3 py-1.5 text-sm border-b border-gray-50 last:border-0">
-                      <span className="w-12 shrink-0 font-medium text-gray-700">{MONTHS[idx]}</span>
-                      {day !== 0 && (
-                        <span className="text-xs text-gray-400 shrink-0 w-32">{statementRangeLabel(year, idx, day)}</span>
-                      )}
-                      <span className="flex-1" />
-                      <span className={`font-medium tabular-nums ${miles > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
-                        {miles > 0 ? Math.round(miles).toLocaleString() : '—'}
-                      </span>
+                {!isCollapsed && (
+                  <>
+                    {/* Chart / Numbers toggle */}
+                    <div className="flex justify-end">
+                      <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                        <button
+                          onClick={() => setView(card.id, 'chart')}
+                          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
+                            view === 'chart' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          <BarChart2 size={12} /> Chart
+                        </button>
+                        <button
+                          onClick={() => setView(card.id, 'numbers')}
+                          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors ${
+                            view === 'numbers' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          <List size={12} /> Numbers
+                        </button>
+                      </div>
                     </div>
-                  )
-                })}
+
+                    {view === 'chart' ? (
+                      <EarnChart data={buildRows(months, lastMonthIdx)} height={220} />
+                    ) : (
+                      <div className="border-t border-gray-100 pt-1">
+                        {months.map((miles, idx) => {
+                          if (idx > lastMonthIdx) return null
+                          return (
+                            <div key={idx} className="flex items-center gap-3 py-1.5 text-sm border-b border-gray-50 last:border-0">
+                              <span className="w-12 shrink-0 font-medium text-gray-700">{MONTHS[idx]}</span>
+                              {day !== 0 && (
+                                <span className="text-xs text-gray-400 shrink-0 w-32">{statementRangeLabel(year, idx, day)}</span>
+                              )}
+                              <span className="flex-1" />
+                              <span className={`font-medium tabular-nums ${miles > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
+                                {miles > 0 ? Math.round(miles).toLocaleString() : '—'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
