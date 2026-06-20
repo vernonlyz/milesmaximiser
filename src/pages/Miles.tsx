@@ -463,15 +463,7 @@ export default function Miles() {
                     className="input text-xs py-1 w-36"
                   />
                   {d.expiry ? (
-                    <>
-                      <ExpiryBadge dateStr={d.expiry} />
-                      <button
-                        onClick={() => setDraft(account.id, { expiry: '' })}
-                        className="text-xs text-gray-400 hover:text-gray-600 underline"
-                      >
-                        Set no expiry
-                      </button>
-                    </>
+                    <ExpiryBadge dateStr={d.expiry} />
                   ) : (
                     <span className="inline-flex items-center gap-1 text-xs text-gray-400">
                       <InfinityIcon size={13} /> No expiry — you won't be warned
