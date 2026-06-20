@@ -95,7 +95,7 @@ export default function Miles() {
       for (const card of orphans) {
         const { data: created } = await supabase
           .from('miles_accounts')
-          .insert({ user_id: user!.id, name: card.name, opening_miles: 0, as_of_date: today() })
+          .insert({ user_id: user!.id, name: `${card.bank} ${card.name}`, opening_miles: 0, as_of_date: today() })
           .select()
           .single()
         if (created) {
@@ -111,6 +111,30 @@ export default function Miles() {
       acc = (a2.data as MilesAccount[]) ?? []
       lnk = (l2.data as MilesAccountCard[]) ?? []
     }
+
+    // Normalize default names to "Bank CardName" for pool-of-one accounts the
+    // user hasn't renamed (covers older auto-created and migrated 'Card balance' rows).
+    const cba = new Map<string, string[]>()
+    for (const l of lnk) {
+      const arr = cba.get(l.account_id) ?? []
+      arr.push(l.card_id)
+      cba.set(l.account_id, arr)
+    }
+    const nameUpdates: Promise<unknown>[] = []
+    acc = acc.map(account => {
+      const cardIds = cba.get(account.id) ?? []
+      if (cardIds.length !== 1) return account
+      const card = cardById.get(cardIds[0])
+      if (!card) return account
+      const desired = `${card.bank} ${card.name}`
+      const isDefault = account.name === card.name || account.name === 'Card balance'
+      if (isDefault && account.name !== desired) {
+        nameUpdates.push(supabase.from('miles_accounts').update({ name: desired }).eq('id', account.id))
+        return { ...account, name: desired }
+      }
+      return account
+    })
+    if (nameUpdates.length > 0) await Promise.all(nameUpdates)
 
     setAccounts(acc)
     setLinks(lnk)
@@ -260,9 +284,10 @@ export default function Miles() {
   // Split a card out of a multi-card pool into its own new account.
   async function ungroupCard(cardId: string) {
     const card = cardById.get(cardId)
+    const name = card ? `${card.bank} ${card.name}` : 'Card balance'
     const { data: created } = await supabase
       .from('miles_accounts')
-      .insert({ user_id: user!.id, name: card?.name ?? 'Card balance', opening_miles: 0, as_of_date: today() })
+      .insert({ user_id: user!.id, name, opening_miles: 0, as_of_date: today() })
       .select()
       .single()
     if (created) {
