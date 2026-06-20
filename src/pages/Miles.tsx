@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
-import { Award, AlertTriangle, AlertCircle, CalendarClock, Save } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight,
+} from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { MilesAccount, MilesAccountCard, MilesAdjustment } from '../lib/types'
 
-interface MilesBalance {
-  card_id: string
-  opening_miles: number
-  expiry_date: string | null
+interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 function monthsUntil(dateStr: string): number {
@@ -16,10 +19,12 @@ function monthsUntil(dateStr: string): number {
   return (expiry.getFullYear() - now.getFullYear()) * 12 + (expiry.getMonth() - now.getMonth())
 }
 
+function fmtDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 function ExpiryBadge({ dateStr }: { dateStr: string }) {
   const months = monthsUntil(dateStr)
-  const display = new Date(dateStr).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
-
   if (months < 0) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
@@ -30,13 +35,13 @@ function ExpiryBadge({ dateStr }: { dateStr: string }) {
   if (months < 6) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-        <AlertTriangle size={11} /> Expiring {display}
+        <AlertTriangle size={11} /> Expires {fmtDate(dateStr)}
       </span>
     )
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-      <CalendarClock size={11} /> Expires {display}
+      <CalendarClock size={11} /> Expires {fmtDate(dateStr)}
     </span>
   )
 }
@@ -45,72 +50,216 @@ export default function Miles() {
   const { cards } = useApp()
   const { user } = useAuth()
 
-  const [balances, setBalances] = useState<Record<string, MilesBalance>>({})
-  const [earned, setEarned] = useState<Record<string, number>>({})
-  const [drafts, setDrafts] = useState<Record<string, { opening: string; expiry: string }>>({})
-  const [saving, setSaving] = useState<string | null>(null)
+  const [accounts, setAccounts] = useState<MilesAccount[]>([])
+  const [links, setLinks] = useState<MilesAccountCard[]>([])
+  const [adjustments, setAdjustments] = useState<MilesAdjustment[]>([])
+  const [earn, setEarn] = useState<EarnRow[]>([])
   const [loading, setLoading] = useState(true)
 
-  const milesCards = cards.filter(c => c.card_type === 'miles')
+  // Per-account UI state
+  const [drafts, setDrafts] = useState<Record<string, { name: string; opening: string; asOf: string; expiry: string }>>({})
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [ledgerOpen, setLedgerOpen] = useState<Set<string>>(new Set())
+  const [adjFormFor, setAdjFormFor] = useState<string | null>(null)
+  const [adjDraft, setAdjDraft] = useState({ date: today(), miles: '', type: 'redeem' as 'redeem' | 'bonus', note: '' })
+  const [addCardFor, setAddCardFor] = useState<string | null>(null)
+
+  const milesCards = useMemo(() => cards.filter(c => c.card_type === 'miles'), [cards])
+  const cardById = useMemo(() => new Map(cards.map(c => [c.id, c])), [cards])
 
   useEffect(() => {
-    Promise.all([loadBalances(), loadEarned()]).finally(() => setLoading(false))
-  }, [])
+    if (milesCards.length > 0) reload()
+    else setLoading(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [milesCards.length])
 
-  async function loadBalances() {
-    const { data } = await supabase.from('miles_balances').select('card_id, opening_miles, expiry_date')
-    const map: Record<string, MilesBalance> = {}
-    for (const row of (data ?? []) as MilesBalance[]) map[row.card_id] = row
-    setBalances(map)
-  }
+  async function reload() {
+    const [accRes, linkRes, adjRes, earnRes] = await Promise.all([
+      supabase.from('miles_accounts').select('*').order('name'),
+      supabase.from('miles_account_cards').select('*'),
+      supabase.from('miles_adjustments').select('*').order('adjustment_date', { ascending: false }),
+      supabase.from('transactions').select('card_id, miles_earned, transaction_date'),
+    ])
+    let acc = (accRes.data as MilesAccount[]) ?? []
+    let lnk = (linkRes.data as MilesAccountCard[]) ?? []
 
-  async function loadEarned() {
-    const { data } = await supabase.from('transactions').select('card_id, miles_earned')
-    const map: Record<string, number> = {}
-    for (const t of (data ?? []) as { card_id: string | null; miles_earned: number | null }[]) {
-      if (t.card_id && t.miles_earned) map[t.card_id] = (map[t.card_id] ?? 0) + t.miles_earned
+    // Auto-create a pool-of-one account for any wallet miles card not yet linked.
+    const linked = new Set(lnk.map(l => l.card_id))
+    const orphans = milesCards.filter(c => !linked.has(c.id))
+    if (orphans.length > 0) {
+      for (const card of orphans) {
+        const { data: created } = await supabase
+          .from('miles_accounts')
+          .insert({ user_id: user!.id, name: card.name, opening_miles: 0, as_of_date: today() })
+          .select()
+          .single()
+        if (created) {
+          await supabase.from('miles_account_cards').insert({
+            account_id: (created as MilesAccount).id, card_id: card.id, user_id: user!.id,
+          })
+        }
+      }
+      const [a2, l2] = await Promise.all([
+        supabase.from('miles_accounts').select('*').order('name'),
+        supabase.from('miles_account_cards').select('*'),
+      ])
+      acc = (a2.data as MilesAccount[]) ?? []
+      lnk = (l2.data as MilesAccountCard[]) ?? []
     }
-    setEarned(map)
+
+    setAccounts(acc)
+    setLinks(lnk)
+    setAdjustments((adjRes.data as MilesAdjustment[]) ?? [])
+    setEarn((earnRes.data as EarnRow[]) ?? [])
+    setLoading(false)
   }
 
-  function getDraft(cardId: string) {
-    if (drafts[cardId]) return drafts[cardId]
-    const b = balances[cardId]
-    return { opening: String(b?.opening_miles ?? 0), expiry: b?.expiry_date ?? '' }
+  // ---- derived lookups ----
+  const cardsByAccount = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const l of links) {
+      const arr = m.get(l.account_id) ?? []
+      arr.push(l.card_id)
+      m.set(l.account_id, arr)
+    }
+    return m
+  }, [links])
+
+  const adjByAccount = useMemo(() => {
+    const m = new Map<string, MilesAdjustment[]>()
+    for (const a of adjustments) {
+      const arr = m.get(a.account_id) ?? []
+      arr.push(a)
+      m.set(a.account_id, arr)
+    }
+    return m
+  }, [adjustments])
+
+  function earnedFor(account: MilesAccount): number {
+    const cardIds = new Set(cardsByAccount.get(account.id) ?? [])
+    let sum = 0
+    for (const t of earn) {
+      if (t.card_id && cardIds.has(t.card_id) && t.miles_earned && t.transaction_date > account.as_of_date) {
+        sum += t.miles_earned
+      }
+    }
+    return Math.round(sum)
   }
 
-  function setDraft(cardId: string, field: 'opening' | 'expiry', value: string) {
-    setDrafts(prev => ({
-      ...prev,
-      [cardId]: { ...getDraft(cardId), [field]: value },
-    }))
+  // Only adjustments after the snapshot count toward the total — earlier ones are
+  // already baked into opening_miles (this keeps reconcile from double-counting).
+  function adjSum(account: MilesAccount): number {
+    return (adjByAccount.get(account.id) ?? [])
+      .filter(a => a.adjustment_date > account.as_of_date)
+      .reduce((s, a) => s + a.miles, 0)
   }
 
-  function isDirty(cardId: string) {
-    const d = getDraft(cardId)
-    const b = balances[cardId]
+  function draftFor(a: MilesAccount) {
+    return drafts[a.id] ?? {
+      name: a.name,
+      opening: String(a.opening_miles),
+      asOf: a.as_of_date,
+      expiry: a.expiry_date ?? '',
+    }
+  }
+
+  function setDraft(id: string, patch: Partial<{ name: string; opening: string; asOf: string; expiry: string }>) {
+    setDrafts(prev => {
+      const base = prev[id] ?? draftFor(accounts.find(a => a.id === id)!)
+      return { ...prev, [id]: { ...base, ...patch } }
+    })
+  }
+
+  function isDirty(a: MilesAccount) {
+    const d = drafts[a.id]
+    if (!d) return false
     return (
-      parseInt(d.opening || '0') !== (b?.opening_miles ?? 0) ||
-      (d.expiry || null) !== (b?.expiry_date ?? null)
+      d.name !== a.name ||
+      (parseInt(d.opening || '0') || 0) !== a.opening_miles ||
+      d.asOf !== a.as_of_date ||
+      (d.expiry || null) !== (a.expiry_date ?? null)
     )
   }
 
-  async function handleSave(cardId: string) {
-    const d = getDraft(cardId)
-    setSaving(cardId)
-    await supabase.from('miles_balances').upsert(
-      {
-        user_id: user!.id,
-        card_id: cardId,
-        opening_miles: parseInt(d.opening || '0') || 0,
-        expiry_date: d.expiry || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,card_id' }
-    )
-    await loadBalances()
-    setDrafts(prev => { const next = { ...prev }; delete next[cardId]; return next })
-    setSaving(null)
+  async function saveAccount(a: MilesAccount) {
+    const d = draftFor(a)
+    setSavingId(a.id)
+    await supabase.from('miles_accounts').update({
+      name: d.name.trim() || a.name,
+      opening_miles: parseInt(d.opening || '0') || 0,
+      as_of_date: d.asOf,
+      expiry_date: d.expiry || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', a.id)
+    setDrafts(prev => { const n = { ...prev }; delete n[a.id]; return n })
+    setSavingId(null)
+    reload()
+  }
+
+  // ---- reconcile: set opening = current total, as-of = today, clears running drift ----
+  async function reconcile(a: MilesAccount) {
+    const total = a.opening_miles + earnedFor(a) + adjSum(a)
+    await supabase.from('miles_accounts').update({
+      opening_miles: total,
+      as_of_date: today(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', a.id)
+    reload()
+  }
+
+  // ---- adjustments ----
+  async function addAdjustment(accountId: string) {
+    const magnitude = Math.abs(parseInt(adjDraft.miles || '0') || 0)
+    if (magnitude === 0) return
+    const signed = adjDraft.type === 'redeem' ? -magnitude : magnitude
+    await supabase.from('miles_adjustments').insert({
+      account_id: accountId,
+      user_id: user!.id,
+      adjustment_date: adjDraft.date,
+      miles: signed,
+      note: adjDraft.note.trim() || null,
+    })
+    setAdjFormFor(null)
+    setAdjDraft({ date: today(), miles: '', type: 'redeem', note: '' })
+    reload()
+  }
+
+  async function deleteAdjustment(id: string) {
+    await supabase.from('miles_adjustments').delete().eq('id', id)
+    reload()
+  }
+
+  // ---- pooling ----
+  // Move a card into an existing account; delete the source account if it becomes empty.
+  async function moveCardToAccount(cardId: string, targetAccountId: string) {
+    const sourceId = links.find(l => l.card_id === cardId)?.account_id
+    await supabase.from('miles_account_cards').delete().eq('card_id', cardId)
+    await supabase.from('miles_account_cards').insert({
+      account_id: targetAccountId, card_id: cardId, user_id: user!.id,
+    })
+    if (sourceId && sourceId !== targetAccountId) {
+      const remaining = (cardsByAccount.get(sourceId) ?? []).filter(c => c !== cardId)
+      if (remaining.length === 0) await supabase.from('miles_accounts').delete().eq('id', sourceId)
+    }
+    setAddCardFor(null)
+    reload()
+  }
+
+  // Split a card out of a multi-card pool into its own new account.
+  async function ungroupCard(cardId: string) {
+    const card = cardById.get(cardId)
+    const { data: created } = await supabase
+      .from('miles_accounts')
+      .insert({ user_id: user!.id, name: card?.name ?? 'Card balance', opening_miles: 0, as_of_date: today() })
+      .select()
+      .single()
+    if (created) {
+      await supabase.from('miles_account_cards').delete().eq('card_id', cardId)
+      await supabase.from('miles_account_cards').insert({
+        account_id: (created as MilesAccount).id, card_id: cardId, user_id: user!.id,
+      })
+    }
+    reload()
   }
 
   if (loading) return <p className="text-sm text-gray-400 p-4">Loading…</p>
@@ -123,7 +272,8 @@ export default function Miles() {
           Miles Balance
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Track your miles across wallet cards. Set an opening balance and expiry date per card.
+          Total = opening balance + miles earned since the snapshot date + redemptions &amp; bonuses.
+          Group cards that share one pool (e.g. UOB).
         </p>
       </div>
 
@@ -132,28 +282,48 @@ export default function Miles() {
           No miles cards in your wallet yet. Add cards in My Cards first.
         </div>
       ) : (
-        <div className="space-y-3">
-          {milesCards.map(card => {
-            const draft = getDraft(card.id)
-            const earnedMiles = Math.round(earned[card.id] ?? 0)
-            const openingMiles = parseInt(draft.opening || '0') || 0
-            const total = openingMiles + earnedMiles
-            const dirty = isDirty(card.id)
-            const isSaving = saving === card.id
+        <div className="space-y-4">
+          {accounts.map(account => {
+            const d = draftFor(account)
+            const linkedCards = (cardsByAccount.get(account.id) ?? []).map(id => cardById.get(id)).filter(Boolean)
+            const earned = earnedFor(account)
+            const opening = parseInt(d.opening || '0') || 0
+            const net = adjSum(account)
+            const total = opening + earned + net
+            const ledger = adjByAccount.get(account.id) ?? []
+            const dirty = isDirty(account)
+            const isPool = linkedCards.length > 1
+            const otherCards = milesCards.filter(c => !(cardsByAccount.get(account.id) ?? []).includes(c.id))
 
             return (
-              <div key={card.id} className="card p-5 space-y-4">
-                {/* Card header */}
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                    style={{ background: card.color ?? '#6366f1' }}
-                  >
-                    {card.bank.slice(0, 2).toUpperCase()}
+              <div key={account.id} className="card p-5 space-y-4">
+                {/* Header */}
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center bg-indigo-100 text-indigo-600">
+                    {isPool ? <Layers size={16} /> : <Award size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm truncate">{card.name}</p>
-                    <p className="text-xs text-gray-400">{card.bank}</p>
+                    <input
+                      value={d.name}
+                      onChange={e => setDraft(account.id, { name: e.target.value })}
+                      className="font-semibold text-gray-900 text-sm bg-transparent border-b border-transparent hover:border-gray-200 focus:border-indigo-400 focus:outline-none w-full"
+                    />
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {linkedCards.map(c => (
+                        <span key={c!.id} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 rounded-full pl-2 pr-1 py-0.5">
+                          {c!.name}
+                          {isPool && (
+                            <button
+                              onClick={() => ungroupCard(c!.id)}
+                              title="Remove from pool"
+                              className="text-gray-400 hover:text-red-500"
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-2xl font-bold text-indigo-600">{total.toLocaleString()}</p>
@@ -161,49 +331,173 @@ export default function Miles() {
                   </div>
                 </div>
 
-                {/* Miles breakdown */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Opening balance</p>
+                {/* Breakdown */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-gray-50 rounded-lg p-2.5">
+                    <p className="text-xs text-gray-500 mb-1">Opening</p>
                     <input
-                      type="number"
-                      min="0"
-                      step="100"
-                      value={draft.opening}
-                      onChange={e => setDraft(card.id, 'opening', e.target.value)}
-                      placeholder="0"
+                      type="number" step="100" min="0"
+                      value={d.opening}
+                      onChange={e => setDraft(account.id, { opening: e.target.value })}
                       className="input text-sm py-1 w-full"
                     />
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      as of <input
+                        type="date"
+                        value={d.asOf}
+                        onChange={e => setDraft(account.id, { asOf: e.target.value })}
+                        className="bg-transparent text-[11px] text-gray-500 focus:outline-none"
+                      />
+                    </p>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">App-tracked (all time)</p>
-                    <p className="text-sm font-semibold text-gray-800 pt-1.5">{earnedMiles.toLocaleString()} miles</p>
+                  <div className="bg-gray-50 rounded-lg p-2.5">
+                    <p className="text-xs text-gray-500 mb-1">Earned (since)</p>
+                    <p className="text-sm font-semibold text-emerald-600 pt-1.5">+{earned.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2.5">
+                    <p className="text-xs text-gray-500 mb-1">Adjustments</p>
+                    <p className={`text-sm font-semibold pt-1.5 ${net < 0 ? 'text-red-500' : net > 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                      {net > 0 ? '+' : ''}{net.toLocaleString()}
+                    </p>
                   </div>
                 </div>
 
-                {/* Expiry row */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <label className="text-xs text-gray-500 shrink-0">Expiry date</label>
-                    <input
-                      type="date"
-                      value={draft.expiry}
-                      onChange={e => setDraft(card.id, 'expiry', e.target.value)}
-                      className="input text-xs py-1 w-36"
-                    />
-                    {draft.expiry && <ExpiryBadge dateStr={draft.expiry} />}
-                    {!draft.expiry && (
-                      <span className="text-xs text-gray-400">{card.mile_validity ?? 'No expiry info'}</span>
-                    )}
+                {/* Expiry */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-xs text-gray-500 shrink-0">Expiry</label>
+                  <input
+                    type="date"
+                    value={d.expiry}
+                    onChange={e => setDraft(account.id, { expiry: e.target.value })}
+                    className="input text-xs py-1 w-36"
+                  />
+                  {d.expiry && <ExpiryBadge dateStr={d.expiry} />}
+                </div>
+
+                {/* Ledger */}
+                <div className="border-t border-gray-100 pt-3">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setLedgerOpen(prev => {
+                        const n = new Set(prev); n.has(account.id) ? n.delete(account.id) : n.add(account.id); return n
+                      })}
+                      className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900"
+                    >
+                      {ledgerOpen.has(account.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      Redemptions &amp; bonuses ({ledger.length})
+                    </button>
+                    <button
+                      onClick={() => { setAdjFormFor(adjFormFor === account.id ? null : account.id); setAddCardFor(null) }}
+                      className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                    >
+                      <Plus size={13} /> Add
+                    </button>
                   </div>
+
+                  {adjFormFor === account.id && (
+                    <div className="mt-3 bg-indigo-50/60 border border-indigo-100 rounded-lg p-3 space-y-2">
+                      <div className="flex gap-2">
+                        {(['redeem', 'bonus'] as const).map(t => (
+                          <button
+                            key={t}
+                            onClick={() => setAdjDraft(p => ({ ...p, type: t }))}
+                            className={`flex-1 py-1 rounded-md text-xs font-medium border transition-colors ${
+                              adjDraft.type === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200'
+                            }`}
+                          >
+                            {t === 'redeem' ? '− Redemption' : '+ Bonus / transfer'}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="date" value={adjDraft.date}
+                          onChange={e => setAdjDraft(p => ({ ...p, date: e.target.value }))}
+                          className="input text-xs py-1 w-32"
+                        />
+                        <input
+                          type="number" min="0" step="100" placeholder="miles"
+                          value={adjDraft.miles}
+                          onChange={e => setAdjDraft(p => ({ ...p, miles: e.target.value }))}
+                          className="input text-xs py-1 flex-1"
+                        />
+                      </div>
+                      <input
+                        placeholder="Note (e.g. SQ to Tokyo)"
+                        value={adjDraft.note}
+                        onChange={e => setAdjDraft(p => ({ ...p, note: e.target.value }))}
+                        className="input text-xs py-1 w-full"
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => addAdjustment(account.id)} className="btn-primary text-xs py-1 flex-1">Add entry</button>
+                        <button onClick={() => setAdjFormFor(null)} className="text-xs text-gray-500 px-3">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {ledgerOpen.has(account.id) && ledger.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {ledger.map(adj => {
+                        const bakedIn = adj.adjustment_date <= account.as_of_date
+                        return (
+                          <div key={adj.id} className={`flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0 ${bakedIn ? 'opacity-40' : ''}`}>
+                            <span className="text-gray-400 w-20 shrink-0">{fmtDate(adj.adjustment_date)}</span>
+                            <span className={`font-medium w-20 shrink-0 ${adj.miles < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                              {adj.miles > 0 ? '+' : ''}{adj.miles.toLocaleString()}
+                            </span>
+                            <span className="text-gray-600 flex-1 truncate">
+                              {adj.note ?? '—'}{bakedIn && <span className="text-gray-400"> · in opening</span>}
+                            </span>
+                            <button onClick={() => deleteAdjustment(adj.id)} className="text-gray-300 hover:text-red-500 shrink-0">
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 pt-3">
+                  {otherCards.length > 0 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => { setAddCardFor(addCardFor === account.id ? null : account.id); setAdjFormFor(null) }}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5"
+                      >
+                        <Layers size={12} /> Add card to pool
+                      </button>
+                      {addCardFor === account.id && (
+                        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px]">
+                          {otherCards.map(c => (
+                            <button
+                              key={c.id}
+                              onClick={() => moveCardToAccount(c.id, account.id)}
+                              className="block w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 text-gray-700"
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => reconcile(account)}
+                    title="Set opening to current total as of today"
+                    className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5"
+                  >
+                    <RotateCcw size={12} /> Reconcile
+                  </button>
                   {dirty && (
                     <button
-                      onClick={() => handleSave(card.id)}
-                      disabled={isSaving}
-                      className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 shrink-0"
+                      onClick={() => saveAccount(account)}
+                      disabled={savingId === account.id}
+                      className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 ml-auto"
                     >
                       <Save size={12} />
-                      {isSaving ? 'Saving…' : 'Save'}
+                      {savingId === account.id ? 'Saving…' : 'Save'}
                     </button>
                   )}
                 </div>

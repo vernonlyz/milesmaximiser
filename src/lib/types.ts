@@ -142,6 +142,35 @@ export interface CategoryOverride {
   created_at: string
 }
 
+// A miles balance owner. One card = pool-of-one; UOB-style pooling = many cards.
+export interface MilesAccount {
+  id: string
+  user_id: string
+  name: string
+  opening_miles: number
+  as_of_date: string   // snapshot date; app-tracked miles only count txns after this
+  expiry_date: string | null
+  updated_at: string
+}
+
+// Link: which cards feed an account (a card belongs to exactly one account).
+export interface MilesAccountCard {
+  account_id: string
+  card_id: string
+  user_id: string
+}
+
+// Dated manual adjustment: redemptions (negative) and bonuses/transfers (positive).
+export interface MilesAdjustment {
+  id: string
+  account_id: string
+  user_id: string
+  adjustment_date: string
+  miles: number
+  note: string | null
+  created_at: string
+}
+
 export interface TransactionFormData {
   card_id: string
   category_id: string
