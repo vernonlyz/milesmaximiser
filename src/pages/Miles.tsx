@@ -63,7 +63,8 @@ export default function Miles() {
   const [adjFormFor, setAdjFormFor] = useState<string | null>(null)
   const [adjDraft, setAdjDraft] = useState({ date: today(), miles: '', type: 'redeem' as 'redeem' | 'bonus', note: '' })
   const [addCardFor, setAddCardFor] = useState<string | null>(null)
-  const [helpOpen, setHelpOpen] = useState(() => localStorage.getItem('milesHelpCollapsed') !== '1')
+  // Collapsed by default; only expanded if the user previously opened it.
+  const [helpOpen, setHelpOpen] = useState(() => localStorage.getItem('milesHelpCollapsed') === '0')
 
   function toggleHelp() {
     setHelpOpen(o => { localStorage.setItem('milesHelpCollapsed', o ? '1' : '0'); return !o })
@@ -73,8 +74,7 @@ export default function Miles() {
   const cardById = useMemo(() => new Map(cards.map(c => [c.id, c])), [cards])
 
   useEffect(() => {
-    if (milesCards.length > 0) reload()
-    else setLoading(false)
+    reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [milesCards.length])
 
@@ -299,19 +299,70 @@ export default function Miles() {
     reload()
   }
 
+  // Create a standalone miles balance not tied to a card (e.g. KrisFlyer miles
+  // held directly from transfers). Total = opening + adjustments (no card earn).
+  async function addAccount() {
+    const name = window.prompt('Name this miles balance (e.g. KrisFlyer miles)', 'KrisFlyer miles')
+    if (name === null) return
+    await supabase.from('miles_accounts').insert({
+      user_id: user!.id,
+      name: name.trim() || 'Miles balance',
+      opening_miles: 0,
+      as_of_date: today(),
+    })
+    reload()
+  }
+
+  // Delete a standalone balance (no linked cards). Card-linked accounts are not
+  // deletable here — they'd just be auto-recreated from the wallet on reload.
+  async function deleteAccount(a: MilesAccount) {
+    if (!confirm(`Remove the balance "${a.name}"? This deletes its opening balance and adjustment history.`)) return
+    await supabase.from('miles_accounts').delete().eq('id', a.id)
+    reload()
+  }
+
+  // Total miles across every account, using live (possibly unsaved) opening edits.
+  const grandTotal = accounts.reduce((s, a) => {
+    const d = drafts[a.id]
+    const opening = d ? (parseInt(d.opening || '0') || 0) : a.opening_miles
+    return s + opening + earnedFor(a) + adjSum(a)
+  }, 0)
+
   if (loading) return <p className="text-sm text-gray-400 p-4">Loading…</p>
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Award size={22} className="text-indigo-500" />
-          Miles Balance
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Track how many miles you hold on each card, and when they expire.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Award size={22} className="text-indigo-500" />
+            Miles Balance
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Track how many miles you hold on each card, and when they expire.
+          </p>
+        </div>
+        <button
+          onClick={addAccount}
+          className="flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"
+        >
+          <Plus size={14} /> Add balance
+        </button>
       </div>
+
+      {/* Total across all accounts */}
+      {accounts.length > 0 && (
+        <div className="card p-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total miles</p>
+            <p className="text-3xl font-bold text-indigo-600 mt-0.5">{Math.round(grandTotal).toLocaleString()}</p>
+            <p className="text-xs text-gray-400">across {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+            <Award size={22} className="text-indigo-500" />
+          </div>
+        </div>
+      )}
 
       {/* How it works */}
       <div className="bg-indigo-50 border border-indigo-100 rounded-xl overflow-hidden">
@@ -359,9 +410,9 @@ export default function Miles() {
         )}
       </div>
 
-      {milesCards.length === 0 ? (
+      {accounts.length === 0 ? (
         <div className="card p-10 text-center text-gray-400 text-sm border-dashed border-2 border-gray-200">
-          No miles cards in your wallet yet. Add cards in My Cards first.
+          No miles balances yet. Add miles cards in My Cards, or tap "Add balance" to track miles directly.
         </div>
       ) : (
         <div className="space-y-4">
@@ -416,9 +467,20 @@ export default function Miles() {
                       ))}
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-2xl font-bold text-indigo-600">{total.toLocaleString()}</p>
-                    <p className="text-xs text-gray-400">total miles</p>
+                  <div className="flex items-start gap-2 shrink-0">
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-indigo-600">{total.toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">total miles</p>
+                    </div>
+                    {linkedCards.length === 0 && (
+                      <button
+                        onClick={() => deleteAccount(account)}
+                        title="Remove balance"
+                        className="text-gray-300 hover:text-red-500 transition-colors mt-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
