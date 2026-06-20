@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'SmileMax',
@@ -43,6 +43,12 @@ export default defineConfig({
         // Don't cache Supabase API calls
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
+        // Purge precaches from previous deploys and let the newest SW take
+        // over immediately — prevents blank screens from a stale index.html
+        // pointing at JS chunks that no longer exist.
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
