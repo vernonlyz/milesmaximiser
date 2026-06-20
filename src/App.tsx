@@ -13,6 +13,7 @@ import Admin from './pages/Admin'
 import Expenses from './pages/Expenses'
 import MileValue from './pages/MileValue'
 import Miles from './pages/Miles'
+import Earnings from './pages/Earnings'
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="expenses"     element={<Expenses />}     />
             <Route path="calculator"   element={<MileValue />}    />
             <Route path="miles"        element={<Miles />}        />
+            <Route path="earnings"     element={<Earnings />}     />
             <Route path="admin"        element={<Admin />}        />
           </Route>
         </Routes>

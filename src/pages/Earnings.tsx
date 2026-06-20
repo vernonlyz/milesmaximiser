@@ -1,0 +1,176 @@
+import { useEffect, useMemo, useState } from 'react'
+import { TrendingUp, CalendarDays, FileText } from 'lucide-react'
+import { useApp } from '../context/AppContext'
+import { supabase } from '../lib/supabase'
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const START_YEAR = 2024
+
+interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
+
+// Parse 'YYYY-MM-DD' into a local Date (avoids UTC shift from new Date(str)).
+function parseDate(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+// The effective statement closing day for a card: 0 means a plain calendar month.
+function closingDay(card: { cap_cycle: string }, statementDays: Map<string, number>, cardId: string): number {
+  if (card.cap_cycle !== 'statement') return 0
+  const d = statementDays.get(cardId)
+  return d && d > 1 ? d : 0
+}
+
+// Which (year, monthIdx) cycle a transaction belongs to.
+// For statement cards the cycle is labelled by its closing month.
+function cycleOf(dateStr: string, day: number): { year: number; monthIdx: number } {
+  const d = parseDate(dateStr)
+  if (day === 0 || d.getDate() < day) return { year: d.getFullYear(), monthIdx: d.getMonth() }
+  // day >= closing day: belongs to the cycle that closes next month
+  const c = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+  return { year: c.getFullYear(), monthIdx: c.getMonth() }
+}
+
+// Date range covered by a statement cycle closing on `day` of (year, monthIdx).
+function statementRangeLabel(year: number, monthIdx: number, day: number): string {
+  const start = new Date(year, monthIdx - 1, day)
+  const end = new Date(year, monthIdx, day)
+  end.setDate(end.getDate() - 1)
+  return `${start.getDate()} ${MONTHS[start.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]}`
+}
+
+export default function Earnings() {
+  const { cards, statementDays } = useApp()
+  const nowYear = new Date().getFullYear()
+  const [year, setYear] = useState(nowYear)
+  const [txns, setTxns] = useState<EarnRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const milesCards = useMemo(() => cards.filter(c => c.card_type === 'miles'), [cards])
+  const years = Array.from({ length: nowYear - START_YEAR + 1 }, (_, i) => START_YEAR + i)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    // Margin before/after the year so statement cycles straddling year ends are captured.
+    supabase
+      .from('transactions')
+      .select('card_id, miles_earned, transaction_date')
+      .gte('transaction_date', `${year - 1}-12-01`)
+      .lt('transaction_date', `${year + 1}-02-01`)
+      .then(({ data }) => {
+        if (!cancelled) { setTxns((data as EarnRow[]) ?? []); setLoading(false) }
+      })
+    return () => { cancelled = true }
+  }, [year])
+
+  // months to display: full year for past years, up to current month for this year
+  const lastMonthIdx = year < nowYear ? 11 : new Date().getMonth()
+
+  // Per-card: array of miles per monthIdx (0..11) plus total, for the selected year.
+  const perCard = useMemo(() => {
+    return milesCards.map(card => {
+      const day = closingDay(card, statementDays, card.id)
+      const months = new Array(12).fill(0)
+      for (const t of txns) {
+        if (t.card_id !== card.id || !t.miles_earned) continue
+        const { year: cy, monthIdx } = cycleOf(t.transaction_date, day)
+        if (cy === year) months[monthIdx] += t.miles_earned
+      }
+      const total = months.reduce((s, m) => s + m, 0)
+      return { card, day, months, total }
+    })
+  }, [milesCards, txns, statementDays, year])
+
+  const grandTotal = perCard.reduce((s, c) => s + c.total, 0)
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <TrendingUp size={22} className="text-indigo-500" />
+            Miles Earned
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Miles earned per billing cycle for each card — calendar month or statement cycle, per the card's setup.
+          </p>
+        </div>
+        <select
+          value={year}
+          onChange={e => setYear(Number(e.target.value))}
+          className="input text-sm py-1.5 w-28"
+        >
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {/* Year total */}
+      <div className="card p-5 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total earned in {year}</p>
+          <p className="text-3xl font-bold text-indigo-600 mt-0.5">{Math.round(grandTotal).toLocaleString()}</p>
+          <p className="text-xs text-gray-400">miles across {milesCards.length} card{milesCards.length === 1 ? '' : 's'}</p>
+        </div>
+        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+          <TrendingUp size={22} className="text-indigo-500" />
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : milesCards.length === 0 ? (
+        <div className="card p-10 text-center text-gray-400 text-sm border-dashed border-2 border-gray-200">
+          No miles cards in your wallet yet. Add cards in My Cards first.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {perCard.map(({ card, day, months, total }) => (
+            <div key={card.id} className="card p-5 space-y-3">
+              {/* Card header */}
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                  style={{ background: card.color ?? '#6366f1' }}
+                >
+                  {card.bank.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm truncate">{card.bank} {card.name}</p>
+                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                    {day === 0
+                      ? <><CalendarDays size={11} /> Calendar month</>
+                      : <><FileText size={11} /> Statement cycle · closes day {day}</>}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xl font-bold text-indigo-600">{Math.round(total).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400">miles in {year}</p>
+                </div>
+              </div>
+
+              {/* Monthly breakdown */}
+              <div className="border-t border-gray-100 pt-1">
+                {months.map((miles, idx) => {
+                  if (idx > lastMonthIdx) return null
+                  return (
+                    <div key={idx} className="flex items-center gap-3 py-1.5 text-sm border-b border-gray-50 last:border-0">
+                      <span className="w-12 shrink-0 font-medium text-gray-700">{MONTHS[idx]}</span>
+                      {day !== 0 && (
+                        <span className="text-xs text-gray-400 shrink-0 w-32">{statementRangeLabel(year, idx, day)}</span>
+                      )}
+                      <span className="flex-1" />
+                      <span className={`font-medium tabular-nums ${miles > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
+                        {miles > 0 ? Math.round(miles).toLocaleString() : '—'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
