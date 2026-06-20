@@ -88,22 +88,40 @@ export default function Miles() {
     let acc = (accRes.data as MilesAccount[]) ?? []
     let lnk = (linkRes.data as MilesAccountCard[]) ?? []
 
+    let mutated = false
+
     // Auto-create a pool-of-one account for any wallet miles card not yet linked.
     const linked = new Set(lnk.map(l => l.card_id))
     const orphans = milesCards.filter(c => !linked.has(c.id))
-    if (orphans.length > 0) {
-      for (const card of orphans) {
-        const { data: created } = await supabase
-          .from('miles_accounts')
-          .insert({ user_id: user!.id, name: `${card.bank} ${card.name}`, opening_miles: 0, as_of_date: today() })
-          .select()
-          .single()
-        if (created) {
-          await supabase.from('miles_account_cards').insert({
-            account_id: (created as MilesAccount).id, card_id: card.id, user_id: user!.id,
-          })
-        }
+    for (const card of orphans) {
+      const { data: created } = await supabase
+        .from('miles_accounts')
+        .insert({ user_id: user!.id, name: `${card.bank} ${card.name}`, opening_miles: 0, as_of_date: today() })
+        .select()
+        .single()
+      if (created) {
+        await supabase.from('miles_account_cards').insert({
+          account_id: (created as MilesAccount).id, card_id: card.id, user_id: user!.id,
+        })
+        mutated = true
       }
+    }
+
+    // Seed a default standalone "KrisFlyer miles" balance once per user. Keyed in
+    // localStorage so it isn't recreated if the user later deletes it.
+    const seedKey = `milesKrisflyerSeeded:${user!.id}`
+    if (!localStorage.getItem(seedKey)) {
+      const hasKrisflyer = acc.some(a => a.name.toLowerCase().includes('krisflyer'))
+      if (!hasKrisflyer) {
+        await supabase.from('miles_accounts').insert({
+          user_id: user!.id, name: 'KrisFlyer miles', opening_miles: 0, as_of_date: today(),
+        })
+        mutated = true
+      }
+      localStorage.setItem(seedKey, '1')
+    }
+
+    if (mutated) {
       const [a2, l2] = await Promise.all([
         supabase.from('miles_accounts').select('*').order('name'),
         supabase.from('miles_account_cards').select('*'),
