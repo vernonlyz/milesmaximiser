@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TrendingUp, CalendarDays, FileText } from 'lucide-react'
+import {
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 
@@ -84,6 +87,20 @@ export default function Earnings() {
 
   const grandTotal = perCard.reduce((s, c) => s + c.total, 0)
 
+  // Combined monthly totals across all cards, with a running cumulative total.
+  const chartData = useMemo(() => {
+    let running = 0
+    const rows = []
+    for (let idx = 0; idx <= lastMonthIdx; idx++) {
+      const earned = perCard.reduce((s, c) => s + c.months[idx], 0)
+      running += earned
+      rows.push({ month: MONTHS[idx], earned: Math.round(earned), cumulative: Math.round(running) })
+    }
+    return rows
+  }, [perCard, lastMonthIdx])
+
+  const compact = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n)
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -116,6 +133,39 @@ export default function Earnings() {
           <TrendingUp size={22} className="text-indigo-500" />
         </div>
       </div>
+
+      {/* Chart: monthly bars + cumulative line */}
+      {!loading && milesCards.length > 0 && chartData.length > 0 && (
+        <div className="card p-5">
+          <p className="text-sm font-semibold text-gray-800 mb-4">Earned per month &amp; cumulative</p>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis
+                yAxisId="left"
+                tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
+                tickFormatter={compact}
+              />
+              <YAxis
+                yAxisId="right" orientation="right"
+                tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
+                tickFormatter={compact}
+              />
+              <Tooltip
+                formatter={(value, name) => [Math.round(Number(value)).toLocaleString(), name === 'earned' ? 'This month' : 'Cumulative']}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: 12 }}
+                formatter={(v: string) => v === 'earned' ? 'This month' : 'Cumulative'}
+              />
+              <Bar yAxisId="left" dataKey="earned" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#059669" strokeWidth={2} dot={{ r: 3 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-400">Loading…</p>
