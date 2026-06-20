@@ -400,9 +400,10 @@ export default function Transactions() {
     loadFavourites()
   }
 
-  async function deleteFavourite(id: string) {
-    await supabase.from('transaction_favourites').delete().eq('id', id)
-    setFavourites(prev => prev.filter(f => f.id !== id))
+  async function deleteFavourite(f: TransactionFavourite) {
+    if (!confirm(`Remove the favourite "${f.label}"?`)) return
+    await supabase.from('transaction_favourites').delete().eq('id', f.id)
+    setFavourites(prev => prev.filter(x => x.id !== f.id))
   }
 
   // Active transaction pool — current year from AppContext, previous years from Supabase
@@ -849,7 +850,7 @@ export default function Transactions() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteFavourite(f.id)}
+                      onClick={() => deleteFavourite(f)}
                       title="Delete favourite"
                       className="text-amber-400 hover:text-red-500 pr-1.5 py-1"
                     >
