@@ -566,19 +566,19 @@ export default function Miles() {
                         <Layers size={12} /> Add card to pool
                       </button>
                       {addCardFor === account.id && (
-                        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px]">
+                        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-max min-w-[180px] max-w-[280px]">
                           {otherCards.map(c => (
                             <button
                               key={c.id}
                               onClick={() => moveCardToAccount(c.id, account.id)}
-                              className="flex items-center gap-2 w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 text-gray-700"
+                              className="flex items-center gap-2 w-full text-left text-xs px-3 py-1.5 hover:bg-gray-50 text-gray-700 whitespace-nowrap"
                             >
                               <span
                                 className="w-2 h-2 rounded-full shrink-0"
                                 style={{ background: c.color ?? '#6366f1' }}
                               />
-                              <span className="font-medium text-gray-700">{c.bank}</span>
-                              <span className="text-gray-500">{c.name}</span>
+                              <span className="font-medium text-gray-700 shrink-0">{c.bank}</span>
+                              <span className="text-gray-500 truncate">{c.name}</span>
                             </button>
                           ))}
                         </div>
