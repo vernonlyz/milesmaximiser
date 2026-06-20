@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -52,6 +52,7 @@ const nav = [
   { to: '/expenses',    label: 'Expenses',     Icon: BarChart2       },
   { to: '/calculator',   label: 'Mile Value',   Icon: Calculator      },
   { to: '/cards',        label: 'My Cards',     Icon: CreditCard      },
+  { to: '/miles',        label: 'Miles Balance', Icon: Award           },
 ]
 
 export default function Layout() {
