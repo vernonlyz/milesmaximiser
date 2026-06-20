@@ -120,7 +120,7 @@ export default function Miles() {
       arr.push(l.card_id)
       cba.set(l.account_id, arr)
     }
-    const nameUpdates: Promise<unknown>[] = []
+    const nameUpdates: PromiseLike<unknown>[] = []
     acc = acc.map(account => {
       const cardIds = cba.get(account.id) ?? []
       if (cardIds.length !== 1) return account
