@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight,
+  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight, Pencil, HelpCircle, Infinity as InfinityIcon,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -63,6 +63,11 @@ export default function Miles() {
   const [adjFormFor, setAdjFormFor] = useState<string | null>(null)
   const [adjDraft, setAdjDraft] = useState({ date: today(), miles: '', type: 'redeem' as 'redeem' | 'bonus', note: '' })
   const [addCardFor, setAddCardFor] = useState<string | null>(null)
+  const [helpOpen, setHelpOpen] = useState(() => localStorage.getItem('milesHelpCollapsed') !== '1')
+
+  function toggleHelp() {
+    setHelpOpen(o => { localStorage.setItem('milesHelpCollapsed', o ? '1' : '0'); return !o })
+  }
 
   const milesCards = useMemo(() => cards.filter(c => c.card_type === 'miles'), [cards])
   const cardById = useMemo(() => new Map(cards.map(c => [c.id, c])), [cards])
@@ -199,6 +204,13 @@ export default function Miles() {
   // ---- reconcile: set opening = current total, as-of = today, clears running drift ----
   async function reconcile(a: MilesAccount) {
     const total = a.opening_miles + earnedFor(a) + adjSum(a)
+    const ok = window.confirm(
+      `Reconcile "${a.name}"?\n\n` +
+      `This sets the opening balance to your current total of ${total.toLocaleString()} miles, ` +
+      `as of today (${fmtDate(today())}), and starts counting earned miles and adjustments fresh from now.\n\n` +
+      `Your redemption history is kept. Use this when your numbers have drifted from your bank's.`
+    )
+    if (!ok) return
     await supabase.from('miles_accounts').update({
       opening_miles: total,
       as_of_date: today(),
@@ -272,9 +284,54 @@ export default function Miles() {
           Miles Balance
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Total = opening balance + miles earned since the snapshot date + redemptions &amp; bonuses.
-          Group cards that share one pool (e.g. UOB).
+          Track how many miles you hold on each card, and when they expire.
         </p>
+      </div>
+
+      {/* How it works */}
+      <div className="bg-indigo-50 border border-indigo-100 rounded-xl overflow-hidden">
+        <button
+          onClick={toggleHelp}
+          className="flex items-center gap-2 w-full px-4 py-3 text-left"
+        >
+          <HelpCircle size={16} className="text-indigo-500 shrink-0" />
+          <span className="text-sm font-semibold text-indigo-900 flex-1">How this page works</span>
+          {helpOpen ? <ChevronDown size={16} className="text-indigo-400" /> : <ChevronRight size={16} className="text-indigo-400" />}
+        </button>
+        {helpOpen && (
+          <div className="px-4 pb-4 space-y-2.5 text-sm text-indigo-900/80">
+            <p>
+              <span className="font-semibold">Your total</span> = <span className="font-medium">Opening</span> balance
+              {' '}+ <span className="font-medium">Earned</span> (miles from logged transactions after the snapshot date)
+              {' '}+ <span className="font-medium">Adjustments</span> (redemptions and bonuses you record).
+            </p>
+            <p>
+              <span className="font-semibold">1. Set your opening balance.</span> Enter the miles your bank
+              app currently shows, and set the <span className="font-medium">"as of"</span> date to today. Only
+              transactions after that date are added on top, so nothing gets double-counted.
+            </p>
+            <p>
+              <span className="font-semibold">2. Record redemptions &amp; bonuses.</span> Use
+              {' '}<span className="font-medium">Add</span> to log when you spend miles (redemption) or receive
+              extra miles (bonus / transfer). Each entry is kept in the history.
+            </p>
+            <p>
+              <span className="font-semibold">3. Pool shared cards.</span> Some banks (e.g. UOB) pool all
+              cards into one miles balance. Use <span className="font-medium">Add card to pool</span> to combine
+              them, and rename the pool by editing its title. Click ✕ on a card to split it back out.
+            </p>
+            <p>
+              <span className="font-semibold">4. Reconcile</span> when your numbers drift from the bank's.
+              It takes your current displayed total, makes that your new opening balance as of today, and
+              starts counting fresh — your redemption history stays intact.
+            </p>
+            <p>
+              <span className="font-semibold">5. Expiry.</span> Set an expiry date to get a
+              {' '}<span className="text-amber-700 font-medium">warning when miles are within 6 months</span> of
+              expiring, or mark <span className="font-medium">No expiry</span> if they never lapse.
+            </p>
+          </div>
+        )}
       </div>
 
       {milesCards.length === 0 ? (
@@ -303,15 +360,24 @@ export default function Miles() {
                     {isPool ? <Layers size={16} /> : <Award size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <input
-                      value={d.name}
-                      onChange={e => setDraft(account.id, { name: e.target.value })}
-                      className="font-semibold text-gray-900 text-sm bg-transparent border-b border-transparent hover:border-gray-200 focus:border-indigo-400 focus:outline-none w-full"
-                    />
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    <div className="group flex items-center gap-1.5">
+                      <input
+                        value={d.name}
+                        onChange={e => setDraft(account.id, { name: e.target.value })}
+                        title="Click to rename"
+                        className="font-semibold text-gray-900 text-sm bg-transparent border border-dashed border-gray-200 rounded px-1.5 py-0.5 hover:border-indigo-300 focus:border-indigo-400 focus:border-solid focus:outline-none min-w-0 flex-1"
+                      />
+                      <Pencil size={12} className="text-gray-300 group-hover:text-indigo-400 shrink-0" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       {linkedCards.map(c => (
-                        <span key={c!.id} className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 rounded-full pl-2 pr-1 py-0.5">
-                          {c!.name}
+                        <span key={c!.id} className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-600 rounded-full pl-1.5 pr-1 py-0.5">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ background: c!.color ?? '#6366f1' }}
+                          />
+                          <span className="font-medium text-gray-700">{c!.bank}</span>
+                          <span className="text-gray-500">{c!.name}</span>
                           {isPool && (
                             <button
                               onClick={() => ungroupCard(c!.id)}
@@ -371,7 +437,21 @@ export default function Miles() {
                     onChange={e => setDraft(account.id, { expiry: e.target.value })}
                     className="input text-xs py-1 w-36"
                   />
-                  {d.expiry && <ExpiryBadge dateStr={d.expiry} />}
+                  {d.expiry ? (
+                    <>
+                      <ExpiryBadge dateStr={d.expiry} />
+                      <button
+                        onClick={() => setDraft(account.id, { expiry: '' })}
+                        className="text-xs text-gray-400 hover:text-gray-600 underline"
+                      >
+                        Set no expiry
+                      </button>
+                    </>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                      <InfinityIcon size={13} /> No expiry — you won't be warned
+                    </span>
+                  )}
                 </div>
 
                 {/* Ledger */}
@@ -485,7 +565,7 @@ export default function Miles() {
                   )}
                   <button
                     onClick={() => reconcile(account)}
-                    title="Set opening to current total as of today"
+                    title="Re-baseline: set opening to your current total as of today. Use when your numbers drift from the bank's."
                     className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5"
                   >
                     <RotateCcw size={12} /> Reconcile
