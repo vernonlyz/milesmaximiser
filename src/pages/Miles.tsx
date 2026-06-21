@@ -61,7 +61,7 @@ export default function Miles() {
   const [loading, setLoading] = useState(true)
 
   // Per-account UI state
-  const [drafts, setDrafts] = useState<Record<string, { name: string; opening: string; asOf: string; expiry: string; goal: string }>>({})
+  const [drafts, setDrafts] = useState<Record<string, { name: string; opening: string; asOf: string; expiry: string }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [ledgerOpen, setLedgerOpen] = useState<Set<string>>(new Set())
   const [adjFormFor, setAdjFormFor] = useState<string | null>(null)
@@ -72,6 +72,9 @@ export default function Miles() {
   const [addName, setAddName] = useState('')
   const [reconcileFor, setReconcileFor] = useState<MilesAccount | null>(null)
   const [accToDelete, setAccToDelete] = useState<MilesAccount | null>(null)
+  // Single cumulative miles goal across all accounts
+  const [milesGoal, setMilesGoal] = useState<number | null>(null)
+  const [goalInput, setGoalInput] = useState('')
   // Collapsed by default; only expanded if the user previously opened it.
   const [helpOpen, setHelpOpen] = useState(() => localStorage.getItem('milesHelpCollapsed') === '0')
 
@@ -88,12 +91,16 @@ export default function Miles() {
   }, [milesCards.length])
 
   async function reload() {
-    const [accRes, linkRes, adjRes, earnRes] = await Promise.all([
+    const [accRes, linkRes, adjRes, earnRes, settingsRes] = await Promise.all([
       supabase.from('miles_accounts').select('*').order('name'),
       supabase.from('miles_account_cards').select('*'),
       supabase.from('miles_adjustments').select('*').order('adjustment_date', { ascending: false }),
       supabase.from('transactions').select('card_id, miles_earned, transaction_date'),
+      supabase.from('user_settings').select('miles_goal').maybeSingle(),
     ])
+    const goal = (settingsRes.data as { miles_goal: number | null } | null)?.miles_goal ?? null
+    setMilesGoal(goal)
+    setGoalInput(goal != null ? String(goal) : '')
     let acc = (accRes.data as MilesAccount[]) ?? []
     let lnk = (linkRes.data as MilesAccountCard[]) ?? []
 
@@ -217,11 +224,10 @@ export default function Miles() {
       opening: String(a.opening_miles),
       asOf: a.as_of_date,
       expiry: a.expiry_date ?? '',
-      goal: a.goal_miles != null ? String(a.goal_miles) : '',
     }
   }
 
-  function setDraft(id: string, patch: Partial<{ name: string; opening: string; asOf: string; expiry: string; goal: string }>) {
+  function setDraft(id: string, patch: Partial<{ name: string; opening: string; asOf: string; expiry: string }>) {
     setDrafts(prev => {
       const base = prev[id] ?? draftFor(accounts.find(a => a.id === id)!)
       return { ...prev, [id]: { ...base, ...patch } }
@@ -235,8 +241,7 @@ export default function Miles() {
       d.name !== a.name ||
       (parseInt(d.opening || '0') || 0) !== a.opening_miles ||
       d.asOf !== a.as_of_date ||
-      (d.expiry || null) !== (a.expiry_date ?? null) ||
-      (d.goal ? parseInt(d.goal) || 0 : null) !== (a.goal_miles ?? null)
+      (d.expiry || null) !== (a.expiry_date ?? null)
     )
   }
 
@@ -248,7 +253,6 @@ export default function Miles() {
       opening_miles: parseInt(d.opening || '0') || 0,
       as_of_date: d.asOf,
       expiry_date: d.expiry || null,
-      goal_miles: d.goal ? parseInt(d.goal) || null : null,
       updated_at: new Date().toISOString(),
     }).eq('id', a.id)
     setDrafts(prev => { const n = { ...prev }; delete n[a.id]; return n })
@@ -336,6 +340,16 @@ export default function Miles() {
     setAddOpen(true)
   }
 
+  async function saveGoal() {
+    const val = goalInput ? parseInt(goalInput) || null : null
+    await supabase.from('user_settings').upsert(
+      { user_id: user!.id, miles_goal: val, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+    setMilesGoal(val)
+    toast('Goal saved')
+  }
+
   async function submitAddBalance() {
     await supabase.from('miles_accounts').insert({
       user_id: user!.id,
@@ -389,16 +403,62 @@ export default function Miles() {
         </button>
       </div>
 
-      {/* Total across all accounts */}
+      {/* Total across all accounts + cumulative goal */}
       {accounts.length > 0 && (
-        <div className="card p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total miles</p>
-            <p className="text-3xl font-bold text-indigo-600 mt-0.5">{Math.round(grandTotal).toLocaleString()}</p>
-            <p className="text-xs text-gray-500">across {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}</p>
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total miles</p>
+              <p className="text-3xl font-bold text-indigo-600 mt-0.5">{Math.round(grandTotal).toLocaleString()}</p>
+              <p className="text-xs text-gray-500">across {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}</p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
+              <Award size={22} className="text-indigo-500" />
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
-            <Award size={22} className="text-indigo-500" />
+
+          {/* Goal — single target across all miles */}
+          <div className="border-t border-gray-100 pt-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-xs text-gray-500 shrink-0">Goal</label>
+              <input
+                type="number" min="0" step="1000"
+                value={goalInput}
+                onChange={e => setGoalInput(e.target.value)}
+                placeholder="e.g. 100,000"
+                className="input text-xs py-1 w-32"
+              />
+              <span className="text-xs text-gray-400">target across all miles</span>
+              {(goalInput ? parseInt(goalInput) || 0 : null) !== (milesGoal ?? null) && (
+                <button
+                  onClick={saveGoal}
+                  className="text-xs font-medium bg-indigo-600 text-white px-2.5 py-1 rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Save
+                </button>
+              )}
+            </div>
+            {milesGoal != null && milesGoal > 0 && (() => {
+              const pct = Math.min((grandTotal / milesGoal) * 100, 100)
+              const remaining = Math.max(milesGoal - grandTotal, 0)
+              const reached = grandTotal >= milesGoal
+              return (
+                <div className="mt-2">
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1 text-xs">
+                    <span className="text-gray-500">{Math.round(grandTotal).toLocaleString()} / {milesGoal.toLocaleString()} ({Math.floor(pct)}%)</span>
+                    {reached
+                      ? <span className="text-emerald-600 font-medium">🎉 Goal reached</span>
+                      : <span className="text-gray-500">{Math.round(remaining).toLocaleString()} miles to go</span>}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -584,42 +644,6 @@ export default function Miles() {
                     </span>
                   )}
                 </div>
-
-                {/* Goal */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <label className="text-xs text-gray-500 shrink-0">Goal</label>
-                  <input
-                    type="number" min="0" step="1000"
-                    value={d.goal}
-                    onChange={e => setDraft(account.id, { goal: e.target.value })}
-                    placeholder="e.g. 100,000"
-                    className="input text-xs py-1 w-32"
-                  />
-                  <span className="text-xs text-gray-400">target balance</span>
-                </div>
-                {(() => {
-                  const goal = parseInt(d.goal || '0') || 0
-                  if (goal <= 0) return null
-                  const pct = Math.min((total / goal) * 100, 100)
-                  const remaining = Math.max(goal - total, 0)
-                  const reached = total >= goal
-                  return (
-                    <div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between mt-1 text-xs">
-                        <span className="text-gray-500">{total.toLocaleString()} / {goal.toLocaleString()} ({Math.floor(pct)}%)</span>
-                        {reached
-                          ? <span className="text-emerald-600 font-medium">🎉 Goal reached</span>
-                          : <span className="text-gray-500">{remaining.toLocaleString()} miles to go</span>}
-                      </div>
-                    </div>
-                  )
-                })()}
 
                 {/* Ledger */}
                 <div className="border-t border-gray-100 pt-3">
