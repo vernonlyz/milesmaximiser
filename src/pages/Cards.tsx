@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Plus, Minus, Info, Pencil, CalendarDays, ChevronDown, ChevronRight } from 'lucide-react'
+import { Check, Plus, Minus, Info, Pencil, CalendarDays } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } from '../lib/recommendations'
 import { capPeriodLabel, isoDate } from '../lib/utils'
@@ -21,6 +21,7 @@ export default function Cards() {
   // Statement-day prompt when adding a statement-cycle card
   const [pendingAddCard, setPendingAddCard] = useState<CreditCard | null>(null)
   const [pendingRemoveCard, setPendingRemoveCard] = useState<CreditCard | null>(null)
+  const [detailsCard, setDetailsCard] = useState<CreditCard | null>(null)
   const [pendingDay, setPendingDay] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
@@ -110,27 +111,6 @@ export default function Cards() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'miles' | 'cashback'>('all')
   const [bankFilter, setBankFilter] = useState<string>('all')
 
-  const [collapsedBanks, setCollapsedBanks] = useState<Set<string>>(new Set())
-  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set())
-
-  function toggleBank(bank: string) {
-    setCollapsedBanks(prev => {
-      const next = new Set(prev)
-      if (next.has(bank)) next.delete(bank)
-      else next.add(bank)
-      return next
-    })
-  }
-
-  function toggleCard(cardId: string) {
-    setCollapsedCards(prev => {
-      const next = new Set(prev)
-      if (next.has(cardId)) next.delete(cardId)
-      else next.add(cardId)
-      return next
-    })
-  }
-
   const libraryCards = useMemo(
     () => allCards.filter(c => c.active && c.card_type !== 'debit'),
     [allCards]
@@ -150,16 +130,47 @@ export default function Cards() {
     })
   }, [libraryCards, walletFilter, typeFilter, bankFilter, selectedCardIds])
 
-  // Group filtered cards by bank
-  const grouped = useMemo(() => {
-    const map = new Map<string, CreditCard[]>()
-    for (const card of filteredLibrary) {
-      const list = map.get(card.bank) ?? []
-      list.push(card)
-      map.set(card.bank, list)
+  // One continuous list, sorted by bank then card name (no per-bank sub-grids).
+  const sortedCards = useMemo(
+    () => [...filteredLibrary].sort((a, b) => a.bank.localeCompare(b.bank) || a.name.localeCompare(b.name)),
+    [filteredLibrary]
+  )
+
+  // Per-card display data, shared by the tile and the details modal.
+  function cardData(card: CreditCard) {
+    const cardRates = resolveRates(rates.filter(r => r.card_id === card.id), today)
+    const cardCaps = resolveCaps(caps.filter(c => c.card_id === card.id), today)
+    const inWallet = selectedCardIds.has(card.id)
+    const activeOverrideCatIds = card.selectable_category
+      ? (resolveOverride(overrides, card.id, today) ?? null)
+      : null
+    const displayedCaps: SpendingCap[] =
+      card.selectable_category && activeOverrideCatIds?.length
+        ? applySelectableOverride(cardRates, cardCaps, card.id, activeOverrideCatIds).caps
+        : cardCaps
+    const capGroupMap = new Map<string, SpendingCap[]>()
+    for (const cap of displayedCaps) {
+      const key = cap.cap_group ? `group:${cap.cap_group}` : `single:${cap.id}`
+      const list = capGroupMap.get(key) ?? []
+      list.push(cap)
+      capGroupMap.set(key, list)
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [filteredLibrary])
+    return { cardRates, inWallet, activeOverrideCatIds, capGroupMap }
+  }
+
+  // Short one-line headline for a tile (top bonus rate / cashback / prompt).
+  function headline(card: CreditCard, cardRates: ReturnType<typeof cardData>['cardRates']): string {
+    if (card.card_type === 'cashback') {
+      return card.cashback_rate != null ? `${(card.cashback_rate * 100).toFixed(1)}% cashback` : 'Cashback'
+    }
+    if (card.selectable_category) {
+      return cardRates[0]?.mpd ? `${cardRates[0].mpd} mpd · your category` : 'Pick a bonus category'
+    }
+    if (cardRates.length === 0) return `${card.base_mpd} mpd base`
+    const top = cardRates.reduce((a, b) => (b.mpd > a.mpd ? b : a))
+    const cat = categories.find(c => c.id === top.category_id)
+    return `${top.mpd} mpd${cat ? ` ${cat.name}` : ''}`
+  }
 
   // Build selectable category map: card_id → category_id[]
   const selectableMap = useMemo(() => {
@@ -173,29 +184,15 @@ export default function Cards() {
   }, [selectableCategories])
 
   const walletCount = selectedCardIds.size
-  const allCollapsed = grouped.length > 0 && grouped.every(([bank]) => collapsedBanks.has(bank))
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Cards</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {walletCount} card{walletCount !== 1 ? 's' : ''} in your wallet
-          </p>
-        </div>
-        {grouped.length > 0 && (
-          <button
-            onClick={() => allCollapsed
-              ? setCollapsedBanks(new Set())
-              : setCollapsedBanks(new Set(grouped.map(([bank]) => bank)))
-            }
-            className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            {allCollapsed ? 'Expand all' : 'Collapse all'}
-          </button>
-        )}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">My Cards</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {walletCount} card{walletCount !== 1 ? 's' : ''} in your wallet
+        </p>
       </div>
 
       {/* Info banner */}
@@ -262,132 +259,40 @@ export default function Cards() {
         ))}
       </div>
 
-      {grouped.length === 0 && (
+      {sortedCards.length === 0 && (
         <p className="text-sm text-gray-500 text-center py-6">No cards match the selected filters.</p>
       )}
 
-      {/* Library grouped by bank */}
-      {grouped.map(([bank, bankCards]) => {
-        const isCollapsed = collapsedBanks.has(bank)
-        return (
-        <div key={bank}>
-          <button
-            onClick={() => toggleBank(bank)}
-            className="flex items-center gap-2 mb-3 group w-full text-left"
-          >
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest group-hover:text-gray-600 transition-colors">
-              {bank}
-            </h2>
-            <span className="text-gray-300 group-hover:text-gray-500 transition-colors">
-              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-            </span>
-          </button>
-          {!isCollapsed && <div className="columns-1 lg:columns-2 2xl:columns-3 gap-3">
-            {bankCards.map(card => {
-              const cardRates = resolveRates(rates.filter(r => r.card_id === card.id), today)
-              const cardCaps  = resolveCaps(caps.filter(c => c.card_id === card.id), today)
-              const inWallet  = selectedCardIds.has(card.id)
-
-              // For selectable cards in the wallet, show the override category instead of the library default
-              const activeOverrideCatIds = card.selectable_category
-                ? (resolveOverride(overrides, card.id, today) ?? null)
-                : null
-
-              // Apply selectable override so Solitaire (2 chosen categories) shows 2 cap chips
-              const displayedCaps: SpendingCap[] =
-                card.selectable_category && activeOverrideCatIds?.length
-                  ? applySelectableOverride(cardRates, cardCaps, card.id, activeOverrideCatIds).caps
-                  : cardCaps
-
-              // Group caps: combined-cap cards collapse into one chip per group
-              const capGroupMap = new Map<string, SpendingCap[]>()
-              for (const cap of displayedCaps) {
-                const key = cap.cap_group ? `group:${cap.cap_group}` : `single:${cap.id}`
-                const list = capGroupMap.get(key) ?? []
-                list.push(cap)
-                capGroupMap.set(key, list)
-              }
-
-              const cardCollapsed = collapsedCards.has(card.id)
-
-              return (
+      {/* One uniform grid of card tiles */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+        {sortedCards.map(card => {
+          const { cardRates, inWallet, activeOverrideCatIds, capGroupMap } = cardData(card)
+          return (
                 <div
                   key={card.id}
-                  className={`card p-4 break-inside-avoid mb-3 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
+                  className={`card p-4 flex flex-col ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
                 >
-                  {/* Header — click anywhere to collapse/expand */}
-                  <div
-                    className="flex items-center gap-3 cursor-pointer select-none"
-                    onClick={() => toggleCard(card.id)}
-                  >
-                    {/* Bank colour badge */}
+                  <div className="flex items-start gap-3">
                     <div
                       className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
                       style={{ backgroundColor: card.color }}
                     >
                       {card.bank.slice(0, 2).toUpperCase()}
                     </div>
-
-                    <p className="flex-1 min-w-0 font-semibold text-gray-900 truncate">
-                      {card.bank} {card.name}
-                    </p>
-
-                    {/* Wallet toggle — stop click bubbling so it doesn't collapse */}
-                    <div className="shrink-0" onClick={e => e.stopPropagation()}>
-                      {inWallet ? (
-                        <button
-                          onClick={() => setPendingRemoveCard(card)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                        >
-                          <Minus size={13} /> Remove
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleAddClick(card)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
-                        >
-                          <Plus size={13} /> Add
-                        </button>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{card.bank} {card.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{headline(card, cardRates)}</p>
                     </div>
-
-                    <span className="shrink-0 text-gray-300" title={cardCollapsed ? 'Expand' : 'Collapse'}>
-                      {cardCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                    </span>
                   </div>
 
-                  {/* Meta pills — dedicated row so they align cleanly */}
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                      {card.card_network}
-                    </span>
-                    {card.card_type === 'cashback' && (
-                      <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                        Cashback{card.cashback_rate != null ? ` · ${(card.cashback_rate * 100).toFixed(1)}%` : ''}
-                      </span>
-                    )}
-                    {card.card_type === 'debit' && (
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                        Debit / Cash
-                      </span>
-                    )}
-                    {card.card_type === 'miles' && card.mile_validity && (
-                      <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-                        Miles: {card.mile_validity}
-                      </span>
-                    )}
+                  {/* Meta pills */}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{card.card_network}</span>
                     {card.cap_cycle === 'calendar' ? (
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                        Calendar Cycle
-                      </span>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Calendar</span>
                     ) : (
-                      <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-                        Statement Cycle
-                      </span>
+                      <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">Statement</span>
                     )}
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                      ${card.earn_increment} block
-                    </span>
                     {inWallet && (
                       <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Check size={10} /> In Wallet
@@ -395,9 +300,35 @@ export default function Cards() {
                     )}
                   </div>
 
-                  {!cardCollapsed && (
-                    <div className="mt-4">
-                      <p className="text-sm text-gray-500 mt-0.5">Base rate: {card.base_mpd} mpd</p>
+                  {/* Actions pinned to the bottom for a uniform grid */}
+                  <div className="mt-auto pt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => setDetailsCard(card)}
+                      className="flex-1 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50 transition-colors"
+                    >
+                      Details
+                    </button>
+                    {inWallet ? (
+                      <button
+                        onClick={() => setPendingRemoveCard(card)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                      >
+                        <Minus size={12} /> Remove
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleAddClick(card)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                      >
+                        <Plus size={12} /> Add
+                      </button>
+                    )}
+                  </div>
+
+                  {detailsCard?.id === card.id && (
+                    <Modal title={`${card.bank} ${card.name}`} onClose={() => setDetailsCard(null)}>
+                      <div>
+                      <p className="text-sm text-gray-500">Base rate: {card.base_mpd} mpd</p>
 
                       {/* Bonus rates */}
                       {card.selectable_category ? (
@@ -542,15 +473,30 @@ export default function Cards() {
                           )}
                         </div>
                       )}
-                    </div>
+                      </div>
+                      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                        {inWallet ? (
+                          <button
+                            onClick={() => { setPendingRemoveCard(card); setDetailsCard(null) }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            <Minus size={13} /> Remove from wallet
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { handleAddClick(card); setDetailsCard(null) }}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                          >
+                            <Plus size={13} /> Add to wallet
+                          </button>
+                        )}
+                      </div>
+                    </Modal>
                   )}
                 </div>
               )
             })}
-          </div>}
-        </div>
-        )
-      })}
+      </div>
 
       {allCards.length === 0 && (
         <div className="card p-10 text-center border-dashed border-2 border-gray-200">
