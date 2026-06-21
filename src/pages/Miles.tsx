@@ -362,7 +362,7 @@ export default function Miles() {
     return s + opening + earnedFor(a) + adjSum(a)
   }, 0)
 
-  if (loading) return <p className="text-sm text-gray-400 p-4">Loading…</p>
+  if (loading) return <p className="text-sm text-gray-500 p-4">Loading…</p>
 
   return (
     <div className="space-y-6">
@@ -392,7 +392,7 @@ export default function Miles() {
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total miles</p>
             <p className="text-3xl font-bold text-indigo-600 mt-0.5">{Math.round(grandTotal).toLocaleString()}</p>
-            <p className="text-xs text-gray-400">across {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}</p>
+            <p className="text-xs text-gray-500">across {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
             <Award size={22} className="text-indigo-500" />
@@ -447,8 +447,14 @@ export default function Miles() {
       </div>
 
       {accounts.length === 0 ? (
-        <div className="card p-10 text-center text-gray-400 text-sm border-dashed border-2 border-gray-200">
-          No miles balances yet. Add miles cards in My Cards, or tap "Add balance" to track miles directly.
+        <div className="card p-10 text-center border-dashed border-2 border-gray-200 space-y-3">
+          <p className="text-gray-500 text-sm">No miles balances yet. Add a balance to track miles directly, or add miles cards in My Cards.</p>
+          <button
+            onClick={openAddBalance}
+            className="inline-flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus size={14} /> Add balance
+          </button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -494,7 +500,7 @@ export default function Miles() {
                             <button
                               onClick={() => ungroupCard(c!.id)}
                               title="Remove from pool"
-                              className="text-gray-400 hover:text-red-500"
+                              className="text-gray-500 hover:text-red-500"
                             >
                               <X size={11} />
                             </button>
@@ -506,7 +512,7 @@ export default function Miles() {
                   <div className="flex items-start gap-2 shrink-0">
                     <div className="text-right">
                       <p className="text-2xl font-bold text-indigo-600">{total.toLocaleString()}</p>
-                      <p className="text-xs text-gray-400">total miles</p>
+                      <p className="text-xs text-gray-500">total miles</p>
                     </div>
                     {linkedCards.length === 0 && (
                       <button
@@ -530,12 +536,12 @@ export default function Miles() {
                       onChange={e => setDraft(account.id, { opening: e.target.value })}
                       className="input text-sm py-1 w-full"
                     />
-                    <p className="text-[11px] text-gray-400 mt-1">
+                    <p className="text-xs text-gray-500 mt-1">
                       as of <input
                         type="date"
                         value={d.asOf}
                         onChange={e => setDraft(account.id, { asOf: e.target.value })}
-                        className="bg-transparent text-[11px] text-gray-500 focus:outline-none"
+                        className="bg-transparent text-xs text-gray-500 focus:outline-none"
                       />
                     </p>
                   </div>
@@ -570,7 +576,7 @@ export default function Miles() {
                   {d.expiry ? (
                     <ExpiryBadge dateStr={d.expiry} />
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                       <InfinityIcon size={13} /> No expiry — you won't be warned
                     </span>
                   )}
@@ -643,12 +649,12 @@ export default function Miles() {
                         const bakedIn = adj.adjustment_date <= account.as_of_date
                         return (
                           <div key={adj.id} className={`flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0 ${bakedIn ? 'opacity-40' : ''}`}>
-                            <span className="text-gray-400 w-20 shrink-0">{fmtDate(adj.adjustment_date)}</span>
+                            <span className="text-gray-500 w-20 shrink-0">{fmtDate(adj.adjustment_date)}</span>
                             <span className={`font-medium w-20 shrink-0 ${adj.miles < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                               {adj.miles > 0 ? '+' : ''}{adj.miles.toLocaleString()}
                             </span>
                             <span className="text-gray-600 flex-1 truncate">
-                              {adj.note ?? '—'}{bakedIn && <span className="text-gray-400"> · in opening</span>}
+                              {adj.note ?? '—'}{bakedIn && <span className="text-gray-500"> · in opening</span>}
                             </span>
                             <button onClick={() => deleteAdjustment(adj.id)} className="text-gray-300 hover:text-red-500 shrink-0">
                               <Trash2 size={12} />
@@ -728,7 +734,7 @@ export default function Miles() {
                 placeholder="e.g. KrisFlyer miles"
                 className="input"
               />
-              <p className="text-xs text-gray-400 mt-1">A standalone balance not tied to a card — set its opening balance and log redemptions after.</p>
+              <p className="text-xs text-gray-500 mt-1">A standalone balance not tied to a card — set its opening balance and log redemptions after.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setAddOpen(false)} className="btn-secondary flex-1">Cancel</button>
@@ -750,7 +756,7 @@ export default function Miles() {
               </span>{' '}
               as of today ({fmtDate(today())}), and start counting earned miles and adjustments fresh from now.
             </p>
-            <p className="text-xs text-gray-400">Your redemption history is kept. Use this when your numbers have drifted from your bank's.</p>
+            <p className="text-xs text-gray-500">Your redemption history is kept. Use this when your numbers have drifted from your bank's.</p>
             <div className="flex gap-3">
               <button onClick={() => setReconcileFor(null)} className="btn-secondary flex-1">Cancel</button>
               <button onClick={confirmReconcile} className="btn-primary flex-1">Reconcile</button>

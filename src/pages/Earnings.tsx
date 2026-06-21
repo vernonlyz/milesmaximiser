@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TrendingUp, CalendarDays, FileText, ChevronDown, ChevronRight, BarChart2, List, Award } from 'lucide-react'
+import { TrendingUp, CalendarDays, FileText, ChevronDown, ChevronRight, BarChart2, List, Award, CreditCard } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -170,7 +171,7 @@ export default function Earnings() {
         <div>
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total earned in {year}</p>
           <p className="text-3xl font-bold text-indigo-600 mt-0.5">{Math.round(grandTotal).toLocaleString()}</p>
-          <p className="text-xs text-gray-400">miles across {milesCards.length} card{milesCards.length === 1 ? '' : 's'}</p>
+          <p className="text-xs text-gray-500">miles across {milesCards.length} card{milesCards.length === 1 ? '' : 's'}</p>
         </div>
         <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center">
           <TrendingUp size={22} className="text-indigo-500" />
@@ -186,10 +187,16 @@ export default function Earnings() {
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-gray-500">Loading…</p>
       ) : milesCards.length === 0 ? (
-        <div className="card p-10 text-center text-gray-400 text-sm border-dashed border-2 border-gray-200">
-          No miles cards in your wallet yet. Add cards in My Cards first.
+        <div className="card p-10 text-center border-dashed border-2 border-gray-200 space-y-3">
+          <p className="text-gray-500 text-sm">No miles cards in your wallet yet.</p>
+          <Link
+            to="/cards"
+            className="inline-flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <CreditCard size={14} /> Add cards in My Cards
+          </Link>
         </div>
       ) : (
         <div className="space-y-4">
@@ -230,7 +237,7 @@ export default function Earnings() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm truncate">{card.bank} {card.name}</p>
-                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
                       {day === 0
                         ? <><CalendarDays size={11} /> Calendar month</>
                         : <><FileText size={11} /> Statement cycle · closes day {day}</>}
@@ -238,7 +245,7 @@ export default function Earnings() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xl font-bold text-indigo-600">{Math.round(total).toLocaleString()}</p>
-                    <p className="text-xs text-gray-400">miles in {year}</p>
+                    <p className="text-xs text-gray-500">miles in {year}</p>
                   </div>
                 </div>
 
@@ -276,7 +283,7 @@ export default function Earnings() {
                             <div key={idx} className="flex items-center gap-3 py-1.5 text-sm border-b border-gray-50 last:border-0">
                               <span className="w-12 shrink-0 font-medium text-gray-700">{MONTHS[idx]}</span>
                               {day !== 0 && (
-                                <span className="text-xs text-gray-400 shrink-0 w-32">{statementRangeLabel(year, idx, day)}</span>
+                                <span className="text-xs text-gray-500 shrink-0 w-32">{statementRangeLabel(year, idx, day)}</span>
                               )}
                               <span className="flex-1" />
                               <span className={`font-medium tabular-nums ${miles > 0 ? 'text-gray-900' : 'text-gray-300'}`}>

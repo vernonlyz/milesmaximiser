@@ -544,7 +544,7 @@ export default function Transactions() {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
 
         {/* Month select */}
@@ -559,10 +559,10 @@ export default function Transactions() {
               <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{name}</option>
             ))}
           </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
 
-        {loadingYear && <span className="text-xs text-gray-400 self-center">Loading…</span>}
+        {loadingYear && <span className="text-xs text-gray-500 self-center">Loading…</span>}
 
         <div className="relative">
           <select
@@ -575,7 +575,7 @@ export default function Transactions() {
               <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
             ))}
           </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
 
         <div className="relative">
@@ -592,11 +592,11 @@ export default function Transactions() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
 
         <div className="relative flex-1 min-w-[180px]">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
           <input
             type="text"
             placeholder="Search vendor or notes…"
@@ -605,7 +605,7 @@ export default function Transactions() {
             className="input pl-7 text-sm w-full"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600">
               <X size={12} />
             </button>
           )}
@@ -620,7 +620,15 @@ export default function Transactions() {
       {/* Table */}
       <div className="card overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="py-12 text-center text-gray-400 text-sm">No transactions found.</div>
+          <div className="py-12 text-center">
+            <p className="text-gray-500 text-sm">No transactions found.</p>
+            <button
+              onClick={openAdd}
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            >
+              <Plus size={15} /> Log a transaction
+            </button>
+          </div>
         ) : (
           <>
             {/* ── Mobile: card list (hidden on sm+) ── */}
@@ -671,7 +679,7 @@ export default function Transactions() {
                         {cat ? `${cat.icon} ${cat.name}` : ''}
                         {t.payment_channel === 'contactless' && <span className="text-indigo-400"> · tap</span>}
                         {t.payment_channel === 'online'      && <span className="text-sky-400"> · online</span>}
-                        <span className="text-gray-400"> · {t.transaction_date}</span>
+                        <span className="text-gray-500"> · {t.transaction_date}</span>
                       </span>
                       <span className="font-medium text-gray-800 text-sm">S${t.amount.toFixed(2)}</span>
                     </div>
@@ -682,12 +690,12 @@ export default function Transactions() {
                     )}
                     {/* Card name | mpd + actions */}
                     <div className="flex items-center justify-between mt-0.5 ml-3.5">
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-500">
                         {card ? (card.bank && card.bank !== 'Cash' ? `${card.bank} ${card.name}` : card.name) : ''}
                       </span>
                       <div className="flex items-center gap-0.5">
                         {nomMpd != null && (
-                          <span className="text-xs text-gray-400 mr-1 flex items-center gap-0.5">
+                          <span className="text-xs text-gray-500 mr-1 flex items-center gap-0.5">
                             {isManual && <Pencil size={9} className="text-amber-400" />}
                             {nomMpd} mpd
                           </span>
@@ -744,7 +752,7 @@ export default function Transactions() {
                             <span className="block text-xs text-gray-500 mt-0.5">{notesLine}</span>
                           )}
                           {t.mcc && (
-                            <span className="block text-xs text-gray-400 font-mono mt-0.5">
+                            <span className="block text-xs text-gray-500 font-mono mt-0.5">
                               {t.mcc}
                               {mccCatalogue.find(m => m.code === t.mcc) && (
                                 <span className="ml-1 not-italic font-sans">
@@ -766,10 +774,10 @@ export default function Transactions() {
                               />
                               <span className="text-gray-700">{card.bank && card.bank !== 'Cash' ? `${card.bank} ${card.name}` : card.name}</span>
                               {t.payment_channel === 'contactless' && (
-                                <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1 rounded">tap</span>
+                                <span className="text-[11px] text-indigo-500 bg-indigo-50 px-1 rounded">tap</span>
                               )}
                               {t.payment_channel === 'online' && (
-                                <span className="text-[10px] text-sky-500 bg-sky-50 px-1 rounded">online</span>
+                                <span className="text-[11px] text-sky-500 bg-sky-50 px-1 rounded">online</span>
                               )}
                             </span>
                           ) : '—'}
@@ -787,7 +795,7 @@ export default function Transactions() {
                             ? <span className="text-indigo-600 font-medium">+{Math.round(t.miles_earned).toLocaleString()}</span>
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-right hidden md:table-cell text-gray-400 text-xs">
+                        <td className="px-4 py-3 text-right hidden md:table-cell text-gray-500 text-xs">
                           {t.effective_mpd != null ? (() => {
                             // Manual overrides: use stored manual_mpd as the nominal — it's exactly
                             // what the user entered and avoids inflation from the reconstruction formula.
@@ -926,7 +934,7 @@ export default function Transactions() {
           </div>
 
           <div>
-            <label className="label">Notes <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+            <label className="label">Notes <span className="text-gray-500 font-normal text-xs">(optional)</span></label>
             <input type="text" placeholder="Additional notes…" className="input"
               value={form.description} onChange={e => setField('description', e.target.value)} />
           </div>
@@ -945,7 +953,7 @@ export default function Transactions() {
                   <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
             </div>
           </div>
 
@@ -953,7 +961,7 @@ export default function Transactions() {
           <div>
             <label className="label">
               MCC{' '}
-              <span className="text-gray-400 font-normal text-xs">(optional)</span>
+              <span className="text-gray-500 font-normal text-xs">(optional)</span>
             </label>
             {mccEditing ? (
               <div className="relative">
@@ -979,7 +987,7 @@ export default function Transactions() {
                   {/^\d+$/.test(mccInputVal) && mcc.length === 4 && mccDescription ? (
                     <span className="text-sm text-gray-600 shrink-0">{mccDescription}</span>
                   ) : /^\d+$/.test(mccInputVal) && mcc.length > 0 ? (
-                    <span className="text-xs text-gray-400 italic shrink-0">Unknown MCC</span>
+                    <span className="text-xs text-gray-500 italic shrink-0">Unknown MCC</span>
                   ) : null}
                 </div>
                 {mccSuggestions.length > 0 && (
@@ -1011,7 +1019,7 @@ export default function Transactions() {
                 <button
                   type="button"
                   onClick={() => { setMccInputVal(mcc); setMccEditing(true) }}
-                  className="text-gray-400 hover:text-indigo-600 transition-colors"
+                  className="text-gray-500 hover:text-indigo-600 transition-colors"
                   title="Edit MCC"
                 >
                   <Pencil size={12} />
@@ -1019,7 +1027,7 @@ export default function Transactions() {
                 <button
                   type="button"
                   onClick={() => setMcc('')}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
+                  className="text-gray-500 hover:text-red-500 transition-colors"
                   title="Remove MCC"
                 >
                   <X size={12} />
@@ -1029,7 +1037,7 @@ export default function Transactions() {
               <button
                 type="button"
                 onClick={() => { setMccInputVal(''); setMccEditing(true) }}
-                className="text-xs text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+                className="text-xs text-gray-500 hover:text-indigo-600 transition-colors flex items-center gap-1"
               >
                 + Add MCC
               </button>
@@ -1048,14 +1056,14 @@ export default function Transactions() {
                   <button
                     type="button"
                     onClick={() => { setSplitOpen(true); setSplitInfoOpen(false) }}
-                    className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
+                    className="text-xs text-gray-500 hover:text-indigo-500 transition-colors flex items-center gap-1"
                   >
                     <Users size={11} /> Split with group?
                   </button>
                   <button
                     type="button"
                     onClick={() => setSplitInfoOpen(p => !p)}
-                    className={`transition-colors ${splitInfoOpen ? 'text-indigo-500' : 'text-gray-300 hover:text-gray-400'}`}
+                    className={`transition-colors ${splitInfoOpen ? 'text-indigo-500' : 'text-gray-300 hover:text-gray-500'}`}
                     title="What is this?"
                   >
                     <Info size={11} />
@@ -1072,12 +1080,12 @@ export default function Transactions() {
               <div className="mt-2 bg-gray-50 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-600 flex items-center gap-1.5">
-                    <Users size={12} className="text-gray-400" /> Split with group
+                    <Users size={12} className="text-gray-500" /> Split with group
                   </span>
                   <button
                     type="button"
                     onClick={() => { setSplitOpen(false); setSplitN(null); setSplitCustom('') }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-500 hover:text-gray-600"
                   >
                     <X size={13} />
                   </button>
@@ -1187,7 +1195,7 @@ export default function Transactions() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
             </div>
           </div>
 
@@ -1210,7 +1218,7 @@ export default function Transactions() {
           <div>
             <label className="label">
               Payment Method
-              <span className="text-gray-400 font-normal text-xs ml-1">(affects cap tracking)</span>
+              <span className="text-gray-500 font-normal text-xs ml-1">(affects cap tracking)</span>
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(['chip', 'contactless', 'online'] as const).map(mode => (
@@ -1247,7 +1255,7 @@ export default function Transactions() {
                   <button
                     type="button"
                     onClick={resetOverride}
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="text-xs text-gray-500 hover:text-gray-600"
                   >
                     ↺ Reset to computed ({nominalComputedMpd?.toFixed(2)} mpd)
                   </button>
@@ -1258,10 +1266,10 @@ export default function Transactions() {
                 <div className="space-y-1">
                   <div className="input bg-gray-50 flex items-center justify-between text-gray-600 cursor-default select-none">
                     <span>{nominalComputedMpd?.toFixed(2)} mpd</span>
-                    <span className="text-xs text-gray-400">computed</span>
+                    <span className="text-xs text-gray-500">computed</span>
                   </div>
                   {formCard && earnAmount > 0 && earnAmount !== formAmt && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-gray-500">
                       earns on S${earnAmount.toFixed(2)} of S${formAmt.toFixed(2)} (rounded to ${formCard.earn_increment} block)
                     </p>
                   )}
@@ -1292,13 +1300,13 @@ export default function Transactions() {
               )}
 
               {previewMiles != null && (
-                <p className="text-xs text-gray-400 mt-1.5 text-right">
+                <p className="text-xs text-gray-500 mt-1.5 text-right">
                   Miles earned:{' '}
                   <span className="text-indigo-600 font-medium">{previewMiles.toLocaleString()} mi</span>
                 </p>
               )}
               {previewCashback != null && (
-                <p className="text-xs text-gray-400 mt-1.5 text-right">
+                <p className="text-xs text-gray-500 mt-1.5 text-right">
                   Est. cashback:{' '}
                   <span className="text-emerald-600 font-medium">S${previewCashback.toFixed(2)}</span>
                 </p>
@@ -1362,7 +1370,7 @@ export default function Transactions() {
                 placeholder="e.g. Netflix"
                 className="input"
               />
-              <p className="text-xs text-gray-400 mt-1">Saves the card, category, vendor, payment method and amount for quick reuse.</p>
+              <p className="text-xs text-gray-500 mt-1">Saves the card, category, vendor, payment method and amount for quick reuse.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setFavNameOpen(false)} className="btn-secondary flex-1">Cancel</button>

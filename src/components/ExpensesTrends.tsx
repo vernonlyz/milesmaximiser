@@ -169,7 +169,7 @@ export default function ExpensesTrends({ from, to }: Props) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-40 text-gray-400">
+      <div className="flex items-center justify-center h-40 text-gray-500">
         <RefreshCw size={20} className="animate-spin mr-2" /> Loading…
       </div>
     )
@@ -177,7 +177,7 @@ export default function ExpensesTrends({ from, to }: Props) {
 
   if (txns.length === 0) {
     return (
-      <div className="card p-10 text-center text-gray-400">
+      <div className="card p-10 text-center text-gray-500">
         <p className="font-medium">No transactions in this period.</p>
       </div>
     )
@@ -211,7 +211,7 @@ export default function ExpensesTrends({ from, to }: Props) {
         <div className="card p-4 sm:p-5">
           <h2 className="font-semibold text-gray-800 mb-1">Rewards Earned</h2>
           {hasMiles && hasCashback && (
-            <p className="text-xs text-gray-400 mb-3">Miles — left axis &nbsp;·&nbsp; Cashback (S$) — right axis</p>
+            <p className="text-xs text-gray-500 mb-3">Miles — left axis &nbsp;·&nbsp; Cashback (S$) — right axis</p>
           )}
           {!(hasMiles && hasCashback) && <div className="mb-3" />}
           <ResponsiveContainer width="100%" height={chartH}>

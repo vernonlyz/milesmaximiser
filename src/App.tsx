@@ -22,7 +22,7 @@ const Earnings     = lazy(() => import('./pages/Earnings'))
 
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center py-20 text-gray-400">
+    <div className="flex items-center justify-center py-20 text-gray-500">
       <Loader2 size={24} className="animate-spin" />
     </div>
   )

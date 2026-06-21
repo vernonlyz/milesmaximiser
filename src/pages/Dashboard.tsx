@@ -243,7 +243,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
+      <div className="flex items-center justify-center h-64 text-gray-500">
         <RefreshCw size={24} className="animate-spin mr-2" /> Loading…
       </div>
     )
@@ -256,7 +256,7 @@ export default function Dashboard() {
         <div>
           <p className="font-medium text-gray-800">Could not connect to Supabase</p>
           <p className="text-sm text-gray-500 mt-1 max-w-sm">{error}</p>
-          <p className="text-xs text-gray-400 mt-2">Make sure your <code>.env</code> file has the correct <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>.</p>
+          <p className="text-xs text-gray-500 mt-2">Make sure your <code>.env</code> file has the correct <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>.</p>
         </div>
         <button onClick={refresh} className="btn-secondary">
           <RefreshCw size={14} /> Retry
@@ -319,7 +319,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 mb-4">
             <Target size={16} className="text-indigo-600" />
             <h2 className="font-semibold text-gray-800">Spend Milestones</h2>
-            <span className="text-xs text-gray-400">unlock bonus miles by hitting min spend</span>
+            <span className="text-xs text-gray-500">unlock bonus miles by hitting min spend</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-5">
             {milestones.map(m => {
@@ -342,7 +342,7 @@ export default function Dashboard() {
                     {met ? (
                       <span className="ml-auto text-xs font-medium text-emerald-600 shrink-0">Unlocked</span>
                     ) : (
-                      <span className="ml-auto text-xs text-gray-400 shrink-0">{m.daysLeft}d left</span>
+                      <span className="ml-auto text-xs text-gray-500 shrink-0">{m.daysLeft}d left</span>
                     )}
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -357,7 +357,7 @@ export default function Dashboard() {
                         ? `Bonus unlocked this ${periodLabel}`
                         : `${formatSGD(remaining)} more to unlock bonus`}
                     </span>
-                    <span className="text-gray-400 tabular-nums">
+                    <span className="text-gray-500 tabular-nums">
                       {formatSGD(m.totalSpent)} / {formatSGD(m.minSpend)}
                     </span>
                   </div>
@@ -374,7 +374,7 @@ export default function Dashboard() {
           <h2 className="font-semibold text-gray-800 mb-3">My Wallet</h2>
           {cardSummaries.length === 0 ? (
             <div className="text-center py-6">
-              <p className="text-sm text-gray-400">No cards in your wallet yet.</p>
+              <p className="text-sm text-gray-500">No cards in your wallet yet.</p>
               <Link to="/cards" className="btn-primary mt-3 text-xs">Go to My Cards</Link>
             </div>
           ) : (
@@ -411,7 +411,7 @@ export default function Dashboard() {
                     <span className="text-sm font-medium text-gray-700">
                       {card.bank} {card.name}
                     </span>
-                    <span className="ml-auto text-xs text-gray-400 shrink-0">
+                    <span className="ml-auto text-xs text-gray-500 shrink-0">
                       {card.cap_cycle === 'statement' && statementDays.has(card.id)
                         ? `Stmt day ${statementDays.get(card.id)}`
                         : 'Calendar Mth'}
@@ -435,7 +435,7 @@ export default function Dashboard() {
                       return (
                         <div key={row.key}>
                           <div className="flex items-center justify-between text-xs mb-1">
-                            <span className={row.pinned && row.spent === 0 ? 'text-gray-400' : 'text-gray-600'}>
+                            <span className={row.pinned && row.spent === 0 ? 'text-gray-500' : 'text-gray-600'}>
                               {row.label}
                               {row.pinned && row.spent === 0 && <span className="ml-1 text-gray-300">· no spend yet</span>}
                             </span>
@@ -460,7 +460,7 @@ export default function Dashboard() {
 
                     {/* Monthly total row */}
                     <div className="flex items-center justify-between text-xs pt-0.5">
-                      <span className="text-gray-400">
+                      <span className="text-gray-500">
                         {capRows.length > 0 ? 'Total this month' : 'No cap · total this month'}
                       </span>
                       <div className="flex items-center gap-3">
@@ -491,7 +491,7 @@ export default function Dashboard() {
                   </div>
                   <div className="pl-7">
                     <div className="flex items-center justify-between text-xs pt-0.5">
-                      <span className="text-gray-400">No rewards · total this month</span>
+                      <span className="text-gray-500">No rewards · total this month</span>
                       <span className="text-gray-600 font-medium">S${debitMonthlySpent.toFixed(2)}</span>
                     </div>
                   </div>
@@ -510,7 +510,7 @@ export default function Dashboard() {
           </div>
           {recent.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-sm text-gray-400">No transactions yet.</p>
+              <p className="text-sm text-gray-500">No transactions yet.</p>
               <Link to="/transactions" className="btn-primary mt-3 text-xs">
                 <Receipt size={13} /> Log first transaction
               </Link>
@@ -532,7 +532,7 @@ export default function Dashboard() {
                       {notesLine && (
                         <p className="text-xs text-gray-500 truncate">{notesLine}</p>
                       )}
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-500">
                         {t.transaction_date} · {card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : 'No card'}
                       </p>
                     </div>
@@ -556,7 +556,7 @@ export default function Dashboard() {
       {cards.length === 0 && (
         <div className="card p-8 text-center border-dashed border-2 border-gray-300">
           <p className="font-medium text-gray-600">No cards set up yet</p>
-          <p className="text-sm text-gray-400 mt-1">Add your credit cards to start tracking miles and getting recommendations.</p>
+          <p className="text-sm text-gray-500 mt-1">Add your credit cards to start tracking miles and getting recommendations.</p>
           <Link to="/cards" className="btn-primary mt-4">Go to My Cards</Link>
         </div>
       )}
@@ -575,7 +575,7 @@ function Stat({ icon, label, value, sub, bg }: {
       <div className="min-w-0">
         <p className="text-xs text-gray-500 font-medium uppercase tracking-wide truncate">{label}</p>
         <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">{value}</p>
-        <p className="text-xs text-gray-400">{sub}</p>
+        <p className="text-xs text-gray-500">{sub}</p>
       </div>
     </div>
   )

@@ -256,7 +256,7 @@ export default function Expenses() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400">
+    <div className="flex items-center justify-center h-64 text-gray-500">
       <RefreshCw size={24} className="animate-spin mr-2" /> Loading…
     </div>
   )
@@ -326,7 +326,7 @@ export default function Expenses() {
         {quickMode === 'custom' && (
           <div className="flex items-center gap-2 flex-wrap ml-1">
             <MonthYearSelect value={customFrom} onChange={setCustomFrom} />
-            <span className="text-gray-400 text-xs">–</span>
+            <span className="text-gray-500 text-xs">–</span>
             <MonthYearSelect value={customTo} onChange={setCustomTo} />
           </div>
         )}
@@ -376,14 +376,14 @@ export default function Expenses() {
           )}
           {viewMode === 'personal' && hasGroupSpends && (
             <div className="ml-auto self-center">
-              <p className="text-xs text-gray-400">Rewards earned on full card amount</p>
+              <p className="text-xs text-gray-500">Rewards earned on full card amount</p>
             </div>
           )}
         </div>
       )}
 
       {filteredTxns.length === 0 ? (
-        <div className="card p-10 text-center text-gray-400">
+        <div className="card p-10 text-center text-gray-500">
           <BarChart2 size={32} className="mx-auto mb-3 opacity-40" />
           <p className="font-medium">No transactions in this period.</p>
         </div>
@@ -400,7 +400,7 @@ export default function Expenses() {
                       <span className="text-gray-700">{cat ? `${cat.icon} ${cat.name}` : '—'}</span>
                       <span className="text-gray-600 tabular-nums">
                         {formatSGD(amt)}
-                        <span className="text-gray-400 ml-2 text-xs">{Math.round(pct)}%</span>
+                        <span className="text-gray-500 ml-2 text-xs">{Math.round(pct)}%</span>
                       </span>
                     </div>
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">

@@ -137,7 +137,7 @@ export default function Admin() {
           {exportMonth && (
             <button
               onClick={() => setExportMonth('')}
-              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-xs text-gray-500 hover:text-gray-600 transition-colors"
             >
               All time
             </button>
@@ -169,9 +169,9 @@ export default function Admin() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-gray-500">Loading…</p>
       ) : displayed.length === 0 ? (
-        <div className="card p-10 text-center text-gray-400 text-sm border-dashed border-2 border-gray-200">
+        <div className="card p-10 text-center text-gray-500 text-sm border-dashed border-2 border-gray-200">
           No {filter === 'all' ? '' : filter} feedback yet.
         </div>
       ) : (
@@ -197,7 +197,7 @@ export default function Admin() {
                     }`}>
                       {row.type === 'bug' ? 'Bug report' : 'Suggestion'}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-500">
                       {row.user_email ?? 'Anonymous'} · {new Date(row.created_at).toLocaleDateString('en-SG', {
                         day: 'numeric', month: 'short', year: 'numeric',
                       })}

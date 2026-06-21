@@ -74,7 +74,7 @@ export default function MileValue() {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">
-            Cash co-payment — taxes &amp; fees (S$) <span className="text-gray-400 font-normal">optional</span>
+            Cash co-payment — taxes &amp; fees (S$) <span className="text-gray-500 font-normal">optional</span>
           </label>
           <input
             type="number"
@@ -85,7 +85,7 @@ export default function MileValue() {
             onChange={e => setCopay(e.target.value)}
             className="input w-full sm:w-1/2"
           />
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             Most award tickets still charge taxes and carrier surcharges in cash.
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function MileValue() {
 
           {/* Progress bar */}
           <div>
-            <div className="flex justify-between text-xs text-gray-400 mb-1">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
               <span>0¢</span>
               <span className="text-gray-600 font-medium">Benchmark: {BENCHMARK_CPP}¢</span>
               <span>2.5¢+</span>
@@ -163,8 +163,8 @@ export default function MileValue() {
 function Row({ label, value, bold, sub }: { label: string; value: string; bold?: boolean; sub?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className={sub ? 'text-gray-400' : 'text-gray-600'}>{label}</span>
-      <span className={bold ? 'font-semibold text-gray-900' : sub ? 'text-gray-400' : 'text-gray-700'}>
+      <span className={sub ? 'text-gray-500' : 'text-gray-600'}>{label}</span>
+      <span className={bold ? 'font-semibold text-gray-900' : sub ? 'text-gray-500' : 'text-gray-700'}>
         {value}
       </span>
     </div>

@@ -246,7 +246,7 @@ export default function Cards() {
       </div>
 
       {grouped.length === 0 && (
-        <p className="text-sm text-gray-400 text-center py-6">No cards match the selected filters.</p>
+        <p className="text-sm text-gray-500 text-center py-6">No cards match the selected filters.</p>
       )}
 
       {/* Library grouped by bank */}
@@ -258,7 +258,7 @@ export default function Cards() {
             onClick={() => toggleBank(bank)}
             className="flex items-center gap-2 mb-3 group w-full text-left"
           >
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-widest group-hover:text-gray-600 transition-colors">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest group-hover:text-gray-600 transition-colors">
               {bank}
             </h2>
             <span className="text-gray-300 group-hover:text-gray-500 transition-colors">
@@ -319,7 +319,7 @@ export default function Cards() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900">{card.bank} {card.name}</span>
-                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                           {card.card_network}
                         </span>
                         {card.card_type === 'cashback' && (
@@ -370,7 +370,7 @@ export default function Cards() {
                               return cat ? (
                                 <span key={catId} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg">
                                   {cat.icon} {cat.name}: {templateRate?.mpd ?? '—'} mpd
-                                  <span className="text-indigo-400 ml-1 text-[10px]">your choice</span>
+                                  <span className="text-indigo-400 ml-1 text-[11px]">your choice</span>
                                 </span>
                               ) : null
                             })
@@ -398,7 +398,7 @@ export default function Cards() {
                               return (
                                 <span key={r.id} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg">
                                   {cat?.icon} {cat?.name}: {r.mpd} mpd
-                                  <span className="text-indigo-400 ml-1 text-[10px]">since {r.effective_from}</span>
+                                  <span className="text-indigo-400 ml-1 text-[11px]">since {r.effective_from}</span>
                                 </span>
                               )
                             })}
@@ -433,7 +433,7 @@ export default function Cards() {
                                 Cap: S${firstCap.spend_limit?.toLocaleString()}/{capPeriodLabel(firstCap.cap_period).toLowerCase()}
                                 {capCat ? ` (${capCat.name})` : ' (all)'}
                                 {!card.selectable_category && (
-                                  <span className="text-amber-400 ml-1 text-[10px]">since {firstCap.effective_from}</span>
+                                  <span className="text-amber-400 ml-1 text-[11px]">since {firstCap.effective_from}</span>
                                 )}
                               </span>
                             )
@@ -458,7 +458,7 @@ export default function Cards() {
                         <div className="mt-3 pt-3 border-t border-gray-100">
                           {editingStatementDay === card.id ? (
                             <div className="flex items-center gap-2">
-                              <CalendarDays size={13} className="text-gray-400 shrink-0" />
+                              <CalendarDays size={13} className="text-gray-500 shrink-0" />
                               <span className="text-xs text-gray-500">Cycle starts day</span>
                               <input
                                 type="number"
@@ -469,7 +469,7 @@ export default function Cards() {
                                 onChange={e => setStatementDayInput(e.target.value)}
                                 className="input text-xs w-16 py-1 px-2"
                               />
-                              <span className="text-xs text-gray-400">of each month</span>
+                              <span className="text-xs text-gray-500">of each month</span>
                               <button
                                 onClick={() => handleSaveStatementDay(card.id)}
                                 disabled={savingStatementDay}
@@ -479,14 +479,14 @@ export default function Cards() {
                               </button>
                               <button
                                 onClick={() => setEditingStatementDay(null)}
-                                className="text-xs text-gray-400 hover:text-gray-600"
+                                className="text-xs text-gray-500 hover:text-gray-600"
                               >
                                 Cancel
                               </button>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <CalendarDays size={13} className="text-gray-400 shrink-0" />
+                              <CalendarDays size={13} className="text-gray-500 shrink-0" />
                               <span className="text-xs text-gray-500">
                                 {statementDays.has(card.id)
                                   ? `Cycle starts day ${statementDays.get(card.id)} of each month`
@@ -534,8 +534,8 @@ export default function Cards() {
 
       {allCards.length === 0 && (
         <div className="card p-10 text-center border-dashed border-2 border-gray-200">
-          <p className="text-gray-400 text-sm">No cards in the library yet.</p>
-          <p className="text-gray-400 text-xs mt-1">Ask the admin to seed the card library.</p>
+          <p className="text-gray-500 text-sm">No cards in the library yet.</p>
+          <p className="text-gray-500 text-xs mt-1">Ask the admin to seed the card library.</p>
         </div>
       )}
 
@@ -600,7 +600,7 @@ export default function Cards() {
             </div>
 
             {editCard.max_selectable > 1 && (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 {editChoices.length} of {editCard.max_selectable} selected
               </p>
             )}
@@ -616,7 +616,7 @@ export default function Cards() {
                 onChange={e => setEditDate(e.target.value)}
                 className="input text-sm"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 {editDate === '2000-01-01'
                   ? 'Applies to all transactions (past and future) — change only if you had a different category before.'
                   : 'Transactions before this date keep their previous category choice for accurate history.'}
@@ -659,7 +659,7 @@ export default function Cards() {
                 />
                 <span className="text-sm text-gray-500">of each month</span>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Enter the day your statement closes (1–28).</p>
+              <p className="text-xs text-gray-500 mt-1">Enter the day your statement closes (1–28).</p>
             </div>
             <div className="flex flex-col gap-2 pt-1">
               <button
@@ -672,7 +672,7 @@ export default function Cards() {
               <button
                 onClick={() => confirmPendingAdd(true)}
                 disabled={addingSaving}
-                className="text-sm text-gray-400 hover:text-gray-600 transition-colors text-center py-1"
+                className="text-sm text-gray-500 hover:text-gray-600 transition-colors text-center py-1"
               >
                 Skip — use calendar month instead
               </button>

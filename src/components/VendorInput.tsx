@@ -45,7 +45,7 @@ export default function VendorInput({
         <button
           type="button"
           onClick={onClear}
-          className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+          className="shrink-0 text-gray-500 hover:text-gray-600 transition-colors"
           title="Clear vendor"
         >
           <X size={14} />
@@ -75,7 +75,7 @@ export default function VendorInput({
             >
               <span className="flex-1 font-medium text-gray-800">{v.name}</span>
               {v.default_mcc && (
-                <span className="shrink-0 text-xs text-gray-400 font-mono">
+                <span className="shrink-0 text-xs text-gray-500 font-mono">
                   {v.default_mcc}
                 </span>
               )}

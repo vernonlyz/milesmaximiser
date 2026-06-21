@@ -57,7 +57,7 @@ export default function Recommend() {
       <div className="card p-5 space-y-4 mb-6 lg:mb-0">
         {/* Vendor typeahead */}
         <div>
-          <label className="label">Vendor <span className="text-gray-400 font-normal text-xs">(optional — auto-fills category)</span></label>
+          <label className="label">Vendor <span className="text-gray-500 font-normal text-xs">(optional — auto-fills category)</span></label>
           <VendorInput
             vendorName={vendorName}
             isVendorSelected={selectedVendor !== null}
@@ -101,7 +101,7 @@ export default function Recommend() {
                   <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
             </div>
           </div>
 
@@ -122,7 +122,7 @@ export default function Recommend() {
         {/* Payment method filter */}
         <div>
           <label className="label">
-            Payment Method <span className="text-gray-400 font-normal text-xs">(optional — filters channel-specific bonuses)</span>
+            Payment Method <span className="text-gray-500 font-normal text-xs">(optional — filters channel-specific bonuses)</span>
           </label>
           <div className="flex gap-2">
             {([null, 'contactless', 'online'] as const).map(mode => (
@@ -211,14 +211,14 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
               {rec.bonusMpd.toFixed(2)}
               <span className="text-sm font-normal text-indigo-300 ml-1">mpd</span>
             </p>
-            <p className="text-xs text-gray-400">potential</p>
-            <p className="text-xs text-gray-400 mt-0.5">{rec.card.base_mpd.toFixed(2)} mpd now</p>
+            <p className="text-xs text-gray-500">potential</p>
+            <p className="text-xs text-gray-500 mt-0.5">{rec.card.base_mpd.toFixed(2)} mpd now</p>
           </div>
         ) : (
           <div className="text-right shrink-0">
             <p className="text-xl font-bold text-gray-900">
               {rec.bonusMpd.toFixed(2)}
-              <span className="text-sm font-normal text-gray-400 ml-1">mpd</span>
+              <span className="text-sm font-normal text-gray-500 ml-1">mpd</span>
             </p>
             <p className="text-xs text-indigo-600 font-medium">
               +{Math.round(rec.milesEarned).toLocaleString()} miles
@@ -232,10 +232,10 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
         <div className="mt-3 ml-10">
           <div className="flex justify-between text-xs mb-1">
             {rec.status === 'locked'
-              ? <span className="text-gray-400">Min spend to unlock {rec.bonusMpd} mpd</span>
+              ? <span className="text-gray-500">Min spend to unlock {rec.bonusMpd} mpd</span>
               : <span className="text-emerald-600">Threshold met ✓</span>
             }
-            <span className="tabular-nums text-gray-400">
+            <span className="tabular-nums text-gray-500">
               {formatSGD(Math.min(rec.totalCardSpent, rec.minSpendRequired))} / {formatSGD(rec.minSpendRequired)}
             </span>
           </div>
@@ -253,7 +253,7 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
       {/* Cap usage bar — visible whenever we have cap data (including locked cards) */}
       {rec.capAmount !== null && rec.capPeriod !== 'per_transaction' && rec.capRemaining !== null && (
         <div className="mt-3 ml-10">
-          <div className="flex justify-between text-xs text-gray-400 mb-1">
+          <div className="flex justify-between text-xs text-gray-500 mb-1">
             <span>
               {rec.status === 'locked'
                 ? 'Cap tracker'

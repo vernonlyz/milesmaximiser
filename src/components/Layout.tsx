@@ -298,7 +298,7 @@ export default function Layout() {
             </div>
           )}
           <Suspense fallback={
-            <div className="flex items-center justify-center py-20 text-gray-400">
+            <div className="flex items-center justify-center py-20 text-gray-500">
               <Loader2 size={24} className="animate-spin" />
             </div>
           }>
@@ -321,8 +321,8 @@ export default function Layout() {
             end={to === '/'}
             onClick={() => setOpen(false)}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
-                isActive ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
+              `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
+                isActive ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'
               }`
             }
           >
@@ -332,7 +332,7 @@ export default function Layout() {
         ))}
         <button
           onClick={() => setOpen(true)}
-          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium text-gray-500 hover:text-gray-700 transition-colors"
         >
           <Menu size={20} />
           More
@@ -405,7 +405,7 @@ export default function Layout() {
                 </div>
               ))}
             </div>
-            <p className="text-xs text-gray-400">Note: this only works in Safari. If you're using Chrome or another browser on iOS, open this page in Safari first.</p>
+            <p className="text-xs text-gray-500">Note: this only works in Safari. If you're using Chrome or another browser on iOS, open this page in Safari first.</p>
             <button onClick={() => setIosInstall(false)} className="btn-primary w-full">Got it</button>
           </div>
         </Modal>

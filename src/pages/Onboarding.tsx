@@ -80,7 +80,7 @@ export default function Onboarding() {
         </div>
 
         {activeCards.length === 0 ? (
-          <div className="card p-10 text-center text-gray-400 text-sm">
+          <div className="card p-10 text-center text-gray-500 text-sm">
             Loading card library…
           </div>
         ) : (
@@ -116,7 +116,7 @@ export default function Onboarding() {
                     </div>
 
                     <p className="font-semibold text-sm text-gray-900 leading-tight">{card.bank}</p>
-                    <p className="text-xs text-gray-400 leading-tight mt-0.5 line-clamp-2">{card.name}</p>
+                    <p className="text-xs text-gray-500 leading-tight mt-0.5 line-clamp-2">{card.name}</p>
 
                     <div className="mt-2.5 space-y-0.5">
                       {cardRates.slice(0, 2).map(r => {
@@ -127,7 +127,7 @@ export default function Onboarding() {
                           </p>
                         )
                       })}
-                      <p className="text-xs text-gray-400">{card.base_mpd} mpd base</p>
+                      <p className="text-xs text-gray-500">{card.base_mpd} mpd base</p>
                     </div>
                   </button>
                 )
@@ -141,7 +141,7 @@ export default function Onboarding() {
               </div>
 
               <div className="sm:ml-auto flex items-center gap-4">
-                <button onClick={skip} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                <button onClick={skip} className="text-sm text-gray-500 hover:text-gray-600 transition-colors">
                   Skip for now
                 </button>
                 <button onClick={handleGetStarted} disabled={saving} className="btn-primary">

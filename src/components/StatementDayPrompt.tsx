@@ -73,10 +73,10 @@ export default function StatementDayPrompt() {
               className="input w-28"
               autoFocus
             />
-            <span className="text-sm text-gray-400">of each month</span>
+            <span className="text-sm text-gray-500">of each month</span>
           </div>
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-500 mt-2">
             You can also update this anytime from the <span className="font-medium text-gray-500">My Cards</span> page.
           </p>
         </div>
@@ -99,7 +99,7 @@ export default function StatementDayPrompt() {
         </div>
 
         {pendingCards.length > 1 && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             {pendingCards.length - 1} more card{pendingCards.length > 2 ? 's' : ''} also need{pendingCards.length === 2 ? 's' : ''} a statement date.
           </p>
         )}
