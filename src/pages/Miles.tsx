@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight, Pencil, HelpCircle, Infinity as InfinityIcon,
+  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight, Pencil, HelpCircle, Infinity as InfinityIcon, ArrowUp,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -510,9 +510,9 @@ export default function Miles() {
                   </div>
                 </div>
 
-                {/* Breakdown */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-gray-50 rounded-lg p-2.5">
+                {/* Breakdown — on phones Opening spans the full width, Earned + Adjustments share a row */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="bg-gray-50 rounded-lg p-2.5 col-span-2 sm:col-span-1">
                     <p className="text-xs text-gray-500 mb-1">Opening</p>
                     <input
                       type="number" step="100" min="0"
@@ -540,6 +540,13 @@ export default function Miles() {
                     </p>
                   </div>
                 </div>
+
+                {/* First-run nudge for an untouched, empty balance */}
+                {opening === 0 && total === 0 && !dirty && (
+                  <p className="text-xs text-indigo-500 flex items-center gap-1 -mt-1">
+                    <ArrowUp size={11} className="shrink-0" /> Set your opening balance above to start tracking.
+                  </p>
+                )}
 
                 {/* Expiry */}
                 <div className="flex items-center gap-2 flex-wrap">
