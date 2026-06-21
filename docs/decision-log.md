@@ -472,3 +472,76 @@ Captures key architectural choices made during development — what was decided,
 **Why:** `allCards` is the full card library fetched from Supabase. It is always non-empty (23+ cards) after a successful load and always empty before any data arrives. It is therefore a reliable, zero-cost "data has been fetched for this user" signal that collapses the race window to zero without any schema changes.
 
 **Trade-off:** If the card library itself is somehow empty (e.g., library not seeded), `dataLoaded` would be permanently false and the redirect would never fire. Acceptable — an empty library is a broken deployment, not a user scenario.
+
+---
+
+## 2026-06-20 — Miles Balance: account model with dated snapshot + ledger (migrations 027–028)
+
+**Decision:** Track miles via a `miles_accounts` row that owns a balance — `opening_miles` + `as_of_date` (a dated snapshot) + `expiry_date` — with cards linked through `miles_account_cards` (a card belongs to exactly one account) and a `miles_adjustments` ledger of dated redemptions (negative) and bonuses (positive). **Account total = opening + Σ(transaction miles_earned for linked cards where date > as_of_date) + Σ(adjustments where date > as_of_date).**
+
+**Alternatives considered:**
+- One row per card with `opening_miles` + a single "redeemed" field (the first cut, migration 027). Couldn't represent UOB-style pooling (several cards → one balance), lost redemption history on every edit, and double-counted: the opening balance already reflects past spending, so summing *all* transactions on top double-counts.
+- Track at programme level only (e.g. one "KrisFlyer" row) — cleaner conceptually but loses per-card earned visibility.
+
+**Why:** A card normally maps to one account (pool-of-one), but UOB pools several cards into one miles balance — the link table models both uniformly. Counting only *post-snapshot* earned + adjustments is the key correctness rule: the opening balance is a point-in-time figure that already includes earlier activity, so anything dated at/before the snapshot is "baked in." This also makes **Reconcile** correct — it folds the current total into a fresh opening as of today and resets the running count, with the ledger preserved (pre-snapshot entries shown muted).
+
+**Trade-off:** Expiry is a single manual date per account (no per-batch rolling expiry) — accepted as the "simple + manual" scope the user chose. A default "KrisFlyer miles" account is auto-seeded per user, keyed in `localStorage` (so deleting it doesn't resurrect it) and matched by exact name (so a "UOB KrisFlyer Visa" card account doesn't suppress it).
+
+---
+
+## 2026-06-20 — Cap double-counting: channel caps exclude category-cap spend (display only)
+
+**Decision:** In `buildPeriodSpending`, when a card has a payment-channel cap (`cap_payment_channel`), any transaction paid via that channel is excluded from that card's category/group cap sums — it is attributed solely to the channel cap.
+
+**Background:** UOB Preferred Platinum has two independent S$600 caps: a contactless **channel** cap and an Online Shopping **category** cap. The dashboard summed each cap across all transactions independently, so a purchase tagged both Online Shopping *and* contactless (the card defaults the channel to contactless) appeared in both bars at the same value.
+
+**Why:** The recommendation engine already attributes such a transaction to the channel cap (channel caps take precedence). The fix makes the dashboard display mirror the engine, so the same dollars are never counted twice. Cards without channel caps are unaffected. Complementary data fix: the transaction form defaults the Online Shopping category to the `'online'` channel, since online shopping is card-not-present and shouldn't land in a contactless cap.
+
+---
+
+## 2026-06-20 — PWA: autoUpdate service worker with cache cleanup
+
+**Decision:** Configure `vite-plugin-pwa` with `registerType: 'autoUpdate'` and workbox `cleanupOutdatedCaches: true` + `skipWaiting: true` + `clientsClaim: true`. `UpdatePrompt` reloads once on `controlling` when `event.isUpdate` is true.
+
+**Background:** Rapid deploys change the hashed JS filenames. Mobile devices (which evict cache aggressively) were left with a service worker serving a stale precached `index.html` pointing at chunks that no longer existed → blank white screen. Desktop, with an intact cache, was unaffected.
+
+**Why:** `cleanupOutdatedCaches` purges precaches from previous deploys; `skipWaiting` + `clientsClaim` make the newest SW take control immediately instead of lingering on the stale one. The app ships as a single bundle (no route-level code-splitting *of the SW precache concern*), so `skipWaiting` is safe. The `isUpdate` guard prevents a reload loop on first install.
+
+**Trade-off:** An auto-reload can interrupt a mid-session form on the rare deploy; acceptable versus the blank-screen failure. Note both `vite.config.js` and `vite.config.ts` exist — Vite resolves the `.js` first, so both must be kept in sync.
+
+---
+
+## 2026-06-21 — Favourites prefill the form; they do not auto-post
+
+**Decision:** "Favourite" transactions are saved templates that prefill the Add Transaction form on today's date for the user to confirm and save. They store only reusable inputs (card, category, vendor, MCC, channel, optional amount, notes) — never computed miles/cashback. No auto-posting on a schedule.
+
+**Alternatives considered:**
+- One-tap instant log (no confirmation) — fast but easy to misfire and needs a fixed amount.
+- Auto-post every month — true "recurring", but risky when amounts vary or a charge doesn't happen, and would post stale rates.
+
+**Why:** Amounts and dates vary, and rates/caps change — recomputing on save (the normal path) keeps miles accurate and avoids wrong auto-entries. Amount is optional so steady bills can store a fixed value while variable ones are typed each time.
+
+---
+
+## 2026-06-22 — My Cards: uniform tile grid + details modal (vs masonry / table)
+
+**Decision:** Render the card library as one continuous responsive grid of uniform compact tiles (sorted by bank), with full rates/caps/remarks/statement in a per-card **Details modal**. Replaced an earlier per-bank masonry layout.
+
+**Alternatives considered:**
+- Per-bank sub-grids (what existed) — each bank with 1–2 cards left columns half-filled, producing a patchwork of differently-filled mini-grids; collapsible inline bodies made heights ragged.
+- CSS-columns masonry — packs varying heights tightly but orders column-major and still mixes heights.
+- Dense list/table on desktop — most information-dense, but loses the card aesthetic.
+
+**Why:** The mess came from rendering full, variable-length detail inside every grid item. Moving detail into a modal makes every tile the same compact height, so a single grid stays aligned regardless of how much each card carries. Actions are pinned to the tile bottom (`flex` + `mt-auto`) so rows line up. The bank/type/wallet filter chips replace the need for per-bank section grouping.
+
+**Trade-off:** Full details now require a click (modal) rather than being inline; accepted for the large gain in scannability and alignment.
+
+---
+
+## 2026-06-21 — Code-split route pages; merge Miles into one tabbed section
+
+**Decision:** Lazy-load all route page components with `React.lazy` + `Suspense` (a boundary around the Layout `Outlet` keeps the shell mounted). Collapse the two Miles pages into one "Miles" sidebar entry with Balance / Earned tabs.
+
+**Why:** The build warned the bundle was ~1.2 MB in a single chunk; everything loaded upfront. Code-splitting drops the initial load to ~425 KB and defers recharts (~358 KB) to chart pages only — the biggest perceived-speed win on mobile. Tabs trim an 8-item sidebar and group the closely-related Miles views. (Core app *data* is still loaded upfront via AppContext — only the JS is split.)
+
+**Trade-off:** A failed lazy-chunk load on a flaky network now needs an error boundary (still outstanding). On the Earned tab the sidebar "Miles" item doesn't highlight (route is `/earnings`), but the tab bar conveys location.

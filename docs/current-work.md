@@ -65,6 +65,24 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-13  Fix billing cycle labels everywhere — 'statement closing day' → 'billing cycle starts on day' to match engine semantics
 2026-06-13  Add cycle-end proximity warning in transaction form — amber inline alert when transaction date is within 5 days of the card's billing cycle end; uses getPeriodEnd from utils
 2026-06-13  Improve Trends charts on mobile — angled X-axis labels, compact Y-axis ($1k format), 3M default, legend at top, distinct category colours (cyan replaces violet)
+2026-06-20  Expenses unified date filter (Option B); year selection in custom range; Transactions year+month filter
+2026-06-20  Fix Mile Value + Admin desktop width; My Cards per-bank/per-card collapse
+2026-06-20  PWA install: always-show Add to Home Screen; Android + generic install modals; dashboard install banner
+2026-06-20  Miles Balance page (/miles) — first cut: per-card opening balance + expiry (migration 027)
+2026-06-20  Rework Miles Balance into account model — pooling, dated snapshot, redemption/bonus ledger, reconcile (migration 028)
+2026-06-20  Miles Balance UX: collapsible help, bank names + colour on chips, no-expiry state, default KrisFlyer balance, total across all
+2026-06-20  Miles Earned page (/earnings) — per-card earnings by billing cycle; monthly + cumulative chart; per-card chart/numbers toggle + collapse
+2026-06-20  Fix UOB Preferred Platinum cap double-count (channel-cap spend excluded from category-cap sums); Online Shopping → 'online' channel default
+2026-06-20  Fix mobile/PWA blank screen — cleanupOutdatedCaches + skipWaiting + clientsClaim; autoUpdate; UpdatePrompt auto-reload
+2026-06-20  Favourite (recurring) transactions — saved templates prefill the log form; in-app save/delete modals (migration 029)
+2026-06-21  Replace native prompt/confirm with in-app modals (Miles, Transactions); Collapse all on Miles Earned
+2026-06-21  Mobile bottom tab bar + app-wide toast notifications (ToastContext)
+2026-06-21  Readability pass (gray-400→gray-500 on light bg; tiny text 10→11/11→12px); empty-state CTAs
+2026-06-21  Pull-to-refresh + mobile header refresh button; refresh/refreshTransactions typed Promise<void>
+2026-06-21  Code-split routes (React.lazy + Suspense); merge Miles Balance + Earned into one tabbed "Miles" section
+2026-06-21  My Cards: wider grid, wallet filter, full-width body, header redesign, masonry, remove confirmation  [tag: v7.0-miles-tracking]
+2026-06-22  My Cards: redesign to uniform tile grid + Details modal (fixes desktop alignment)
+2026-06-22  Expenses Trends: show series name (card type / category) in chart tooltips
 ```
 
 ---
@@ -131,6 +149,18 @@ Everything listed below is in a working, committed state on `main`:
 - **Billing cycle label fix** — All UI copy referring to "statement closing day" changed to "billing cycle starts on day" to match engine semantics (`getPeriodStart` already treats the value as the cycle start, not the closing date).
 - **Cycle-end proximity warning** — Amber inline banner in the transaction form when the selected card is a miles/cashback card and the transaction date is within 5 days of the billing cycle end. Computed via `getPeriodEnd` from `utils.ts`. Warns that the posting date may fall in the next cycle.
 - **Trends charts: mobile improvements** — `useIsMobile()` hook (< 640px) drives responsive chart config: X labels angled at −40°, compact Y-axis (`$1k` format), 3M default range, legend at top, narrower bar category gap. Category chart uses `['#6366f1','#10b981','#f59e0b','#ef4444','#06b6d4']` (cyan replaces violet to avoid indigo/violet confusion).
+- **Trends charts: tooltip series name** — The card-type and category charts returned a single-element array from the recharts tooltip `formatter`, which dropped the series name. Returning `[value, name]` restores the "Miles: S$X" / "Dining: S$X" label.
+- **Miles Balance page (`/miles`)** — Account model (migrations 027–028): a `miles_accounts` row owns a balance (opening snapshot + `as_of_date` + expiry); `miles_account_cards` links cards (a card belongs to one account → UOB-style pooling); `miles_adjustments` is a dated ledger of redemptions (negative) and bonuses (positive). **Total = opening + miles earned from transactions after the snapshot + post-snapshot adjustments** (counting only post-snapshot earned + adjustments avoids double-counting the opening balance, and makes Reconcile correct). Auto-creates a pool-of-one account per wallet miles card and a default standalone "KrisFlyer miles" balance (localStorage-keyed, exact-name match so a "UOB KrisFlyer Visa" card account doesn't suppress it). Expiry shows an amber badge within 6 months, red if expired. Reconcile folds the current total into a fresh opening as of today, keeping history. Help panel collapsed by default; a "Total miles" card sums all accounts.
+- **Miles Earned page (`/earnings`)** — Per-card miles earned per billing cycle for a selected year. Calendar cards group by calendar month; statement cards group by the statement window (labelled by closing month, with the covered date range shown). Transactions fetched with a month of margin each side so cycles straddling year boundaries bucket correctly. Combined monthly + cumulative `ComposedChart` (bars left axis, line right axis), reused per card via an `EarnChart` component. Each card has a Chart/Numbers toggle (chart default) and collapse; a Collapse-all toggle sits above the list.
+- **Miles section tabs** — `MilesTabs` (Balance / Earned) renders at the top of both pages; the sidebar has one "Miles" entry (down from two).
+- **Favourite (recurring) transactions** — `transaction_favourites` (migration 029) stores reusable inputs only (card, category, vendor, MCC, payment channel, optional fixed amount, notes) — never computed values. Amber chips at the top of the Add modal prefill the form on today's date (miles recomputed on save); a "Save as favourite" button names and saves the current form; both save and delete use in-app modals.
+- **UOB Preferred Platinum cap fix** — The card has two independent S$600 caps: a contactless **channel** cap and an Online Shopping **category** cap. `buildPeriodSpending` summed each independently, so a contactless-tagged online-shopping purchase hit both bars. Fix: a transaction whose payment channel has a dedicated channel cap on that card is excluded from that card's category/group cap sums (mirroring the engine, where a channel cap takes precedence). The transaction form also defaults the Online Shopping category to the `'online'` channel so those purchases land in the right cap.
+- **PWA reliability** — `vite-plugin-pwa` switched to `registerType: 'autoUpdate'` with `cleanupOutdatedCaches` + `skipWaiting` + `clientsClaim`. This fixed a mobile/PWA blank-screen: across rapid deploys, devices were left with a stale precached `index.html` referencing purged JS chunks. `UpdatePrompt` auto-reloads once when an updated SW takes control (`isUpdate` guard avoids first-install loop). Install UX: always-visible "Add to Home Screen", iOS/Android/desktop modals, and a dismissible dashboard install banner.
+- **Mobile bottom tab bar + toasts** — Layout shows a fixed bottom nav (Home/Recommend/Log/Cards/More; "More" opens the full drawer) on mobile; desktop keeps the sidebar. `ToastContext`/`useToast()` give app-wide save/confirm feedback wired into Transactions and Miles actions.
+- **Pull-to-refresh** — Main scroll container supports pull-to-refresh (engages only at the top, `overscroll-contain`), plus a mobile header refresh button. Both call `refresh()`; `refresh`/`refreshTransactions` are now typed `Promise<void>` so the spinner awaits the reload.
+- **Code-splitting** — All route pages are `React.lazy` with `Suspense` boundaries (Outlet in Layout + Onboarding). The ~1.2 MB single bundle dropped to ~425 KB initial; recharts (~358 KB) loads lazily only on chart pages.
+- **Readability + empty states** — Secondary text darkened from `gray-400` to `gray-500` on all light backgrounds (dark sidebar grays kept); smallest text bumped (10→11px, 11→12px). Empty states on Transactions / Miles / Earnings now have action buttons.
+- **My Cards redesign** — One continuous responsive grid of uniform compact tiles (sorted by bank): badge, name, one-line headline rate, key pills, and Details + Add/Remove (actions pinned to the bottom for aligned rows). Full rates/caps/remarks/statement live in a **Details modal**. Replaces the earlier per-bank masonry that produced a patchwork of half-filled, ragged sub-grids. Wallet filter ("All Cards / In Wallet"); remove-from-wallet confirmation modal.
 
 ---
 
@@ -150,11 +180,11 @@ The card library (rates, caps, new cards) is updated via manual SQL in the Supab
 
 The core recommendation, tracking, expense, trends, and utility features are now in a strong state. The most likely next candidates are:
 
-1. **Run pending migrations in Supabase SQL Editor:**
-   - Migration 025: `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS personal_amount NUMERIC;`
-   - Migration 026: `UPDATE card_library SET cap_cycle = 'statement' WHERE id = '00000000-0000-0000-0001-000000000012';`
-2. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested. A regression in any of these paths is invisible without tests.
-3. **Error handling on Cards/Recommend/Transactions pages** — Currently shows silent empty states on Supabase failures.
-4. **Pagination or date-range filter on transactions** — Currently loads the full current year; will slow down as volume grows.
-5. **More cashback cards** — Other cashback products (OCBC 365, DBS Live Fresh, etc.) are not yet in the library.
-6. **Mobile dashboard navigation** — Dashboard can be long on phones; ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design decision.
+1. **Run pending migrations in Supabase SQL Editor** (required for Miles Balance + favourites to work):
+   - Migration 028: `supabase/migrations/028_miles_accounts.sql` (miles_accounts, miles_account_cards, miles_adjustments; supersedes 027)
+   - Migration 029: `supabase/migrations/029_transaction_favourites.sql` (transaction_favourites)
+2. **Dashboard "expiring miles" alert + cap "almost full" nudge** — Discussed as the highest-value next product work: surface the Miles Balance 6-month expiry warning and ≥90% cap usage on the home screen. Both reuse data already captured.
+3. **Error boundary + offline awareness** — With routes code-split, a failed lazy-chunk load (flaky mobile) currently shows a blank screen; an error boundary with retry + an offline indicator would harden it.
+4. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested.
+5. **CSV import of transactions** — Export exists; import would speed onboarding/back-fill.
+6. **Pagination or date-range filter on transactions** — Currently loads the full current year; will slow down as volume grows.

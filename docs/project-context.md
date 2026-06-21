@@ -20,18 +20,21 @@ Browser (React + Vite + TypeScript)
     ├─ AuthContext         — Supabase Auth (email/password + Google OAuth)
     ├─ AppContext          — All app data; loaded at login; derived wallet state
     │
-    ├─ pages/             — Route-level components
+    ├─ pages/             — Route-level components (all lazy-loaded via React.lazy + Suspense)
     │   ├─ Dashboard      — Monthly stats, wallet cap bars, recent transactions
     │   ├─ Expenses       — Full spend breakdown: by type, category, card; Trends tab with Recharts bar charts
     │   ├─ MileValue      — Static mile value calculator (ticket price + miles → cpp vs 1.5¢ benchmark)
-    │   ├─ Cards          — Card library browser with type/bank filters; wallet management
+    │   ├─ Cards          — Card library browser (uniform tile grid + details modal); type/bank/wallet filters
     │   ├─ Recommend      — Ad-hoc card recommender for a given category + amount
-    │   ├─ Transactions   — Transaction log with filters, sort, inline miles/cashback
+    │   ├─ Transactions   — Transaction log with filters, sort, inline miles/cashback; favourite (recurring) templates
+    │   ├─ Miles          — Miles Balance: per-account opening snapshot, expiry warnings, pooling, redemption ledger (Balance tab)
+    │   ├─ Earnings       — Miles Earned: per-card earnings by billing cycle, monthly + cumulative chart (Earned tab)
     │   ├─ Onboarding     — First-run card selection flow
     │   ├─ Login          — Auth entry point
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, ExpensesTrends)
+    ├─ context/          — AuthContext, AppContext, ToastContext (app-wide toast notifications)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine
         ├─ types.ts            — All TypeScript interfaces
@@ -48,12 +51,18 @@ Supabase (Postgres + Auth + RLS)
     ├─ user_card_selections           — Per-user wallet (join table)
     ├─ user_category_overrides        — Per-user chosen bonus category for selectable cards
     ├─ transactions                   — Per-user transaction log (miles + cashback fields; vendor_name, mcc, payment_channel, personal_amount)
+    ├─ transaction_favourites         — Per-user saved transaction templates for recurring charges (migration 029)
+    ├─ miles_accounts                 — Per-user miles balance owner: opening snapshot + as-of date + expiry (migration 028)
+    ├─ miles_account_cards            — Links cards to a miles account (a card belongs to one; pooling) (migration 028)
+    ├─ miles_adjustments              — Dated ledger of redemptions (negative) and bonuses (positive) per account (migration 028)
     ├─ categories                     — Shared lookup table (ids 001–012)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
 Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/` output)
+  - Installable PWA via `vite-plugin-pwa` (generateSW). Service worker uses `registerType: 'autoUpdate'` with
+    `cleanupOutdatedCaches` + `skipWaiting` + `clientsClaim`; `UpdatePrompt` auto-reloads once on update.
   - `not_found_handling = "single-page-application"` ensures all unmatched routes serve index.html (SPA refresh fix)
   - `npm run deploy` = `npm run build && wrangler deploy` (always rebuilds before uploading)
   - Live at `smilemax.pages.dev`; auto-deploys on push to `main`
@@ -62,11 +71,11 @@ Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/
 **Data flow at login:**
 1. Supabase Auth resolves the session.
 2. `AppContext` fires parallel loads: full card library (cards + rates + caps + cashback rates + categories + MCC/vendor catalogues), user's wallet selections, and current-year transactions.
-3. Everything lives in React state for the session; no client-side cache or service worker.
+3. Core app data lives in React state for the session, exposed via `refresh()` / `refreshTransactions()` (now typed `Promise<void>` so pull-to-refresh can await them). A PWA service worker caches the app shell (JS/CSS/HTML); Miles/Earnings pages fetch their own data (miles_accounts/adjustments, all-time transactions) directly from Supabase on load.
 4. The recommendation engine runs entirely in the browser against this in-memory data.
 
 **Key design decisions:**
-- All data loaded upfront — dataset is small enough that lazy loading adds complexity without benefit.
+- Core app data loaded upfront (small dataset); **route page components are code-split** via `React.lazy` + `Suspense`, so the initial JS bundle stays small (recharts loads lazily only on chart pages).
 - Card library is read-only for users; only an admin can update rates/caps. This avoids per-user drift in card metadata.
 - Effective-date versioning (`effective_from`) on rates and caps allows historic accuracy without deleting old records. The engine resolves the row with the latest `effective_from ≤ today`.
 - Cap usage is computed client-side from the transaction log (`buildPeriodSpending` in `recommendations.ts`) rather than stored, so it is always consistent.
@@ -92,10 +101,15 @@ Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/
 | [src/components/StatementDayPrompt.tsx](../src/components/StatementDayPrompt.tsx) | Auto-popup in Layout for any statement-cycle card missing a statement_day; dismissed per-session |
 | [src/pages/Transactions.tsx](../src/pages/Transactions.tsx) | Transaction log with month/category/card filters, wildcard search, sort; add/edit modal with live recs, MCC lookup, cashback preview |
 | [src/pages/Recommend.tsx](../src/pages/Recommend.tsx) | Ad-hoc card recommender for a given category + amount |
-| [src/pages/Cards.tsx](../src/pages/Cards.tsx) | Library browser with type/bank filter chips and card type badges; add/remove cards from wallet |
+| [src/pages/Cards.tsx](../src/pages/Cards.tsx) | Library browser — uniform tile grid (sorted by bank), Details modal with full rates/caps/remarks; type/bank/wallet filters; add/remove with confirmation |
+| [src/pages/Miles.tsx](../src/pages/Miles.tsx) | Miles Balance — per-account opening snapshot + as-of date, expiry warnings (6-month), UOB-style pooling, redemption/bonus ledger, reconcile, default KrisFlyer balance, total across all |
+| [src/pages/Earnings.tsx](../src/pages/Earnings.tsx) | Miles Earned — per-card miles by billing cycle (calendar or statement), monthly + cumulative chart, per-card chart/numbers toggle and collapse, year selector |
+| [src/components/MilesTabs.tsx](../src/components/MilesTabs.tsx) | Balance / Earned tab bar shared by Miles.tsx and Earnings.tsx (one "Miles" nav section) |
+| [src/context/ToastContext.tsx](../src/context/ToastContext.tsx) | App-wide toast notifications — `useToast()` hook + auto-dismissing toaster (sits above mobile bottom nav) |
+| [src/components/UpdatePrompt.tsx](../src/components/UpdatePrompt.tsx) | Registers the PWA service worker; auto-reloads once when an updated SW takes control (isUpdate guard) |
 | [src/pages/Admin.tsx](../src/pages/Admin.tsx) | Feedback inbox (admin-only) — resolve/reopen bug reports and suggestions |
 | [src/pages/Onboarding.tsx](../src/pages/Onboarding.tsx) | First-run card selection flow |
-| [src/components/Layout.tsx](../src/components/Layout.tsx) | App shell — sidebar nav, mobile overlay, feedback modal, disclaimer modal, open-feedback badge |
+| [src/components/Layout.tsx](../src/components/Layout.tsx) | App shell — desktop sidebar + mobile bottom tab bar (Home/Recommend/Log/Cards/More), pull-to-refresh + mobile refresh button, install banner/modals, feedback/disclaimer modals, open-feedback badge |
 | [supabase/migrations/004_library_model.sql](../supabase/migrations/004_library_model.sql) | Library + user_card_selections schema |
 | [supabase/migrations/005_selectable_categories.sql](../supabase/migrations/005_selectable_categories.sql) | Per-user selectable bonus category schema and seed |
 | [supabase/migrations/006_manual_mpd.sql](../supabase/migrations/006_manual_mpd.sql) | Adds computed_mpd, manual_mpd, override_note to transactions |
@@ -119,6 +133,9 @@ Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/
 | [supabase/migrations/024_expense_tracking.sql](../supabase/migrations/024_expense_tracking.sql) | Adds card_type + cashback_rate to card_library; cashback_earned to transactions; library_cashback_rates table; seeds cashback and debit cards (020–023) |
 | [supabase/migrations/025_personal_amount.sql](../supabase/migrations/025_personal_amount.sql) | Adds personal_amount NUMERIC to transactions for group-spend splitting |
 | [supabase/migrations/026_visa_sig_statement_cycle.sql](../supabase/migrations/026_visa_sig_statement_cycle.sql) | Corrects UOB Visa Signature cap_cycle from 'calendar' to 'statement' |
+| [supabase/migrations/027_miles_balances.sql](../supabase/migrations/027_miles_balances.sql) | First-cut per-card miles_balances table (superseded by 028; kept for migration history) |
+| [supabase/migrations/028_miles_accounts.sql](../supabase/migrations/028_miles_accounts.sql) | miles_accounts + miles_account_cards + miles_adjustments; migrates any 027 rows into per-card accounts, drops miles_balances |
+| [supabase/migrations/029_transaction_favourites.sql](../supabase/migrations/029_transaction_favourites.sql) | transaction_favourites table (saved transaction templates), RLS per user |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
 
 ---
@@ -197,6 +214,24 @@ The app is a functional MVP. All core features are implemented:
 | Billing cycle label fix — 'closing day' → 'starts on day' throughout to match engine semantics | Complete |
 | Cycle-end proximity warning in transaction form — amber alert within 5 days of cycle end | Complete |
 | Trends charts: mobile improvements — angled labels, compact Y-axis, 3M default, legend top, distinct colours | Complete |
+| Trends charts: tooltip shows the series name (card type / category) alongside the value | Complete |
+| Miles Balance page (`/miles`) — account model: opening snapshot + as-of date, expiry warnings, total across all (migrations 027–028) | Complete |
+| Miles Balance: UOB-style pooling (link multiple cards to one balance), redemption/bonus ledger, reconcile | Complete |
+| Miles Balance: default standalone "KrisFlyer miles" balance auto-seeded per user (localStorage-keyed) | Complete |
+| Miles Earned page (`/earnings`) — per-card miles by billing cycle (calendar/statement), monthly + cumulative chart, year selector | Complete |
+| Miles section: Balance / Earned tabs (MilesTabs); single "Miles" sidebar entry | Complete |
+| Favourite (recurring) transactions — saved templates prefill the log form; in-app save/delete modals (migration 029) | Complete |
+| Transaction form: Online Shopping category auto-sets payment channel to 'online' | Complete |
+| UOB Preferred Platinum cap fix — channel-cap spend excluded from category-cap sums (no double-count) | Complete |
+| PWA — installable, autoUpdate SW (cleanupOutdatedCaches/skipWaiting/clientsClaim); fixes mobile blank-screen on deploys | Complete |
+| Install UX — dashboard install banner (dismissible), iOS/Android/desktop install modals | Complete |
+| Mobile bottom tab bar (Home/Recommend/Log/Cards/More); desktop keeps sidebar | Complete |
+| Toast notifications — app-wide save/confirm feedback (ToastContext) | Complete |
+| Pull-to-refresh + mobile header refresh button (reloads cached context data) | Complete |
+| Code-split routes (React.lazy + Suspense); recharts loads lazily on chart pages only | Complete |
+| Readability pass — secondary text gray-400→gray-500 on light backgrounds; tiny text bumped to 11–12px | Complete |
+| Empty-state CTAs (Transactions, Miles, Earnings) | Complete |
+| My Cards redesign — uniform tile grid + Details modal; in-app remove confirmation | Complete |
 
 **Card library (23 cards):**
 
@@ -231,7 +266,7 @@ The app is a functional MVP. All core features are implemented:
 - **No README** — No setup instructions, no description of how to run locally or deploy.
 - **Silent failures on pages other than Dashboard** — If a Supabase query fails on Cards, Recommend, or Transactions, the page shows an empty state with no error message.
 - **No pagination or date-range control on transactions** — Loads the entire current year. Will become slow with very high transaction volumes.
-- **No push notifications or reminders** — Users must actively open the app; there is no proactive "cap almost reached" alert.
+- **No push notifications or reminders** — Users must actively open the app; there is no proactive "cap almost reached" or "miles expiring" alert. (Miles expiry warnings exist on the Miles Balance page but are not surfaced on the Dashboard.)
 - **Mobile dashboard navigation** — Dashboard can be long on phones (stats, milestones, wallet bars, recent transactions all on one scroll). Ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design — not implementing for now.
 
 ---
@@ -252,6 +287,7 @@ The app is a functional MVP. All core features are implemented:
 - **RLS enforcement** — Security relies entirely on Supabase RLS. If a RLS policy is misconfigured, user data could leak. Policies have not been independently audited.
 
 ### Technical
-- **No error boundaries** — A runtime exception in a page component will crash the entire app. React's default error display will show in production.
-- **No offline support** — All data is fetched fresh on login; the app is unusable without network connectivity.
+- **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
+- **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
+- **Manual migrations** — Migrations 027–029 (miles accounts + favourites) must be run in the Supabase SQL Editor; there is no automated migration runner.
