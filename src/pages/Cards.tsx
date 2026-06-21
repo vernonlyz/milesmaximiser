@@ -20,6 +20,7 @@ export default function Cards() {
 
   // Statement-day prompt when adding a statement-cycle card
   const [pendingAddCard, setPendingAddCard] = useState<CreditCard | null>(null)
+  const [pendingRemoveCard, setPendingRemoveCard] = useState<CreditCard | null>(null)
   const [pendingDay, setPendingDay] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
@@ -281,7 +282,7 @@ export default function Cards() {
               {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
             </span>
           </button>
-          {!isCollapsed && <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
+          {!isCollapsed && <div className="columns-1 lg:columns-2 2xl:columns-3 gap-3">
             {bankCards.map(card => {
               const cardRates = resolveRates(rates.filter(r => r.card_id === card.id), today)
               const cardCaps  = resolveCaps(caps.filter(c => c.card_id === card.id), today)
@@ -312,7 +313,7 @@ export default function Cards() {
               return (
                 <div
                   key={card.id}
-                  className={`card p-4 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
+                  className={`card p-4 break-inside-avoid mb-3 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
                 >
                   {/* Header — click anywhere to collapse/expand */}
                   <div
@@ -335,7 +336,7 @@ export default function Cards() {
                     <div className="shrink-0" onClick={e => e.stopPropagation()}>
                       {inWallet ? (
                         <button
-                          onClick={() => removeCardSelection(card.id)}
+                          onClick={() => setPendingRemoveCard(card)}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
                         >
                           <Minus size={13} /> Remove
@@ -650,6 +651,27 @@ export default function Cards() {
               <button onClick={() => setEditCard(null)} className="btn-secondary flex-1">Cancel</button>
               <button onClick={handleSaveOverride} disabled={editSaving} className="btn-primary flex-1">
                 {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Remove-from-wallet confirmation */}
+      {pendingRemoveCard && (
+        <Modal title="Remove from wallet" onClose={() => setPendingRemoveCard(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Remove <span className="font-semibold text-gray-900">{pendingRemoveCard.bank} {pendingRemoveCard.name}</span> from
+              your wallet? It will stop appearing in recommendations. Your logged transactions are kept.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setPendingRemoveCard(null)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={async () => { await removeCardSelection(pendingRemoveCard.id); setPendingRemoveCard(null) }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
+              >
+                Remove
               </button>
             </div>
           </div>
