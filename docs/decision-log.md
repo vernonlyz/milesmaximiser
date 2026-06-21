@@ -545,3 +545,15 @@ Captures key architectural choices made during development — what was decided,
 **Why:** The build warned the bundle was ~1.2 MB in a single chunk; everything loaded upfront. Code-splitting drops the initial load to ~425 KB and defers recharts (~358 KB) to chart pages only — the biggest perceived-speed win on mobile. Tabs trim an 8-item sidebar and group the closely-related Miles views. (Core app *data* is still loaded upfront via AppContext — only the JS is split.)
 
 **Trade-off:** A failed lazy-chunk load on a flaky network now needs an error boundary (still outstanding). On the Earned tab the sidebar "Miles" item doesn't highlight (route is `/earnings`), but the tab bar conveys location.
+
+---
+
+## 2026-06-22 — Miles goal: one cumulative target in user_settings (not per-account)
+
+**Decision:** Track a single miles goal per user — a target against the **cumulative total across all accounts** — stored in a new `user_settings` singleton table (`miles_goal` + `miles_goal_label`). This replaced an initial per-account `goal_miles` column (migration 030 → 031 drops it).
+
+**Background:** The goal was first built per `miles_accounts` row, but a redemption target ("100k KrisFlyer for SQ Suites to JFK") is naturally about *all* your miles, not one card/pool. The user asked for one tracker against the grand total.
+
+**Why:** A per-user singleton matches the concept (one goal), syncs across devices (unlike localStorage), and renders once in the "Total miles" card instead of cluttering every account. `user_settings` is a generic per-user table that can hold future preferences. The progress bar carries an airplane marker (positioned at the current %) and an optional free-text title, making the goal read as a concrete trip.
+
+**Trade-off:** Only one goal at a time (no multiple simultaneous targets). Acceptable for the single-user scope; multiple goals would need a separate table.

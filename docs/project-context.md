@@ -55,6 +55,7 @@ Supabase (Postgres + Auth + RLS)
     ├─ miles_accounts                 — Per-user miles balance owner: opening snapshot + as-of date + expiry (migration 028)
     ├─ miles_account_cards            — Links cards to a miles account (a card belongs to one; pooling) (migration 028)
     ├─ miles_adjustments              — Dated ledger of redemptions (negative) and bonuses (positive) per account (migration 028)
+    ├─ user_settings                  — Per-user singleton: cumulative miles_goal + miles_goal_label (migrations 031–032)
     ├─ categories                     — Shared lookup table (ids 001–012)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
@@ -136,6 +137,9 @@ Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/
 | [supabase/migrations/027_miles_balances.sql](../supabase/migrations/027_miles_balances.sql) | First-cut per-card miles_balances table (superseded by 028; kept for migration history) |
 | [supabase/migrations/028_miles_accounts.sql](../supabase/migrations/028_miles_accounts.sql) | miles_accounts + miles_account_cards + miles_adjustments; migrates any 027 rows into per-card accounts, drops miles_balances |
 | [supabase/migrations/029_transaction_favourites.sql](../supabase/migrations/029_transaction_favourites.sql) | transaction_favourites table (saved transaction templates), RLS per user |
+| [supabase/migrations/030_miles_account_goal.sql](../supabase/migrations/030_miles_account_goal.sql) | Per-account goal_miles (superseded by 031, which drops it) |
+| [supabase/migrations/031_user_miles_goal.sql](../supabase/migrations/031_user_miles_goal.sql) | user_settings table (cumulative miles_goal); drops per-account goal_miles |
+| [supabase/migrations/032_miles_goal_label.sql](../supabase/migrations/032_miles_goal_label.sql) | Adds miles_goal_label to user_settings (e.g. "SQ Suites to JFK") |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
 
 ---
@@ -232,6 +236,10 @@ The app is a functional MVP. All core features are implemented:
 | Readability pass — secondary text gray-400→gray-500 on light backgrounds; tiny text bumped to 11–12px | Complete |
 | Empty-state CTAs (Transactions, Miles, Earnings) | Complete |
 | My Cards redesign — uniform tile grid + Details modal; in-app remove confirmation | Complete |
+| Cap "nearly maxed" nudge — CapUsageBar shows amber warning at 90–99% used (Dashboard) | Complete |
+| Miles goal — single cumulative target across all accounts (user_settings); progress bar with airplane marker + goal title (migrations 031–032) | Complete |
+| Mile Value benchmark changed from 1.5¢ to 1.8¢ (constant, "Good" grade, note copy) | Complete |
+| Expenses: Card spend definition banner (alongside the existing My spend banner) | Complete |
 
 **Card library (23 cards):**
 
@@ -290,4 +298,4 @@ The app is a functional MVP. All core features are implemented:
 - **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
 - **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
-- **Manual migrations** — Migrations 027–029 (miles accounts + favourites) must be run in the Supabase SQL Editor; there is no automated migration runner.
+- **Manual migrations** — Migrations 027–032 (miles accounts, favourites, miles goal + label) must be run in the Supabase SQL Editor; there is no automated migration runner. The miles goal won't save until `user_settings` exists (031) and the goal title until 032.

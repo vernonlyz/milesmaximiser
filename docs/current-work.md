@@ -83,6 +83,10 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-21  My Cards: wider grid, wallet filter, full-width body, header redesign, masonry, remove confirmation  [tag: v7.0-miles-tracking]
 2026-06-22  My Cards: redesign to uniform tile grid + Details modal (fixes desktop alignment)
 2026-06-22  Expenses Trends: show series name (card type / category) in chart tooltips
+2026-06-22  Docs refresh (project-context, current-work, decision-log) for v7.x work  [tag: v7.1-card-ui]
+2026-06-22  Expenses: Card spend definition banner; Mile Value benchmark 1.5¢ → 1.8¢
+2026-06-22  Cap "nearly maxed" nudge in CapUsageBar (90–99% used)
+2026-06-22  Miles goal tracker — single cumulative target (user_settings, migrations 030→031); airplane progress marker + goal title (migration 032)
 ```
 
 ---
@@ -161,6 +165,10 @@ Everything listed below is in a working, committed state on `main`:
 - **Code-splitting** — All route pages are `React.lazy` with `Suspense` boundaries (Outlet in Layout + Onboarding). The ~1.2 MB single bundle dropped to ~425 KB initial; recharts (~358 KB) loads lazily only on chart pages.
 - **Readability + empty states** — Secondary text darkened from `gray-400` to `gray-500` on all light backgrounds (dark sidebar grays kept); smallest text bumped (10→11px, 11→12px). Empty states on Transactions / Miles / Earnings now have action buttons.
 - **My Cards redesign** — One continuous responsive grid of uniform compact tiles (sorted by bank): badge, name, one-line headline rate, key pills, and Details + Add/Remove (actions pinned to the bottom for aligned rows). Full rates/caps/remarks/statement live in a **Details modal**. Replaces the earlier per-bank masonry that produced a patchwork of half-filled, ragged sub-grids. Wallet filter ("All Cards / In Wallet"); remove-from-wallet confirmation modal.
+- **Cap "nearly maxed" nudge** — `CapUsageBar` shows an amber "S$X left · nearly maxed" warning (with icon) when a cap is 90–99% used, between the normal "left" and "Cap reached" states. Self-contained, so it appears on every Dashboard cap bar.
+- **Miles goal tracker** — A single cumulative target across all miles accounts, stored in a per-user `user_settings` row (`miles_goal` + `miles_goal_label`; migrations 031–032, which supersede the per-account 030). Shown in the "Total miles" card: a number input + optional title ("What for? e.g. SQ Suites to JFK"), and a progress bar with an **airplane marker** that flies along it at the current %, plus "total / goal (n%)" and "X miles to go" (emerald + "Goal reached" when hit). Save button appears when the number or title changes.
+- **Mile Value benchmark 1.8¢** — Changed the value benchmark from 1.5¢ to 1.8¢ (the `BENCHMARK_CPP` constant, the "Good" grade threshold, and the benchmark note copy).
+- **Expenses Card spend definition** — The explanatory banner (shown when group spends exist) now also appears in Card spend mode with a Card spend definition, not only in My spend mode.
 
 ---
 
@@ -180,10 +188,12 @@ The card library (rates, caps, new cards) is updated via manual SQL in the Supab
 
 The core recommendation, tracking, expense, trends, and utility features are now in a strong state. The most likely next candidates are:
 
-1. **Run pending migrations in Supabase SQL Editor** (required for Miles Balance + favourites to work):
-   - Migration 028: `supabase/migrations/028_miles_accounts.sql` (miles_accounts, miles_account_cards, miles_adjustments; supersedes 027)
-   - Migration 029: `supabase/migrations/029_transaction_favourites.sql` (transaction_favourites)
-2. **Dashboard "expiring miles" alert + cap "almost full" nudge** — Discussed as the highest-value next product work: surface the Miles Balance 6-month expiry warning and ≥90% cap usage on the home screen. Both reuse data already captured.
+1. **Run pending migrations in Supabase SQL Editor** (required for Miles Balance, favourites, and miles goal to work):
+   - Migration 028: `028_miles_accounts.sql` (miles_accounts, miles_account_cards, miles_adjustments; supersedes 027)
+   - Migration 029: `029_transaction_favourites.sql` (transaction_favourites)
+   - Migration 031: `031_user_miles_goal.sql` (user_settings; supersedes 030, drops per-account goal_miles)
+   - Migration 032: `032_miles_goal_label.sql` (miles_goal_label on user_settings)
+2. **Dashboard "expiring miles" alert** — Surface the Miles Balance 6-month expiry warning on the home screen. (The cap "almost full" nudge is now done in CapUsageBar; surfacing expiring miles on the Dashboard remains.)
 3. **Error boundary + offline awareness** — With routes code-split, a failed lazy-chunk load (flaky mobile) currently shows a blank screen; an error boundary with retry + an offline indicator would harden it.
 4. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested.
 5. **CSV import of transactions** — Export exists; import would speed onboarding/back-fill.
