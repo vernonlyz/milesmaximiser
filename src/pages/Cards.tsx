@@ -312,69 +312,27 @@ export default function Cards() {
               return (
                 <div
                   key={card.id}
-                  className={`card p-5 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
+                  className={`card p-4 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
                 >
-                  <div className="flex items-start gap-4">
-                    {/* Collapse chevron — top-left */}
-                    <button
-                      onClick={() => toggleCard(card.id)}
-                      className="shrink-0 mt-1 text-gray-300 hover:text-gray-500 transition-colors"
-                      title={cardCollapsed ? 'Expand' : 'Collapse'}
-                    >
-                      {cardCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                    </button>
-
+                  {/* Header — click anywhere to collapse/expand */}
+                  <div
+                    className="flex items-center gap-3 cursor-pointer select-none"
+                    onClick={() => toggleCard(card.id)}
+                  >
                     {/* Bank colour badge */}
                     <div
-                      className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                      className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
                       style={{ backgroundColor: card.color }}
                     >
                       {card.bank.slice(0, 2).toUpperCase()}
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-900">{card.bank} {card.name}</span>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                          {card.card_network}
-                        </span>
-                        {card.card_type === 'cashback' && (
-                          <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                            Cashback{card.cashback_rate != null ? ` · ${(card.cashback_rate * 100).toFixed(1)}%` : ''}
-                          </span>
-                        )}
-                        {card.card_type === 'debit' && (
-                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                            Debit / Cash
-                          </span>
-                        )}
-                        {card.card_type === 'miles' && card.mile_validity && (
-                          <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-                            Miles: {card.mile_validity}
-                          </span>
-                        )}
-                        {card.cap_cycle === 'calendar' ? (
-                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                            Calendar Cycle
-                          </span>
-                        ) : (
-                          <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-                            Statement Cycle
-                          </span>
-                        )}
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                          ${card.earn_increment} block
-                        </span>
-                        {inWallet && (
-                          <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <Check size={10} /> In Wallet
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    <p className="flex-1 min-w-0 font-semibold text-gray-900 truncate">
+                      {card.bank} {card.name}
+                    </p>
 
-                    {/* Wallet toggle */}
-                    <div className="shrink-0">
+                    {/* Wallet toggle — stop click bubbling so it doesn't collapse */}
+                    <div className="shrink-0" onClick={e => e.stopPropagation()}>
                       {inWallet ? (
                         <button
                           onClick={() => removeCardSelection(card.id)}
@@ -391,6 +349,49 @@ export default function Cards() {
                         </button>
                       )}
                     </div>
+
+                    <span className="shrink-0 text-gray-300" title={cardCollapsed ? 'Expand' : 'Collapse'}>
+                      {cardCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                    </span>
+                  </div>
+
+                  {/* Meta pills — dedicated row so they align cleanly */}
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                      {card.card_network}
+                    </span>
+                    {card.card_type === 'cashback' && (
+                      <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        Cashback{card.cashback_rate != null ? ` · ${(card.cashback_rate * 100).toFixed(1)}%` : ''}
+                      </span>
+                    )}
+                    {card.card_type === 'debit' && (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        Debit / Cash
+                      </span>
+                    )}
+                    {card.card_type === 'miles' && card.mile_validity && (
+                      <span className="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+                        Miles: {card.mile_validity}
+                      </span>
+                    )}
+                    {card.cap_cycle === 'calendar' ? (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        Calendar Cycle
+                      </span>
+                    ) : (
+                      <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                        Statement Cycle
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                      ${card.earn_increment} block
+                    </span>
+                    {inWallet && (
+                      <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Check size={10} /> In Wallet
+                      </span>
+                    )}
                   </div>
 
                   {!cardCollapsed && (
