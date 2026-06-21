@@ -105,6 +105,7 @@ export default function Cards() {
     setEditSaving(false)
   }
 
+  const [walletFilter, setWalletFilter] = useState<'all' | 'wallet'>('all')
   const [typeFilter, setTypeFilter] = useState<'all' | 'miles' | 'cashback'>('all')
   const [bankFilter, setBankFilter] = useState<string>('all')
 
@@ -141,11 +142,12 @@ export default function Cards() {
 
   const filteredLibrary = useMemo(() => {
     return libraryCards.filter(c => {
+      if (walletFilter === 'wallet' && !selectedCardIds.has(c.id)) return false
       if (typeFilter !== 'all' && c.card_type !== typeFilter) return false
       if (bankFilter !== 'all' && c.bank !== bankFilter) return false
       return true
     })
-  }, [libraryCards, typeFilter, bankFilter])
+  }, [libraryCards, walletFilter, typeFilter, bankFilter, selectedCardIds])
 
   // Group filtered cards by bank
   const grouped = useMemo(() => {
@@ -206,6 +208,20 @@ export default function Cards() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
+        {(['all', 'wallet'] as const).map(w => (
+          <button
+            key={w}
+            onClick={() => setWalletFilter(w)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              walletFilter === w
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {w === 'all' ? 'All Cards' : `In Wallet (${walletCount})`}
+          </button>
+        ))}
+        <span className="text-gray-300 self-center">|</span>
         {(['all', 'miles', 'cashback'] as const).map(t => (
           <button
             key={t}
@@ -265,7 +281,7 @@ export default function Cards() {
               {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
             </span>
           </button>
-          {!isCollapsed && <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
+          {!isCollapsed && <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-start">
             {bankCards.map(card => {
               const cardRates = resolveRates(rates.filter(r => r.card_id === card.id), today)
               const cardCaps  = resolveCaps(caps.filter(c => c.card_id === card.id), today)
