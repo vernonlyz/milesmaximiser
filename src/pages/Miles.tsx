@@ -61,7 +61,7 @@ export default function Miles() {
   const [loading, setLoading] = useState(true)
 
   // Per-account UI state
-  const [drafts, setDrafts] = useState<Record<string, { name: string; opening: string; asOf: string; expiry: string }>>({})
+  const [drafts, setDrafts] = useState<Record<string, { name: string; opening: string; asOf: string; expiry: string; goal: string }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [ledgerOpen, setLedgerOpen] = useState<Set<string>>(new Set())
   const [adjFormFor, setAdjFormFor] = useState<string | null>(null)
@@ -217,10 +217,11 @@ export default function Miles() {
       opening: String(a.opening_miles),
       asOf: a.as_of_date,
       expiry: a.expiry_date ?? '',
+      goal: a.goal_miles != null ? String(a.goal_miles) : '',
     }
   }
 
-  function setDraft(id: string, patch: Partial<{ name: string; opening: string; asOf: string; expiry: string }>) {
+  function setDraft(id: string, patch: Partial<{ name: string; opening: string; asOf: string; expiry: string; goal: string }>) {
     setDrafts(prev => {
       const base = prev[id] ?? draftFor(accounts.find(a => a.id === id)!)
       return { ...prev, [id]: { ...base, ...patch } }
@@ -234,7 +235,8 @@ export default function Miles() {
       d.name !== a.name ||
       (parseInt(d.opening || '0') || 0) !== a.opening_miles ||
       d.asOf !== a.as_of_date ||
-      (d.expiry || null) !== (a.expiry_date ?? null)
+      (d.expiry || null) !== (a.expiry_date ?? null) ||
+      (d.goal ? parseInt(d.goal) || 0 : null) !== (a.goal_miles ?? null)
     )
   }
 
@@ -246,6 +248,7 @@ export default function Miles() {
       opening_miles: parseInt(d.opening || '0') || 0,
       as_of_date: d.asOf,
       expiry_date: d.expiry || null,
+      goal_miles: d.goal ? parseInt(d.goal) || null : null,
       updated_at: new Date().toISOString(),
     }).eq('id', a.id)
     setDrafts(prev => { const n = { ...prev }; delete n[a.id]; return n })
@@ -581,6 +584,42 @@ export default function Miles() {
                     </span>
                   )}
                 </div>
+
+                {/* Goal */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-xs text-gray-500 shrink-0">Goal</label>
+                  <input
+                    type="number" min="0" step="1000"
+                    value={d.goal}
+                    onChange={e => setDraft(account.id, { goal: e.target.value })}
+                    placeholder="e.g. 100,000"
+                    className="input text-xs py-1 w-32"
+                  />
+                  <span className="text-xs text-gray-400">target balance</span>
+                </div>
+                {(() => {
+                  const goal = parseInt(d.goal || '0') || 0
+                  if (goal <= 0) return null
+                  const pct = Math.min((total / goal) * 100, 100)
+                  const remaining = Math.max(goal - total, 0)
+                  const reached = total >= goal
+                  return (
+                    <div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1 text-xs">
+                        <span className="text-gray-500">{total.toLocaleString()} / {goal.toLocaleString()} ({Math.floor(pct)}%)</span>
+                        {reached
+                          ? <span className="text-emerald-600 font-medium">🎉 Goal reached</span>
+                          : <span className="text-gray-500">{remaining.toLocaleString()} miles to go</span>}
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Ledger */}
                 <div className="border-t border-gray-100 pt-3">

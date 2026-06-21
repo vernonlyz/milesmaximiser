@@ -150,6 +150,7 @@ export interface MilesAccount {
   opening_miles: number
   as_of_date: string   // snapshot date; app-tracked miles only count txns after this
   expiry_date: string | null
+  goal_miles: number | null  // optional target balance for a redemption goal
   updated_at: string
 }
 
