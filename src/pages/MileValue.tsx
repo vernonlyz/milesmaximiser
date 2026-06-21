@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Calculator, Info } from 'lucide-react'
 
-const BENCHMARK_CPP = 1.5 // cents per mile
+const BENCHMARK_CPP = 1.8 // cents per mile
 
 function grade(cpp: number): { label: string; color: string; bar: string; pct: number } {
   if (cpp >= 2.5) return { label: 'Excellent',      color: 'text-indigo-600',  bar: 'bg-indigo-500',  pct: 100 }
   if (cpp >= 2.0) return { label: 'Great',          color: 'text-emerald-600', bar: 'bg-emerald-500', pct: 85  }
-  if (cpp >= 1.5) return { label: 'Good',           color: 'text-green-600',   bar: 'bg-green-500',   pct: 65  }
+  if (cpp >= 1.8) return { label: 'Good',           color: 'text-green-600',   bar: 'bg-green-500',   pct: 65  }
   if (cpp >= 1.0) return { label: 'Below average',  color: 'text-amber-600',   bar: 'bg-amber-400',   pct: 40  }
   return           { label: 'Poor value',           color: 'text-red-500',     bar: 'bg-red-400',     pct: 20  }
 }
@@ -148,11 +148,11 @@ export default function MileValue() {
       <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
         <Info size={14} className="text-indigo-500 mt-0.5 shrink-0" />
         <p className="text-sm text-indigo-700">
-          <span className="font-medium">The 1.5¢ benchmark.</span>{' '}
-          A mile is widely considered good value when redeemed at 1.5 cents or more. This
+          <span className="font-medium">The 1.8¢ benchmark.</span>{' '}
+          A mile is widely considered good value when redeemed at 1.8 cents or more. This
           reflects the typical market rate for airline miles transferred to premium programs.
           Redemptions above this threshold — most common in business and first class cabins —
-          mean your miles are working harder than their cash equivalent. Below 1.5¢, you may
+          mean your miles are working harder than their cash equivalent. Below 1.8¢, you may
           get better value paying cash and earning miles on the purchase instead.
         </p>
       </div>

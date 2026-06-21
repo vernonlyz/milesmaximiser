@@ -350,13 +350,20 @@ export default function Expenses() {
         <StatChip label="Total Spent"     value={formatSGD(totalSpent)}    icon={<Receipt    size={16} className="text-sky-600" />}    bg="bg-sky-50" bold />
       </div>
 
-      {viewMode === 'personal' && hasGroupSpends && (
+      {hasGroupSpends && (
         <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
           <Info size={14} className="text-indigo-500 mt-0.5 shrink-0" />
-          <p className="text-sm text-indigo-700">
-            <span className="font-medium">My spend</span> shows your personal share of group spends.{' '}
-            <span className="text-indigo-500">Miles and cashback are always earned on the full amount charged to your card.</span>
-          </p>
+          {viewMode === 'personal' ? (
+            <p className="text-sm text-indigo-700">
+              <span className="font-medium">My spend</span> shows your personal share of group spends.{' '}
+              <span className="text-indigo-500">Miles and cashback are always earned on the full amount charged to your card.</span>
+            </p>
+          ) : (
+            <p className="text-sm text-indigo-700">
+              <span className="font-medium">Card spend</span> is the full amount charged to your card — what miles and cashback are earned on.{' '}
+              <span className="text-indigo-500">Switch to My spend to see your personal share of group bills.</span>
+            </p>
+          )}
         </div>
       )}
 
