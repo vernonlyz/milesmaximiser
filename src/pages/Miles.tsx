@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight, Pencil, HelpCircle, Infinity as InfinityIcon, ArrowUp,
+  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight, Pencil, HelpCircle, Infinity as InfinityIcon, ArrowUp, Plane,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -75,6 +75,8 @@ export default function Miles() {
   // Single cumulative miles goal across all accounts
   const [milesGoal, setMilesGoal] = useState<number | null>(null)
   const [goalInput, setGoalInput] = useState('')
+  const [milesGoalLabel, setMilesGoalLabel] = useState('')
+  const [goalLabelInput, setGoalLabelInput] = useState('')
   // Collapsed by default; only expanded if the user previously opened it.
   const [helpOpen, setHelpOpen] = useState(() => localStorage.getItem('milesHelpCollapsed') === '0')
 
@@ -96,11 +98,15 @@ export default function Miles() {
       supabase.from('miles_account_cards').select('*'),
       supabase.from('miles_adjustments').select('*').order('adjustment_date', { ascending: false }),
       supabase.from('transactions').select('card_id, miles_earned, transaction_date'),
-      supabase.from('user_settings').select('miles_goal').maybeSingle(),
+      supabase.from('user_settings').select('miles_goal, miles_goal_label').maybeSingle(),
     ])
-    const goal = (settingsRes.data as { miles_goal: number | null } | null)?.miles_goal ?? null
+    const settings = settingsRes.data as { miles_goal: number | null; miles_goal_label: string | null } | null
+    const goal = settings?.miles_goal ?? null
+    const goalLabel = settings?.miles_goal_label ?? ''
     setMilesGoal(goal)
     setGoalInput(goal != null ? String(goal) : '')
+    setMilesGoalLabel(goalLabel)
+    setGoalLabelInput(goalLabel)
     let acc = (accRes.data as MilesAccount[]) ?? []
     let lnk = (linkRes.data as MilesAccountCard[]) ?? []
 
@@ -342,11 +348,13 @@ export default function Miles() {
 
   async function saveGoal() {
     const val = goalInput ? parseInt(goalInput) || null : null
+    const label = goalLabelInput.trim() || null
     await supabase.from('user_settings').upsert(
-      { user_id: user!.id, miles_goal: val, updated_at: new Date().toISOString() },
+      { user_id: user!.id, miles_goal: val, miles_goal_label: label, updated_at: new Date().toISOString() },
       { onConflict: 'user_id' }
     )
     setMilesGoal(val)
+    setMilesGoalLabel(label ?? '')
     toast('Goal saved')
   }
 
@@ -426,13 +434,20 @@ export default function Miles() {
                 value={goalInput}
                 onChange={e => setGoalInput(e.target.value)}
                 placeholder="e.g. 100,000"
-                className="input text-xs py-1 w-32"
+                className="input text-xs py-1 w-28"
               />
-              <span className="text-xs text-gray-400">target across all miles</span>
-              {(goalInput ? parseInt(goalInput) || 0 : null) !== (milesGoal ?? null) && (
+              <input
+                type="text"
+                value={goalLabelInput}
+                onChange={e => setGoalLabelInput(e.target.value)}
+                placeholder="What for? e.g. SQ Suites to JFK"
+                className="input text-xs py-1 flex-1 min-w-[140px]"
+              />
+              {((goalInput ? parseInt(goalInput) || 0 : null) !== (milesGoal ?? null) ||
+                goalLabelInput.trim() !== milesGoalLabel) && (
                 <button
                   onClick={saveGoal}
-                  className="text-xs font-medium bg-indigo-600 text-white px-2.5 py-1 rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="text-xs font-medium bg-indigo-600 text-white px-2.5 py-1 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"
                 >
                   Save
                 </button>
@@ -443,11 +458,25 @@ export default function Miles() {
               const remaining = Math.max(milesGoal - grandTotal, 0)
               const reached = grandTotal >= milesGoal
               return (
-                <div className="mt-2">
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                      style={{ width: `${pct}%` }}
+                <div className="mt-2.5">
+                  {milesGoalLabel && (
+                    <p className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+                      <Plane size={12} className="text-indigo-500" style={{ transform: 'rotate(45deg)' }} />
+                      {milesGoalLabel}
+                    </p>
+                  )}
+                  {/* Progress bar with an airplane flying along it */}
+                  <div className="relative h-5">
+                    <div className="absolute top-1/2 -translate-y-1/2 inset-x-0 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <Plane
+                      size={17}
+                      className={reached ? 'text-emerald-600' : 'text-indigo-600'}
+                      style={{ position: 'absolute', top: '50%', left: `${pct}%`, transform: 'translate(-50%, -50%) rotate(45deg)' }}
                     />
                   </div>
                   <div className="flex justify-between mt-1 text-xs">
