@@ -312,7 +312,7 @@ export default function Cards() {
               return (
                 <div
                   key={card.id}
-                  className={`card p-5 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
+                  className={`card p-5 relative transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
                 >
                   <div className="flex items-start gap-4">
                     {/* Collapse chevron — top-left */}
@@ -333,7 +333,7 @@ export default function Cards() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap pr-20">
                         <span className="font-semibold text-gray-900">{card.bank} {card.name}</span>
                         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                           {card.card_network}
@@ -521,8 +521,8 @@ export default function Cards() {
                       </>}
                     </div>
 
-                    {/* Wallet toggle */}
-                    <div className="shrink-0">
+                    {/* Wallet toggle — pinned top-right so the body spans full width */}
+                    <div className="absolute top-5 right-5">
                       {inWallet ? (
                         <button
                           onClick={() => removeCardSelection(card.id)}
