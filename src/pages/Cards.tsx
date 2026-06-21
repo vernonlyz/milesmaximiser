@@ -312,7 +312,7 @@ export default function Cards() {
               return (
                 <div
                   key={card.id}
-                  className={`card p-5 relative transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
+                  className={`card p-5 transition-all ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
                 >
                   <div className="flex items-start gap-4">
                     {/* Collapse chevron — top-left */}
@@ -333,7 +333,7 @@ export default function Cards() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap pr-20">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900">{card.bank} {card.name}</span>
                         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                           {card.card_network}
@@ -371,8 +371,30 @@ export default function Cards() {
                           </span>
                         )}
                       </div>
+                    </div>
 
-                      {!cardCollapsed && <>
+                    {/* Wallet toggle */}
+                    <div className="shrink-0">
+                      {inWallet ? (
+                        <button
+                          onClick={() => removeCardSelection(card.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          <Minus size={13} /> Remove
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleAddClick(card)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                        >
+                          <Plus size={13} /> Add
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!cardCollapsed && (
+                    <div className="mt-4">
                       <p className="text-sm text-gray-500 mt-0.5">Base rate: {card.base_mpd} mpd</p>
 
                       {/* Bonus rates */}
@@ -518,28 +540,8 @@ export default function Cards() {
                           )}
                         </div>
                       )}
-                      </>}
                     </div>
-
-                    {/* Wallet toggle — pinned top-right so the body spans full width */}
-                    <div className="absolute top-5 right-5">
-                      {inWallet ? (
-                        <button
-                          onClick={() => removeCardSelection(card.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                        >
-                          <Minus size={13} /> Remove
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleAddClick(card)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
-                        >
-                          <Plus size={13} /> Add
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
               )
             })}
