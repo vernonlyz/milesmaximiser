@@ -195,7 +195,7 @@ export default function ExpensesTrends({ from, to }: Props) {
             <YAxis {...yProps} />
             <Tooltip
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={(v: any) => [`S$${Number(v).toFixed(2)}`]}
+              formatter={(v: any, name: any) => [`S$${Number(v).toFixed(2)}`, name]}
               contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
             />
             <Legend {...legendProps} />
@@ -268,7 +268,7 @@ export default function ExpensesTrends({ from, to }: Props) {
               <YAxis {...yProps} />
               <Tooltip
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={(v: any) => [`S$${Number(v).toFixed(2)}`]}
+                formatter={(v: any, name: any) => [`S$${Number(v).toFixed(2)}`, name]}
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
               />
               <Legend {...legendProps} />
