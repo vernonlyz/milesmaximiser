@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { MilesAccount, MilesAccountCard, MilesAdjustment } from '../lib/types'
 import Modal from '../components/Modal'
+import MilesTabs from '../components/MilesTabs'
 
 interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
 
@@ -365,19 +366,21 @@ export default function Miles() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Award size={22} className="text-indigo-500" />
-            Miles Balance
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Track how many miles you hold on each card, and when they expire.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Award size={22} className="text-indigo-500" />
+          Miles
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Track how many miles you hold on each card, and when they expire.
+        </p>
+      </div>
+
+      <div className="flex items-end justify-between gap-3">
+        <MilesTabs />
         <button
           onClick={openAddBalance}
-          className="flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"
+          className="flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0 mb-1"
         >
           <Plus size={14} /> Add balance
         </button>

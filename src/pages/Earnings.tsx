@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TrendingUp, CalendarDays, FileText, ChevronDown, ChevronRight, BarChart2, List } from 'lucide-react'
+import { TrendingUp, CalendarDays, FileText, ChevronDown, ChevronRight, BarChart2, List, Award } from 'lucide-react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import MilesTabs from '../components/MilesTabs'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const START_YEAR = 2024
@@ -143,20 +144,22 @@ export default function Earnings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp size={22} className="text-indigo-500" />
-            Miles Earned
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Miles earned per billing cycle for each card — calendar month or statement cycle, per the card's setup.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Award size={22} className="text-indigo-500" />
+          Miles
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Miles earned per billing cycle for each card — calendar month or statement cycle, per the card's setup.
+        </p>
+      </div>
+
+      <div className="flex items-end justify-between gap-3">
+        <MilesTabs />
         <select
           value={year}
           onChange={e => setYear(Number(e.target.value))}
-          className="input text-sm py-1.5 w-28"
+          className="input text-sm py-1.5 w-28 mb-1"
         >
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>

@@ -1,20 +1,32 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { AuthProvider } from './context/AuthContext'
 import { AppProvider } from './context/AppContext'
 import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
-import Onboarding from './pages/Onboarding'
-import Dashboard from './pages/Dashboard'
-import Recommend from './pages/Recommend'
-import Transactions from './pages/Transactions'
-import Cards from './pages/Cards'
-import Admin from './pages/Admin'
-import Expenses from './pages/Expenses'
-import MileValue from './pages/MileValue'
-import Miles from './pages/Miles'
-import Earnings from './pages/Earnings'
+
+// Route pages are code-split so the initial bundle stays small (faster first load).
+const Onboarding   = lazy(() => import('./pages/Onboarding'))
+const Dashboard    = lazy(() => import('./pages/Dashboard'))
+const Recommend    = lazy(() => import('./pages/Recommend'))
+const Transactions = lazy(() => import('./pages/Transactions'))
+const Cards        = lazy(() => import('./pages/Cards'))
+const Admin        = lazy(() => import('./pages/Admin'))
+const Expenses     = lazy(() => import('./pages/Expenses'))
+const MileValue    = lazy(() => import('./pages/MileValue'))
+const Miles        = lazy(() => import('./pages/Miles'))
+const Earnings     = lazy(() => import('./pages/Earnings'))
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-20 text-gray-400">
+      <Loader2 size={24} className="animate-spin" />
+    </div>
+  )
+}
 
 export default function App() {
   return (
@@ -27,7 +39,9 @@ export default function App() {
             path="/onboarding"
             element={
               <ProtectedRoute>
-                <Onboarding />
+                <Suspense fallback={<PageLoader />}>
+                  <Onboarding />
+                </Suspense>
               </ProtectedRoute>
             }
           />

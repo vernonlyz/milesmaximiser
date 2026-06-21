@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award, TrendingUp,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award, Loader2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -52,8 +52,7 @@ const nav = [
   { to: '/expenses',    label: 'Expenses',     Icon: BarChart2       },
   { to: '/calculator',   label: 'Mile Value',   Icon: Calculator      },
   { to: '/cards',        label: 'My Cards',     Icon: CreditCard      },
-  { to: '/miles',        label: 'Miles Balance', Icon: Award           },
-  { to: '/earnings',     label: 'Miles Earned',  Icon: TrendingUp      },
+  { to: '/miles',        label: 'Miles',        Icon: Award           },
 ]
 
 // Primary destinations for the mobile bottom tab bar; the rest live under "More".
@@ -298,7 +297,13 @@ export default function Layout() {
               </button>
             </div>
           )}
-          <Outlet />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-20 text-gray-400">
+              <Loader2 size={24} className="animate-spin" />
+            </div>
+          }>
+            <Outlet />
+          </Suspense>
         </main>
         <StatementDayPrompt />
         <UpdatePrompt />
