@@ -20,8 +20,8 @@ interface AppContextValue {
   cashbackRates: CashbackRate[]    // per-category cashback rate overrides
   loading: boolean
   error: string | null
-  refresh: () => void
-  refreshTransactions: () => void
+  refresh: () => Promise<void>
+  refreshTransactions: () => Promise<void>
   addCardSelection: (cardId: string) => Promise<void>
   removeCardSelection: (cardId: string) => Promise<void>
   saveOverride: (cardId: string, categoryIds: string[], effectiveFrom?: string) => Promise<void>

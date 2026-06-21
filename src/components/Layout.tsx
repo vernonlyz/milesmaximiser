@@ -1,9 +1,10 @@
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award, Loader2,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award, Loader2, RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import Modal from './Modal'
 import StatementDayPrompt from './StatementDayPrompt'
@@ -71,10 +72,45 @@ export default function Layout() {
   const [genericInstall, setGenericInstall] = useState(false)
   const [androidInstall, setAndroidInstall] = useState(false)
   const { showInstall, isIOS, isAndroid, hasNativePrompt, triggerInstall } = useInstallPrompt()
+  const { refresh } = useApp()
   const location = useLocation()
   const [bannerVisible, setBannerVisible] = useState(
     () => localStorage.getItem('installBannerDismissed') !== '1'
   )
+
+  // Pull-to-refresh + manual refresh (data lives in cached context)
+  const mainRef = useRef<HTMLElement>(null)
+  const pullStartY = useRef<number | null>(null)
+  const [pull, setPull] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const PULL_THRESHOLD = 60
+
+  async function handleRefresh() {
+    if (refreshing) return
+    setRefreshing(true)
+    try { await refresh() } finally {
+      setRefreshing(false)
+      setPull(0)
+    }
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    const el = mainRef.current
+    pullStartY.current = el && el.scrollTop <= 0 && !refreshing ? e.touches[0].clientY : null
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (pullStartY.current == null || refreshing) return
+    const el = mainRef.current
+    if (el && el.scrollTop > 0) { pullStartY.current = null; setPull(0); return }
+    const delta = e.touches[0].clientY - pullStartY.current
+    if (delta > 0) setPull(Math.min(delta * 0.5, 80))
+  }
+  function onTouchEnd() {
+    if (pullStartY.current == null) return
+    pullStartY.current = null
+    if (pull >= PULL_THRESHOLD) handleRefresh()
+    else setPull(0)
+  }
 
   function dismissBanner() {
     localStorage.setItem('installBannerDismissed', '1')
@@ -270,9 +306,36 @@ export default function Layout() {
             </div>
             <span className="font-bold text-sm">SmileMax</span>
           </Link>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Refresh"
+            className="ml-auto text-gray-500 hover:text-gray-800 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+          </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 pb-24 lg:p-8">
+        <main
+          ref={mainRef}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          className="flex-1 overflow-y-auto overscroll-contain p-4 pb-24 lg:p-8"
+        >
+          {/* Pull-to-refresh indicator (mobile) */}
+          {(pull > 0 || refreshing) && (
+            <div
+              className="lg:hidden flex items-center justify-center overflow-hidden text-gray-500 -mt-2 mb-2"
+              style={{ height: refreshing ? 32 : pull }}
+            >
+              <RefreshCw
+                size={18}
+                className={refreshing ? 'animate-spin' : ''}
+                style={refreshing ? undefined : { transform: `rotate(${pull * 3}deg)` }}
+              />
+            </div>
+          )}
           {showInstall && bannerVisible && location.pathname === '/' && (
             <div className="mb-6 flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
               <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center shrink-0">
