@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { MilesAccount, MilesAccountCard, MilesAdjustment } from '../lib/types'
 import Modal from '../components/Modal'
@@ -50,6 +51,7 @@ function ExpiryBadge({ dateStr }: { dateStr: string }) {
 export default function Miles() {
   const { cards } = useApp()
   const { user } = useAuth()
+  const toast = useToast()
 
   const [accounts, setAccounts] = useState<MilesAccount[]>([])
   const [links, setLinks] = useState<MilesAccountCard[]>([])
@@ -247,6 +249,7 @@ export default function Miles() {
     }).eq('id', a.id)
     setDrafts(prev => { const n = { ...prev }; delete n[a.id]; return n })
     setSavingId(null)
+    toast('Balance updated')
     reload()
   }
 
@@ -261,6 +264,7 @@ export default function Miles() {
       updated_at: new Date().toISOString(),
     }).eq('id', a.id)
     setReconcileFor(null)
+    toast('Balance reconciled')
     reload()
   }
 
@@ -278,6 +282,7 @@ export default function Miles() {
     })
     setAdjFormFor(null)
     setAdjDraft({ date: today(), miles: '', type: 'redeem', note: '' })
+    toast(signed < 0 ? 'Redemption recorded' : 'Bonus recorded')
     reload()
   }
 
@@ -335,6 +340,7 @@ export default function Miles() {
       as_of_date: today(),
     })
     setAddOpen(false)
+    toast('Balance added')
     reload()
   }
 
@@ -344,6 +350,7 @@ export default function Miles() {
     if (!accToDelete) return
     await supabase.from('miles_accounts').delete().eq('id', accToDelete.id)
     setAccToDelete(null)
+    toast('Balance removed')
     reload()
   }
 

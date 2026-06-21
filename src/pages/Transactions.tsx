@@ -3,6 +3,7 @@ import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Do
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import VendorInput from '../components/VendorInput'
@@ -24,6 +25,7 @@ type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 export default function Transactions() {
   const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
   const { user } = useAuth()
+  const toast = useToast()
   const location = useLocation()
 
   const [showModal, setShowModal] = useState(false)
@@ -324,6 +326,7 @@ export default function Transactions() {
     setSaving(false)
     if (dbErr) { setError(dbErr.message); return }
     setShowModal(false)
+    toast(editingId ? 'Transaction updated' : 'Transaction saved')
     refreshTransactions()
   }
 
@@ -331,6 +334,7 @@ export default function Transactions() {
     if (!txToDelete) return
     await supabase.from('transactions').delete().eq('id', txToDelete.id)
     setTxToDelete(null)
+    toast('Transaction deleted')
     refreshTransactions()
   }
 
@@ -416,6 +420,7 @@ export default function Transactions() {
     })
     if (e) { setError(e.message); return }
     setFavNameOpen(false)
+    toast('Favourite saved')
     loadFavourites()
   }
 
@@ -424,6 +429,7 @@ export default function Transactions() {
     await supabase.from('transaction_favourites').delete().eq('id', favToDelete.id)
     setFavourites(prev => prev.filter(x => x.id !== favToDelete.id))
     setFavToDelete(null)
+    toast('Favourite removed')
   }
 
   // Active transaction pool — current year from AppContext, previous years from Supabase

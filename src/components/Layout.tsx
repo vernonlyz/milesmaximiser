@@ -56,6 +56,14 @@ const nav = [
   { to: '/earnings',     label: 'Miles Earned',  Icon: TrendingUp      },
 ]
 
+// Primary destinations for the mobile bottom tab bar; the rest live under "More".
+const bottomTabs = [
+  { to: '/',             label: 'Home',       Icon: LayoutDashboard },
+  { to: '/recommend',    label: 'Recommend',  Icon: Sparkles        },
+  { to: '/transactions', label: 'Log',        Icon: Receipt         },
+  { to: '/cards',        label: 'Cards',      Icon: CreditCard      },
+]
+
 export default function Layout() {
   const [open, setOpen] = useState(false)
   const [disclaimer, setDisclaimer] = useState(false)
@@ -257,9 +265,6 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
         <header className="lg:hidden flex items-center gap-3 bg-white border-b border-gray-200 px-4 py-3">
-          <button onClick={() => setOpen(true)} className="text-gray-500 hover:text-gray-800">
-            <Menu size={22} />
-          </button>
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <div className="w-6 h-6 bg-indigo-500 rounded flex items-center justify-center">
               <Smile size={12} className="text-white" />
@@ -268,7 +273,7 @@ export default function Layout() {
           </Link>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 pb-24 lg:p-8">
           {showInstall && bannerVisible && location.pathname === '/' && (
             <div className="mb-6 flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
               <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center shrink-0">
@@ -298,6 +303,36 @@ export default function Layout() {
         <StatementDayPrompt />
         <UpdatePrompt />
       </div>
+
+      {/* Mobile bottom tab bar */}
+      <nav
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex items-stretch"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {bottomTabs.map(({ to, label, Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            onClick={() => setOpen(false)}
+            className={({ isActive }) =>
+              `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
+                isActive ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
+              }`
+            }
+          >
+            <Icon size={20} />
+            {label}
+          </NavLink>
+        ))}
+        <button
+          onClick={() => setOpen(true)}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <Menu size={20} />
+          More
+        </button>
+      </nav>
 
       {genericInstall && (
         <Modal title="Install SmileMax" onClose={() => setGenericInstall(false)}>
