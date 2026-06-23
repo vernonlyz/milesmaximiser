@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus } from 'lucide-react'
+import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
-import { SpendingCap } from '../lib/types'
+import { SpendingCap, Transaction } from '../lib/types'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel, getPeriodStart, getPeriodEnd, formatSGD } from '../lib/utils'
 import { isOnboarded, markOnboarded } from './Onboarding'
@@ -238,8 +238,53 @@ export default function Dashboard() {
     return cardSummaries.filter(s => s.card.bank === walletFilter)
   }, [cardSummaries, walletFilter])
 
-  // Recent transactions (last 8)
-  const recent = transactions.slice(0, 8)
+  // Split logged transactions into upcoming (future-dated) and recent (today or earlier).
+  // transactions arrives newest-first, so future dates would otherwise crowd out recent ones.
+  const todayStr = new Date().toLocaleDateString('en-CA')
+  const upcoming = transactions
+    .filter(t => t.transaction_date > todayStr)
+    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
+  const recent = transactions.filter(t => t.transaction_date <= todayStr).slice(0, 8)
+
+  function relDays(dateStr: string) {
+    const days = Math.round(
+      (new Date(dateStr + 'T00:00:00').getTime() - new Date(todayStr + 'T00:00:00').getTime()) / 86400000
+    )
+    return days <= 1 ? 'tomorrow' : `in ${days} days`
+  }
+
+  function txnRow(t: Transaction) {
+    const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
+    const cat = categories.find(c => c.id === t.category_id)
+    const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
+    const notesLine = t.vendor_name && t.description ? t.description : null
+    const isUpcoming = t.transaction_date > todayStr
+    return (
+      <div key={t.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+        <span className="text-lg leading-none">{cat?.icon ?? '💳'}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-800 truncate flex items-center gap-1.5">
+            <span className="truncate">{primaryLabel}</span>
+            {isUpcoming && (
+              <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0">
+                {relDays(t.transaction_date)}
+              </span>
+            )}
+          </p>
+          {notesLine && <p className="text-xs text-gray-500 truncate">{notesLine}</p>}
+          <p className="text-xs text-gray-500">
+            {t.transaction_date} · {card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : 'No card'}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-semibold text-gray-800">S${t.amount.toFixed(2)}</p>
+          {t.miles_earned != null && (
+            <p className="text-xs text-indigo-600">+{Math.round(t.miles_earned)} mi</p>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -508,7 +553,7 @@ export default function Dashboard() {
             <h2 className="font-semibold text-gray-800">Recent Transactions</h2>
             <Link to="/transactions" className="text-xs text-indigo-600 hover:underline">View all</Link>
           </div>
-          {recent.length === 0 ? (
+          {recent.length === 0 && upcoming.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-gray-500">No transactions yet.</p>
               <Link to="/transactions" className="btn-primary mt-3 text-xs">
@@ -517,36 +562,20 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-2">
-              {recent.map(t => {
-                const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
-                const cat = categories.find(c => c.id === t.category_id)
-                const primaryLabel = t.vendor_name || t.description || cat?.name || '—'
-                const notesLine = t.vendor_name && t.description ? t.description : null
-                return (
-                  <div key={t.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-lg leading-none">{cat?.icon ?? '💳'}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">
-                        {primaryLabel}
-                      </p>
-                      {notesLine && (
-                        <p className="text-xs text-gray-500 truncate">{notesLine}</p>
-                      )}
-                      <p className="text-xs text-gray-500">
-                        {t.transaction_date} · {card ? (card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`) : 'No card'}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-semibold text-gray-800">
-                        S${t.amount.toFixed(2)}
-                      </p>
-                      {t.miles_earned != null && (
-                        <p className="text-xs text-indigo-600">+{Math.round(t.miles_earned)} mi</p>
-                      )}
-                    </div>
+              {upcoming.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide flex items-center gap-1.5">
+                    <CalendarClock size={12} /> Upcoming ({upcoming.length})
+                  </p>
+                  {upcoming.map(txnRow)}
+                  <div className="pt-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recent</p>
                   </div>
-                )
-              })}
+                </>
+              )}
+              {recent.length > 0
+                ? recent.map(txnRow)
+                : <p className="text-sm text-gray-500 py-2">No past transactions yet.</p>}
             </div>
           )}
         </div>
