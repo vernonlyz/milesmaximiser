@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -36,6 +36,9 @@ export default function Transactions() {
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
   const [favNameOpen, setFavNameOpen] = useState(false)
   const [favNameInput, setFavNameInput] = useState('')
+  const [favRecur, setFavRecur] = useState(false)
+  const [favRecurDay, setFavRecurDay] = useState('1')
+  const [pendingRecurringId, setPendingRecurringId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -75,9 +78,20 @@ export default function Transactions() {
   const [sortBy, setSortBy] = useState<SortCol>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  // Auto-open the add modal when navigated here with { state: { openModal: true } }
+  // Auto-open the add modal when navigated here. Plain { openModal: true } opens a
+  // blank form; a recurring confirm passes the favourite + due date to prefill.
   useEffect(() => {
-    if ((location.state as { openModal?: boolean } | null)?.openModal) {
+    const st = location.state as {
+      openModal?: boolean; favourite?: TransactionFavourite; dueDate?: string; recurringFavId?: string
+    } | null
+    if (st?.favourite) {
+      resetModal()
+      applyFavourite(st.favourite)
+      if (st.dueDate) setForm(f => ({ ...f, transaction_date: st.dueDate! }))
+      setPendingRecurringId(st.recurringFavId ?? null)
+      setShowModal(true)
+      window.history.replaceState({}, '')
+    } else if (st?.openModal) {
       openAdd()
       window.history.replaceState({}, '')
     }
@@ -199,6 +213,7 @@ export default function Transactions() {
     setSplitCustom('')
     setSplitInfoOpen(false)
     setError(null)
+    setPendingRecurringId(null)
   }
 
   function openAdd() {
@@ -328,6 +343,10 @@ export default function Transactions() {
     setShowModal(false)
     toast(editingId ? 'Transaction updated' : 'Transaction saved')
     refreshTransactions()
+    if (pendingRecurringId && !editingId) {
+      await advanceRecurring(pendingRecurringId)
+      setPendingRecurringId(null)
+    }
   }
 
   async function confirmDeleteTransaction() {
@@ -402,11 +421,14 @@ export default function Transactions() {
       return
     }
     setFavNameInput(favouriteFallbackName())
+    setFavRecur(false)
+    setFavRecurDay(String(Math.min(new Date().getDate(), 28)))
     setFavNameOpen(true)
   }
 
   async function submitFavourite() {
     const label = favNameInput.trim() || favouriteFallbackName()
+    const day = favRecur ? Math.min(Math.max(parseInt(favRecurDay) || 1, 1), 28) : null
     const { error: e } = await supabase.from('transaction_favourites').insert({
       user_id: user!.id,
       label,
@@ -417,10 +439,41 @@ export default function Transactions() {
       payment_channel: paymentChannel,
       amount: form.amount ? parseFloat(form.amount) : null,
       description: form.description || null,
+      recurrence: favRecur ? 'monthly' : null,
+      recur_day: day,
+      next_due_date: favRecur && day != null ? monthlyDueFrom(day) : null,
     })
     if (e) { setError(e.message); return }
     setFavNameOpen(false)
-    toast('Favourite saved')
+    toast(favRecur ? 'Recurring favourite saved' : 'Favourite saved')
+    loadFavourites()
+  }
+
+  // ---- recurring helpers ----
+  // Next occurrence of `day` (1-28): this month if not yet passed, else next month.
+  function monthlyDueFrom(day: number, from = new Date()): string {
+    const d = Math.min(Math.max(day, 1), 28)
+    const base = from.getDate() <= d
+      ? new Date(from.getFullYear(), from.getMonth(), d)
+      : new Date(from.getFullYear(), from.getMonth() + 1, d)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}`
+  }
+
+  // Roll a due date forward one month (day preserved; recur_day is always <= 28).
+  function addMonthDue(dateStr: string): string {
+    const [y, m, dd] = dateStr.split('-').map(Number)
+    const next = new Date(y, m, dd) // m is 1-based, so index m = next month
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`
+  }
+
+  async function advanceRecurring(favId: string) {
+    const fav = favourites.find(f => f.id === favId)
+    if (!fav?.next_due_date) return
+    await supabase.from('transaction_favourites')
+      .update({ next_due_date: addMonthDue(fav.next_due_date) })
+      .eq('id', favId)
     loadFavourites()
   }
 
@@ -878,8 +931,9 @@ export default function Transactions() {
                     <button
                       type="button"
                       onClick={() => applyFavourite(f)}
-                      className="text-xs pl-2.5 pr-1.5 py-1 hover:bg-amber-100 transition-colors"
+                      className="text-xs pl-2.5 pr-1.5 py-1 hover:bg-amber-100 transition-colors flex items-center gap-1"
                     >
+                      {f.recurrence === 'monthly' && <Repeat size={10} className="text-indigo-500 shrink-0" />}
                       {f.label}
                     </button>
                     <button
@@ -1329,7 +1383,7 @@ export default function Transactions() {
           )}
 
           <div className="flex gap-3 pt-2">
-            <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
+            <button onClick={() => { setShowModal(false); setPendingRecurringId(null) }} className="btn-secondary flex-1">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
               {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
             </button>
@@ -1372,9 +1426,40 @@ export default function Transactions() {
               />
               <p className="text-xs text-gray-500 mt-1">Saves the card, category, vendor, payment method and amount for quick reuse.</p>
             </div>
+
+            {/* Recurring schedule */}
+            <div className="bg-gray-50 rounded-lg p-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={favRecur}
+                  onChange={e => setFavRecur(e.target.checked)}
+                  className="accent-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                  <Repeat size={13} className="text-indigo-500" /> Repeat monthly
+                </span>
+              </label>
+              {favRecur && (
+                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-gray-500">On day</span>
+                  <input
+                    type="number" min={1} max={28}
+                    value={favRecurDay}
+                    onChange={e => setFavRecurDay(e.target.value)}
+                    className="input text-sm py-1 w-16"
+                  />
+                  <span className="text-xs text-gray-500">of each month (1–28)</span>
+                  <span className="text-xs text-indigo-600 w-full">
+                    You'll get a reminder on the Dashboard to confirm each charge — nothing is logged automatically.
+                  </span>
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3">
               <button onClick={() => setFavNameOpen(false)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={submitFavourite} className="btn-primary flex-1">Save favourite</button>
+              <button onClick={submitFavourite} className="btn-primary flex-1">{favRecur ? 'Save recurring' : 'Save favourite'}</button>
             </div>
           </div>
         </Modal>

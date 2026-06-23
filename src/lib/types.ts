@@ -184,6 +184,9 @@ export interface TransactionFavourite {
   payment_channel: 'contactless' | 'online' | 'chip' | null
   amount: number | null
   description: string | null
+  recurrence: 'monthly' | null     // null = plain template; 'monthly' = recurring charge
+  recur_day: number | null         // day of month (1-28) for monthly recurrence
+  next_due_date: string | null     // next occurrence date (YYYY-MM-DD)
   created_at: string
 }
 
