@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
+import PartialBonusNote from '../components/PartialBonusNote'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
@@ -168,6 +169,7 @@ export default function Transactions() {
   }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel])
 
   const bestCardId = recs[0]?.card.id ?? ''
+  const selectedRec = useMemo(() => recs.find(r => r.card.id === form.card_id) ?? null, [recs, form.card_id])
 
   const personalAmount = useMemo(() => {
     const amt = parseFloat(form.amount)
@@ -1388,6 +1390,7 @@ export default function Transactions() {
                   <span className="text-indigo-600 font-medium">{previewMiles.toLocaleString()} mi</span>
                 </p>
               )}
+              {!mpdOverrideActive && selectedRec && <PartialBonusNote amount={formAmt} rec={selectedRec} />}
               {previewCashback != null && (
                 <p className="text-xs text-gray-500 mt-1.5 text-right">
                   Est. cashback:{' '}

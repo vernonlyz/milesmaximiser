@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Sparkles, Trophy, ChevronDown, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import StatusBadge from '../components/StatusBadge'
+import PartialBonusNote from '../components/PartialBonusNote'
 import VendorInput from '../components/VendorInput'
 import { recommendCards } from '../lib/recommendations'
 import { formatSGD } from '../lib/utils'
@@ -152,7 +153,7 @@ export default function Recommend() {
             </h2>
 
             {recs.map((rec, i) => (
-              <RecCard key={rec.card.id} rec={rec} rank={i + 1} />
+              <RecCard key={rec.card.id} rec={rec} rank={i + 1} amount={amount} />
             ))}
           </div>
         ) : (
@@ -170,7 +171,7 @@ export default function Recommend() {
   )
 }
 
-function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
+function RecCard({ rec, rank, amount }: { rec: CardRecommendation; rank: number; amount: number }) {
   const isBest = rank === 1
 
   return (
@@ -279,6 +280,11 @@ function RecCard({ rec, rank }: { rec: CardRecommendation; rank: number }) {
           </div>
         </div>
       )}
+
+      {/* Partial-cap bonus/base split */}
+      <div className="ml-10">
+        <PartialBonusNote amount={amount} rec={rec} />
+      </div>
     </div>
   )
 }
