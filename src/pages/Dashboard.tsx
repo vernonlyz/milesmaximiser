@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock, Repeat } from 'lucide-react'
+import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock, Repeat, ChevronDown, ChevronRight } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
@@ -25,6 +25,12 @@ export default function Dashboard() {
       markOnboarded(user.id)
     }
   }, [loading, user, hasActivity])
+
+  // Collapsible Dashboard sections (persisted)
+  const [walletCollapsed, setWalletCollapsed] = useState(() => localStorage.getItem('dashWalletCollapsed') === '1')
+  const [recentCollapsed, setRecentCollapsed] = useState(() => localStorage.getItem('dashRecentCollapsed') === '1')
+  function toggleWallet() { setWalletCollapsed(c => { localStorage.setItem('dashWalletCollapsed', c ? '0' : '1'); return !c }) }
+  function toggleRecent() { setRecentCollapsed(c => { localStorage.setItem('dashRecentCollapsed', c ? '0' : '1'); return !c }) }
 
   // Recurring favourites due to log (next_due within the next 7 days, or overdue)
   const [dueRecurring, setDueRecurring] = useState<TransactionFavourite[]>([])
@@ -502,8 +508,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Wallet cards with cap usage */}
         <div className="card p-5">
-          <h2 className="font-semibold text-gray-800 mb-3">My Wallet</h2>
-          {cardSummaries.length === 0 ? (
+          <button onClick={toggleWallet} className="flex items-center w-full text-left mb-3">
+            <h2 className="font-semibold text-gray-800">My Wallet</h2>
+            <span className="ml-auto text-gray-300">{walletCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}</span>
+          </button>
+          {!walletCollapsed && (cardSummaries.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-sm text-gray-500">No cards in your wallet yet.</p>
               <Link to="/cards" className="btn-primary mt-3 text-xs">Go to My Cards</Link>
@@ -630,16 +639,19 @@ export default function Dashboard() {
               )}
             </div>
             </>
-          )}
+          ))}
         </div>
 
         {/* Recent transactions */}
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Recent Transactions</h2>
+            <button onClick={toggleRecent} className="flex items-center gap-2 text-left">
+              <h2 className="font-semibold text-gray-800">Recent Transactions</h2>
+              <span className="text-gray-300">{recentCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}</span>
+            </button>
             <Link to="/transactions" className="text-xs text-indigo-600 hover:underline">View all</Link>
           </div>
-          {recent.length === 0 && upcoming.length === 0 ? (
+          {!recentCollapsed && (recent.length === 0 && upcoming.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-gray-500">No transactions yet.</p>
               <Link to="/transactions" className="btn-primary mt-3 text-xs">
@@ -663,7 +675,7 @@ export default function Dashboard() {
                 ? recent.map(txnRow)
                 : <p className="text-sm text-gray-500 py-2">No past transactions yet.</p>}
             </div>
-          )}
+          ))}
         </div>
       </div>
 

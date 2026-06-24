@@ -56,8 +56,9 @@ export default function Transactions() {
   const [manualMpd, setManualMpd] = useState('')
   const [overrideNote, setOverrideNote] = useState('')
 
-  // Group split state
+  // Group split state. 'even' = divide by N (chips or custom divisor); 'amount' = exact $ share.
   const [splitOpen, setSplitOpen] = useState(false)
+  const [splitMode, setSplitMode] = useState<'even' | 'amount'>('even')
   const [splitN, setSplitN] = useState<number | null>(null)
   const [splitCustom, setSplitCustom] = useState('')
   const [splitInfoOpen, setSplitInfoOpen] = useState(false)
@@ -171,10 +172,12 @@ export default function Transactions() {
   const personalAmount = useMemo(() => {
     const amt = parseFloat(form.amount)
     if (!splitOpen || isNaN(amt) || amt <= 0) return null
-    if (splitN != null && splitN >= 2) return parseFloat((amt / splitN).toFixed(2))
+    if (splitMode === 'even') {
+      return splitN != null && splitN >= 2 ? parseFloat((amt / splitN).toFixed(2)) : null
+    }
     const custom = parseFloat(splitCustom)
     return (!isNaN(custom) && custom >= 0 && custom <= amt) ? custom : null
-  }, [splitOpen, splitN, splitCustom, form.amount])
+  }, [splitOpen, splitMode, splitN, splitCustom, form.amount])
 
   function setField(k: keyof TransactionFormData, v: string) {
     if (k === 'card_id' || k === 'category_id') {
@@ -209,6 +212,7 @@ export default function Transactions() {
     setManualMpd('')
     setOverrideNote('')
     setSplitOpen(false)
+    setSplitMode('even')
     setSplitN(null)
     setSplitCustom('')
     setSplitInfoOpen(false)
@@ -245,10 +249,12 @@ export default function Transactions() {
     }
     if (t.personal_amount != null && t.personal_amount !== t.amount) {
       setSplitOpen(true)
+      setSplitMode('amount')
       setSplitN(null)
       setSplitCustom(t.personal_amount.toFixed(2))
     } else {
       setSplitOpen(false)
+      setSplitMode('even')
       setSplitN(null)
       setSplitCustom('')
     }
@@ -406,6 +412,7 @@ export default function Transactions() {
     setManualMpd('')
     setOverrideNote('')
     setSplitOpen(false)
+    setSplitMode('even')
     setSplitN(null)
     setSplitCustom('')
     setError(null)
@@ -1138,20 +1145,20 @@ export default function Transactions() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => { setSplitOpen(false); setSplitN(null); setSplitCustom('') }}
+                    onClick={() => { setSplitOpen(false); setSplitMode('even'); setSplitN(null); setSplitCustom('') }}
                     className="text-gray-500 hover:text-gray-600"
                   >
                     <X size={13} />
                   </button>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   {[2, 3, 4].map(n => (
                     <button
                       key={n}
                       type="button"
-                      onClick={() => { setSplitN(n); setSplitCustom('') }}
+                      onClick={() => { setSplitMode('even'); setSplitN(n); setSplitCustom('') }}
                       className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                        splitN === n
+                        splitMode === 'even' && splitN === n
                           ? 'bg-indigo-600 text-white border-indigo-600'
                           : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
                       }`}
@@ -1159,19 +1166,41 @@ export default function Transactions() {
                       ÷{n}
                     </button>
                   ))}
+                  {/* Custom divisor */}
+                  <div
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs ${
+                      splitMode === 'even' && splitN != null && ![2, 3, 4].includes(splitN)
+                        ? 'border-indigo-600 text-indigo-700'
+                        : 'border-gray-200 text-gray-500'
+                    }`}
+                  >
+                    <span>÷</span>
+                    <input
+                      type="number" min="2"
+                      placeholder="N"
+                      value={splitMode === 'even' && splitN != null && ![2, 3, 4].includes(splitN) ? String(splitN) : ''}
+                      onChange={e => {
+                        const n = parseInt(e.target.value)
+                        setSplitMode('even')
+                        setSplitN(n >= 2 ? n : null)
+                        setSplitCustom('')
+                      }}
+                      className="w-9 bg-transparent focus:outline-none"
+                    />
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setSplitN(null)}
+                    onClick={() => { setSplitMode('amount'); setSplitN(null) }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                      splitN === null
+                      splitMode === 'amount'
                         ? 'bg-indigo-600 text-white border-indigo-600'
                         : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
                     }`}
                   >
-                    Custom
+                    Exact $
                   </button>
                 </div>
-                {splitN === null && (
+                {splitMode === 'amount' && (
                   <input
                     type="number"
                     min="0"
