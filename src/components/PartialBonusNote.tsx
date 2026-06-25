@@ -5,12 +5,12 @@ import { CardRecommendation } from '../lib/types'
 // Shows both portions so the bonus isn't hidden behind the blended rate.
 export default function PartialBonusNote({ amount, rec }: { amount: number; rec: CardRecommendation }) {
   if (rec.status !== 'partial' || rec.capRemaining == null) return null
-  // Miles are earned on the amount rounded down to the card's earn block (e.g. $5),
-  // so split that figure — matching the engine — not the raw amount.
+  // Each tier is floored to the card's earn block independently (matching the
+  // engine): bonus on the cap remaining rounded down, base on the leftover
+  // spend (amount − cap remaining) rounded down.
   const inc = rec.card.earn_increment || 1
-  const earnAmount = Math.floor(amount / inc) * inc
-  const within = Math.min(earnAmount, rec.capRemaining)
-  const over = Math.max(0, earnAmount - within)
+  const within = Math.floor(Math.min(amount, rec.capRemaining) / inc) * inc
+  const over = Math.floor(Math.max(0, amount - rec.capRemaining) / inc) * inc
   if (within <= 0 || over <= 0) return null
 
   const money = (n: number) => `S$${n.toFixed(2)}`

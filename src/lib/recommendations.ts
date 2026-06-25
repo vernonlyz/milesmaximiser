@@ -393,9 +393,13 @@ function getEffectiveForCard(
     }
   }
 
-  const bonusMiles = Math.min(milesAmount, remaining) * bonusMpd
-  const baseMiles = Math.max(0, milesAmount - remaining) * card.base_mpd
-  const milesEarned = bonusMiles + baseMiles
+  // Each tier is floored to the card's earn block independently: the bonus
+  // applies to the cap remaining rounded down, and base to the leftover spend
+  // (amount − cap remaining) rounded down. Partial blocks straddling the cap
+  // boundary or the end of spend don't earn.
+  const withinAmt = Math.floor(Math.min(amount, remaining) / card.earn_increment) * card.earn_increment
+  const overAmt   = Math.floor(Math.max(0, amount - remaining) / card.earn_increment) * card.earn_increment
+  const milesEarned = withinAmt * bonusMpd + overAmt * card.base_mpd
   return {
     effectiveMpd: amount > 0 ? milesEarned / amount : 0,
     milesEarned,
