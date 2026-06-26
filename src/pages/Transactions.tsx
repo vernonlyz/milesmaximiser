@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import PartialBonusNote from '../components/PartialBonusNote'
+import DatePicker from '../components/DatePicker'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
@@ -1069,8 +1070,7 @@ export default function Transactions() {
 
           <div>
             <label className="label">Date</label>
-            <input type="date" className="input" value={form.transaction_date}
-              onChange={e => setField('transaction_date', e.target.value)} />
+            <DatePicker value={form.transaction_date} onChange={v => setField('transaction_date', v)} className="w-full" />
           </div>
 
           {/* Vendor typeahead */}

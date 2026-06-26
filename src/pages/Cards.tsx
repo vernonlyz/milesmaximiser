@@ -5,6 +5,7 @@ import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } f
 import { capPeriodLabel, isoDate } from '../lib/utils'
 import { CreditCard, SpendingCap } from '../lib/types'
 import Modal from '../components/Modal'
+import DatePicker from '../components/DatePicker'
 
 export default function Cards() {
   const {
@@ -576,12 +577,7 @@ export default function Cards() {
               <label className="text-xs font-medium text-gray-500 flex items-center gap-1.5 mb-1.5">
                 <CalendarDays size={12} /> Effective from
               </label>
-              <input
-                type="date"
-                value={editDate}
-                onChange={e => setEditDate(e.target.value)}
-                className="input text-sm"
-              />
+              <DatePicker value={editDate} onChange={setEditDate} className="w-full" />
               <p className="text-xs text-gray-500 mt-1">
                 {editDate === '2000-01-01'
                   ? 'Applies to all transactions (past and future) — change only if you had a different category before.'

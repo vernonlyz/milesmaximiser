@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import { MilesAccount, MilesAccountCard, MilesAdjustment } from '../lib/types'
 import Modal from '../components/Modal'
 import MilesTabs from '../components/MilesTabs'
+import DatePicker from '../components/DatePicker'
 
 interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
 
@@ -628,12 +629,13 @@ export default function Miles() {
                       onChange={e => setDraft(account.id, { opening: e.target.value })}
                       className="input text-sm py-1 w-full"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      as of <input
-                        type="date"
+                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                      as of
+                      <DatePicker
+                        bare
                         value={d.asOf}
-                        onChange={e => setDraft(account.id, { asOf: e.target.value })}
-                        className="bg-transparent text-xs text-gray-500 focus:outline-none"
+                        onChange={v => setDraft(account.id, { asOf: v })}
+                        className="text-xs text-gray-600 hover:text-indigo-600"
                       />
                     </p>
                   </div>
@@ -659,11 +661,12 @@ export default function Miles() {
                 {/* Expiry */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <label className="text-xs text-gray-500 shrink-0">Expiry</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={d.expiry}
-                    onChange={e => setDraft(account.id, { expiry: e.target.value })}
-                    className="input text-xs py-1 w-36"
+                    onChange={v => setDraft(account.id, { expiry: v })}
+                    clearable
+                    placeholder="No expiry"
+                    className="text-xs py-1 w-40"
                   />
                   {d.expiry ? (
                     <ExpiryBadge dateStr={d.expiry} />
@@ -710,10 +713,10 @@ export default function Miles() {
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        <input
-                          type="date" value={adjDraft.date}
-                          onChange={e => setAdjDraft(p => ({ ...p, date: e.target.value }))}
-                          className="input text-xs py-1 w-32"
+                        <DatePicker
+                          value={adjDraft.date}
+                          onChange={v => setAdjDraft(p => ({ ...p, date: v }))}
+                          className="text-xs py-1 w-36"
                         />
                         <input
                           type="number" min="0" step="100" placeholder="miles"
