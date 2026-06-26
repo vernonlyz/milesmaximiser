@@ -89,6 +89,7 @@ export interface Transaction {
   miles_earned: number | null
   cashback_earned: number | null  // computed at save for cashback cards; null for miles/debit
   personal_amount: number | null  // user's own share when paying for a group; null = full amount
+  reconciled: boolean             // checked off against the user's bank statement
   created_at: string
 }
 

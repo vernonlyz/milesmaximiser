@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat, CheckCircle2, Circle } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -72,6 +72,12 @@ export default function Transactions() {
   const [filterCard, setFilterCard] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Reconciliation
+  const [reconcileFilter, setReconcileFilter] = useState<'all' | 'unreconciled' | 'reconciled'>('all')
+  const [statementTotal, setStatementTotal] = useState('')
+  const [reconOverrides, setReconOverrides] = useState<Record<string, boolean>>({})
+  const isReconciled = (t: Transaction) => reconOverrides[t.id] ?? t.reconciled
+
   // Transactions pool — current year comes from AppContext; previous years fetched on demand
   const [prevYearTxns, setPrevYearTxns] = useState<Transaction[]>([])
   const [loadingYear,  setLoadingYear]  = useState(false)
@@ -109,7 +115,7 @@ export default function Transactions() {
     setLoadingYear(true)
     supabase
       .from('transactions')
-      .select('id, transaction_date, amount, personal_amount, miles_earned, cashback_earned, effective_mpd, computed_mpd, manual_mpd, override_note, mcc, category_id, card_id, vendor_name, description, payment_channel')
+      .select('id, transaction_date, amount, personal_amount, miles_earned, cashback_earned, effective_mpd, computed_mpd, manual_mpd, override_note, mcc, category_id, card_id, vendor_name, description, payment_channel, reconciled')
       .gte('transaction_date', `${filterYear}-01-01`)
       .lt('transaction_date', `${parseInt(filterYear) + 1}-01-01`)
       .order('transaction_date', { ascending: false })
@@ -497,15 +503,25 @@ export default function Transactions() {
   // Active transaction pool — current year from AppContext, previous years from Supabase
   const txPool = filterYear === nowYear ? transactions : prevYearTxns
 
-  // Filtered + sorted transactions
-  const filtered = useMemo(() => {
+  // Base set for the card/month being reconciled (excludes the reconcile-status
+  // filter, so the reconciliation panel always reflects the whole statement).
+  const baseFiltered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const monthPrefix = filterMonthNum ? `${filterYear}-${filterMonthNum}` : null
-    const result = txPool.filter(t => {
+    return txPool.filter(t => {
       if (monthPrefix && !t.transaction_date.startsWith(monthPrefix)) return false
       if (filterCat  && t.category_id !== filterCat)  return false
       if (filterCard && t.card_id     !== filterCard)  return false
       if (q && !t.vendor_name?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [txPool, filterYear, filterMonthNum, filterCat, filterCard, searchQuery])
+
+  // Displayed list: apply the reconcile-status filter and sort.
+  const filtered = useMemo(() => {
+    const result = baseFiltered.filter(t => {
+      if (reconcileFilter === 'reconciled'   && !isReconciled(t)) return false
+      if (reconcileFilter === 'unreconciled' &&  isReconciled(t)) return false
       return true
     })
     return [...result].sort((a, b) => {
@@ -516,10 +532,33 @@ export default function Transactions() {
       if (sortBy === 'mpd')    v = (a.effective_mpd ?? 0) - (b.effective_mpd ?? 0)
       return sortDir === 'desc' ? -v : v
     })
-  }, [txPool, filterYear, filterMonthNum, filterCat, filterCard, searchQuery, sortBy, sortDir])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseFiltered, reconcileFilter, reconOverrides, sortBy, sortDir])
 
   const totalMiles = filtered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = filtered.reduce((s, t) => s + t.amount, 0)
+
+  // Reconciliation summary over the base set (whole statement)
+  const reconCount   = baseFiltered.filter(isReconciled).length
+  const reconSum     = baseFiltered.filter(isReconciled).reduce((s, t) => s + t.amount, 0)
+  const baseTotal    = baseFiltered.reduce((s, t) => s + t.amount, 0)
+  const unreconSum   = baseTotal - reconSum
+  const stmtParsed   = parseFloat(statementTotal)
+  const stmtDiff     = !isNaN(stmtParsed) ? baseTotal - stmtParsed : null
+
+  async function toggleReconciled(t: Transaction) {
+    const next = !isReconciled(t)
+    setReconOverrides(prev => ({ ...prev, [t.id]: next }))
+    await supabase.from('transactions').update({ reconciled: next }).eq('id', t.id)
+  }
+
+  async function setReconciledForVisible(value: boolean) {
+    const ids = filtered.map(t => t.id)
+    if (ids.length === 0) return
+    setReconOverrides(prev => { const n = { ...prev }; ids.forEach(id => { n[id] = value }); return n })
+    await supabase.from('transactions').update({ reconciled: value }).in('id', ids)
+    toast(value ? 'Marked reconciled' : 'Cleared')
+  }
 
   // Nominal MPD for the current form — strips out the rounding factor so we show "4 mpd"
   // rather than the slightly-lower effective value (e.g. 3.96 mpd on a $13.80 / $5-block card).
@@ -679,6 +718,58 @@ export default function Transactions() {
         </div>
       </div>
 
+      {/* Reconciliation bar */}
+      {baseFiltered.length > 0 && (
+        <div className="card px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <span className="font-medium text-gray-700 flex items-center gap-1.5">
+            <CheckCircle2 size={14} className="text-emerald-500" /> Reconcile
+          </span>
+          <div className="flex gap-1.5">
+            {(['all', 'unreconciled', 'reconciled'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setReconcileFilter(f)}
+                className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize transition-colors ${
+                  reconcileFilter === f ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {f === 'all' ? 'All' : f}
+              </button>
+            ))}
+          </div>
+          <span className="text-gray-500">
+            {reconCount}/{baseFiltered.length} reconciled · <span className="text-gray-600 font-medium">S${unreconSum.toFixed(2)}</span> left
+          </span>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">Statement total</label>
+            <span className="text-gray-400 text-xs">S$</span>
+            <input
+              type="number" min="0" step="0.01"
+              value={statementTotal}
+              onChange={e => setStatementTotal(e.target.value)}
+              placeholder="0.00"
+              className="input w-24 text-sm py-1"
+            />
+            {stmtDiff != null && (
+              Math.abs(stmtDiff) < 0.005
+                ? <span className="text-emerald-600 text-xs font-medium">✓ matches logged</span>
+                : <span className="text-amber-600 text-xs font-medium">
+                    ⚠ S${Math.abs(stmtDiff).toFixed(2)} {stmtDiff > 0 ? 'more logged than statement' : 'more on statement than logged'}
+                  </span>
+            )}
+          </div>
+          <div className="ml-auto flex gap-2">
+            <button onClick={() => setReconciledForVisible(true)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
+              Mark all visible
+            </button>
+            <span className="text-gray-300">·</span>
+            <button onClick={() => setReconciledForVisible(false)} className="text-xs text-gray-500 hover:text-gray-700">
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card overflow-hidden">
         {filtered.length === 0 ? (
@@ -763,6 +854,13 @@ export default function Transactions() {
                           </span>
                         )}
                         <button
+                          onClick={() => toggleReconciled(t)}
+                          className={`transition-colors p-1 rounded ${isReconciled(t) ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-400'}`}
+                          title={isReconciled(t) ? 'Reconciled' : 'Mark reconciled'}
+                        >
+                          {isReconciled(t) ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                        </button>
+                        <button
                           onClick={() => openEdit(t)}
                           className="text-gray-300 hover:text-indigo-500 transition-colors p-1 rounded"
                           title="Edit"
@@ -788,6 +886,7 @@ export default function Transactions() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                    <th className="px-3 py-3" title="Reconciled" />
                     <SortTh col="date"   label="Date"   active={sortBy} dir={sortDir} onSort={toggleSort} align="left" />
                     <th className="text-left px-4 py-3">Vendor / Description</th>
                     <th className="text-left px-4 py-3">Category</th>
@@ -807,6 +906,15 @@ export default function Transactions() {
                     const notesLine = t.vendor_name && t.description ? t.description : null
                     return (
                       <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="pl-4 pr-1 py-3">
+                          <button
+                            onClick={() => toggleReconciled(t)}
+                            title={isReconciled(t) ? 'Reconciled — click to unmark' : 'Mark reconciled against statement'}
+                            className={isReconciled(t) ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-400'}
+                          >
+                            {isReconciled(t) ? <CheckCircle2 size={17} /> : <Circle size={17} />}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.transaction_date}</td>
                         <td className="px-4 py-3 text-gray-800">
                           <span className="block">{primaryLabel}</span>
