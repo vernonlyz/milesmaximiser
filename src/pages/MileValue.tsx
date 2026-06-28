@@ -28,7 +28,7 @@ export default function MileValue() {
 
   const g = result ? grade(result.cpp) : null
 
-  const [tab, setTab] = useState<'redeem' | 'compare' | 'breakeven'>('redeem')
+  const [tab, setTab] = useState<'redeem' | 'compare'>('redeem')
 
   // ── Calculator 2: cheaper (no miles) vs higher price (earns miles) ──
   const [cashPrice, setCashPrice] = useState('')
@@ -100,15 +100,13 @@ export default function MileValue() {
         <p className="text-sm text-gray-500 mt-0.5">
           {tab === 'redeem'
             ? 'Find out how much each mile is worth on a specific redemption.'
-            : tab === 'compare'
-              ? 'Decide whether a cheaper no-miles price beats a higher price that earns miles.'
-              : 'Find the highest price worth paying on the miles-earning option.'}
+            : 'See the most it’s worth paying on a miles-earning price — and whether a specific price beats a cheaper no-miles one.'}
         </p>
       </div>
 
       {/* Sub-tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-full sm:w-auto sm:inline-flex">
-        {([['redeem', 'Redemption'], ['compare', 'Compare'], ['breakeven', 'Break-even']] as const).map(([key, label]) => (
+        {([['redeem', 'Redemption value'], ['compare', 'Worth paying more?']] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -257,7 +255,7 @@ export default function MileValue() {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              Higher price — earns miles (S$)
+              Higher price — earns miles (S$) <span className="text-gray-400 font-normal">optional</span>
             </label>
             <input
               type="number" min="0" step="1" placeholder="e.g. 1050"
@@ -265,7 +263,7 @@ export default function MileValue() {
               onChange={e => setCardPrice(e.target.value)}
               className="input w-full"
             />
-            <p className="text-xs text-gray-500 mt-1">Card price that earns miles.</p>
+            <p className="text-xs text-gray-500 mt-1">Leave blank to just see the break-even ceiling.</p>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -322,6 +320,23 @@ export default function MileValue() {
         </div>
       </div>
 
+      {/* Break-even ceiling — shown whenever cash price + rate are set */}
+      {breakeven && !breakeven.unbounded && (
+        <div className="card p-5">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Worth paying by card up to</p>
+          <p className="text-3xl font-bold text-indigo-600 mt-0.5">S${breakeven.maxCard!.toFixed(2)}</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            a {breakeven.premiumPct!.toFixed(1)}% premium over the S${breakeven.cashP.toFixed(2)} cash price
+            {breakeven.overCap && ' (over-cap spend valued at base rate)'} · miles worth {(breakeven.valueRate * 100).toFixed(1)}% of spend
+          </p>
+        </div>
+      )}
+      {breakeven?.unbounded && (
+        <div className="card p-5 text-sm text-emerald-600 font-medium">
+          At this rate miles are worth 100% or more of spend — any premium is worth it.
+        </div>
+      )}
+
       {compare && (
         <div className="card p-5 space-y-4">
           {/* Verdict */}
@@ -372,94 +387,6 @@ export default function MileValue() {
       )}
       </>)}
 
-      {tab === 'breakeven' && (<>
-      <div className="card p-5 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Cash / discount price (S$)</label>
-            <input
-              type="number" min="0" step="1" placeholder="e.g. 980"
-              value={cashPrice}
-              onChange={e => setCashPrice(e.target.value)}
-              className="input w-full"
-            />
-            <p className="text-xs text-gray-500 mt-1">The no-miles price you can get elsewhere.</p>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Earn rate (mpd)</label>
-            <input
-              type="number" min="0" step="0.1" placeholder="e.g. 1.2"
-              value={earnRate}
-              onChange={e => setEarnRate(e.target.value)}
-              className="input w-full"
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Your value per mile (¢)</label>
-            <input
-              type="number" min="0" step="0.1"
-              value={cppInput}
-              onChange={e => setCppInput(e.target.value)}
-              className="input w-full"
-            />
-            <p className="text-xs text-gray-500 mt-1">Defaults to the {BENCHMARK_CPP}¢ benchmark.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Bonus cap (S$) <span className="text-gray-400 font-normal">optional</span>
-            </label>
-            <input
-              type="number" min="0" step="1" placeholder="uncapped"
-              value={capInput}
-              onChange={e => setCapInput(e.target.value)}
-              className="input w-full"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Base rate beyond cap (mpd) <span className="text-gray-400 font-normal">optional</span>
-            </label>
-            <input
-              type="number" min="0" step="0.1" placeholder="e.g. 0.4"
-              value={baseRate}
-              onChange={e => setBaseRate(e.target.value)}
-              className="input w-full"
-              disabled={!capInput}
-            />
-          </div>
-        </div>
-      </div>
-
-      {breakeven && !breakeven.unbounded && (
-        <div className="card p-5 space-y-4">
-          <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Max price worth paying by card</p>
-            <p className="text-4xl font-bold text-indigo-600 mt-0.5">S${breakeven.maxCard!.toFixed(2)}</p>
-            <p className="text-sm text-gray-500 mt-0.5">
-              vs S${breakeven.cashP.toFixed(2)} cash — up to a {breakeven.premiumPct!.toFixed(1)}% premium
-            </p>
-          </div>
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 text-sm text-indigo-700">
-            Pay <span className="font-semibold">up to S${breakeven.maxCard!.toFixed(2)}</span> on the miles-earning option and you still come
-            out ahead of the S${breakeven.cashP.toFixed(2)} cash price. Above that, take the cash price.
-            {breakeven.overCap && ' Spend beyond the cap only earns the base rate, which is factored in.'}
-          </div>
-          <div className="border-t border-gray-100 pt-4 space-y-1.5 text-sm">
-            <Row label="Miles value (% of spend, within cap)" value={`${(breakeven.valueRate * 100).toFixed(1)}%`} />
-            <Row label="Break-even premium over cash" value={`${breakeven.premiumPct!.toFixed(1)}%`} bold />
-          </div>
-        </div>
-      )}
-      {breakeven?.unbounded && (
-        <div className="card p-5 text-sm text-emerald-600 font-medium">
-          At this rate miles are worth 100% or more of spend — any premium is worth it.
-        </div>
-      )}
-      </>)}
     </div>
   )
 }
