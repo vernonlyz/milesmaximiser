@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Calculator, Info, Scale } from 'lucide-react'
+import { Calculator, Info } from 'lucide-react'
 
 const BENCHMARK_CPP = 1.8 // cents per mile
 
@@ -28,10 +28,14 @@ export default function MileValue() {
 
   const g = result ? grade(result.cpp) : null
 
+  const [tab, setTab] = useState<'redeem' | 'compare'>('redeem')
+
   // ── Calculator 2: cheaper (no miles) vs higher price (earns miles) ──
   const [cashPrice, setCashPrice] = useState('')
   const [cardPrice, setCardPrice] = useState('')
   const [earnRate, setEarnRate]   = useState('')
+  const [capInput, setCapInput]   = useState('')   // optional bonus cap (S$)
+  const [baseRate, setBaseRate]   = useState('')   // optional base mpd beyond the cap
   const [cppInput, setCppInput]   = useState(String(BENCHMARK_CPP))
 
   const compare = useMemo(() => {
@@ -40,15 +44,25 @@ export default function MileValue() {
     const mpd   = parseFloat(earnRate)
     const cpp   = parseFloat(cppInput)
     if ([cashP, cardP, mpd, cpp].some(v => isNaN(v)) || cashP < 0 || cardP <= 0 || mpd <= 0 || cpp <= 0) return null
-    const milesEarned = cardP * mpd
+    // Optional bonus cap: only spend up to the cap earns the bonus rate; the rest
+    // earns the (optional) base rate.
+    const cap = parseFloat(capInput)
+    const baseMpd = parseFloat(baseRate)
+    const hasCap = !isNaN(cap) && cap > 0
+    const capAmt = hasCap ? cap : Infinity
+    const baseM  = !isNaN(baseMpd) && baseMpd > 0 ? baseMpd : 0
+    const bonusSpend = Math.min(cardP, capAmt)
+    const overSpend  = Math.max(0, cardP - capAmt)
+    const milesEarned = bonusSpend * mpd + overSpend * baseM
     const milesValue  = milesEarned * cpp / 100
     const netCard     = cardP - milesValue          // effective cost paying by card, net of miles value
     const extraCost   = cardP - cashP               // premium paid to earn miles
     const saving      = cashP - netCard             // >0 → card option is cheaper net
     const breakEven   = milesEarned > 0 ? (extraCost / milesEarned) * 100 : null // ¢/mile you're paying
     const cardWins    = netCard < cashP - 0.005
-    return { cashP, cardP, mpd, cpp, milesEarned, milesValue, netCard, extraCost, saving, breakEven, cardWins }
-  }, [cashPrice, cardPrice, earnRate, cppInput])
+    const capped      = hasCap && overSpend > 0
+    return { cashP, cardP, mpd, cpp, bonusSpend, overSpend, baseM, milesEarned, milesValue, netCard, extraCost, saving, breakEven, cardWins, capped }
+  }, [cashPrice, cardPrice, earnRate, capInput, baseRate, cppInput])
 
   return (
     <div className="space-y-6">
@@ -58,10 +72,28 @@ export default function MileValue() {
           Mile Value Calculator
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Find out how much each mile is worth on a specific redemption.
+          {tab === 'redeem'
+            ? 'Find out how much each mile is worth on a specific redemption.'
+            : 'Decide whether a cheaper no-miles price beats a higher price that earns miles.'}
         </p>
       </div>
 
+      {/* Sub-tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-full sm:w-auto sm:inline-flex">
+        {([['redeem', 'Redemption value'], ['compare', 'Worth paying more?']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              tab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'redeem' && (<>
       {/* Inputs */}
       <div className="card p-5 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -178,18 +210,9 @@ export default function MileValue() {
           get better value paying cash and earning miles on the purchase instead.
         </p>
       </div>
+      </>)}
 
-      {/* ── Calculator 2: discount vs miles ── */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <Scale size={18} className="text-indigo-500" />
-          Worth paying more to earn miles?
-        </h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Compare a cheaper price that earns no miles against a higher price that does.
-        </p>
-      </div>
-
+      {tab === 'compare' && (<>
       <div className="card p-5 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -242,6 +265,33 @@ export default function MileValue() {
             <p className="text-xs text-gray-500 mt-1">Defaults to the {BENCHMARK_CPP}¢ benchmark — adjust to how you value miles.</p>
           </div>
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Bonus cap (S$) <span className="text-gray-400 font-normal">optional</span>
+            </label>
+            <input
+              type="number" min="0" step="1" placeholder="uncapped"
+              value={capInput}
+              onChange={e => setCapInput(e.target.value)}
+              className="input w-full"
+            />
+            <p className="text-xs text-gray-500 mt-1">Spend earning the bonus rate is capped at this; the rest earns the base rate.</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Base rate beyond cap (mpd) <span className="text-gray-400 font-normal">optional</span>
+            </label>
+            <input
+              type="number" min="0" step="0.1" placeholder="e.g. 0.4"
+              value={baseRate}
+              onChange={e => setBaseRate(e.target.value)}
+              className="input w-full"
+              disabled={!capInput}
+            />
+            <p className="text-xs text-gray-500 mt-1">Rate earned on spend over the cap (0 if blank).</p>
+          </div>
+        </div>
       </div>
 
       {compare && (
@@ -278,12 +328,21 @@ export default function MileValue() {
           <div className="border-t border-gray-100 pt-4 space-y-1.5 text-sm">
             <Row label="Lower price (no miles)"       value={`S$${compare.cashP.toFixed(2)}`} />
             <Row label="Higher price (earns miles)"   value={`S$${compare.cardP.toFixed(2)}`} />
-            <Row label={`Miles earned (${compare.mpd} mpd)`} value={`${Math.round(compare.milesEarned).toLocaleString()} mi`} sub />
+            {compare.capped ? (
+              <>
+                <Row label={`${compare.mpd} mpd on S$${compare.bonusSpend.toFixed(2)} (within cap)`} value={`${Math.round(compare.bonusSpend * compare.mpd).toLocaleString()} mi`} sub />
+                <Row label={`${compare.baseM} mpd on S$${compare.overSpend.toFixed(2)} (over cap)`} value={`${Math.round(compare.overSpend * compare.baseM).toLocaleString()} mi`} sub />
+                <Row label="Total miles earned" value={`${Math.round(compare.milesEarned).toLocaleString()} mi`} />
+              </>
+            ) : (
+              <Row label={`Miles earned (${compare.mpd} mpd)`} value={`${Math.round(compare.milesEarned).toLocaleString()} mi`} sub />
+            )}
             <Row label={`Miles value @ ${compare.cpp.toFixed(1)}¢`} value={`− S$${compare.milesValue.toFixed(2)}`} sub />
             <Row label="Net cost paying by card"      value={`S$${compare.netCard.toFixed(2)}`} bold />
           </div>
         </div>
       )}
+      </>)}
     </div>
   )
 }
