@@ -7,7 +7,7 @@ import CapUsageBar from '../components/CapUsageBar'
 import { SpendingCap, Transaction, TransactionFavourite } from '../lib/types'
 import { supabase } from '../lib/supabase'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
-import { currentMonthLabel, getPeriodLabel, getPeriodStart, getPeriodEnd, formatSGD } from '../lib/utils'
+import { currentMonthLabel, getPeriodLabel, getPeriodStart, getPeriodEnd, formatSGD, isoDate } from '../lib/utils'
 import { isOnboarded, markOnboarded } from './Onboarding'
 
 export default function Dashboard() {
@@ -62,8 +62,8 @@ export default function Dashboard() {
   const now = new Date()
 
   // Transactions in current calendar month
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
-  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
+  const monthStart = isoDate(new Date(now.getFullYear(), now.getMonth(), 1))
+  const monthEnd   = isoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))
   const monthTxns = transactions.filter(t => t.transaction_date >= monthStart && t.transaction_date <= monthEnd)
 
   const totalSpent      = monthTxns.reduce((s, t) => s + t.amount, 0)
@@ -187,13 +187,11 @@ export default function Dashboard() {
       // Use the card's billing cycle bounds for per-card stats and category breakdown,
       // so statement-cycle cards don't bleed in spend from the previous cycle.
       const cardStatDay = card.cap_cycle === 'statement' ? statementDays.get(card.id) : undefined
-      const cardPeriodStart = getPeriodStart('monthly', now, cardStatDay)
-      const cardPeriodEnd   = getPeriodEnd('monthly', now, cardStatDay)
-      const cardTxns = transactions.filter(t => {
-        if (t.card_id !== card.id) return false
-        const d = new Date(t.transaction_date)
-        return d >= cardPeriodStart && d <= cardPeriodEnd
-      })
+      const cardStartStr = isoDate(getPeriodStart('monthly', now, cardStatDay))
+      const cardEndStr   = isoDate(getPeriodEnd('monthly', now, cardStatDay))
+      const cardTxns = transactions.filter(t =>
+        t.card_id === card.id && t.transaction_date >= cardStartStr && t.transaction_date <= cardEndStr
+      )
 
       const monthlySpent = cardTxns.reduce((s, t) => s + t.amount, 0)
       const monthlyMiles = cardTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)

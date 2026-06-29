@@ -1,5 +1,5 @@
 import { CreditCard, CardRate, SpendingCap, Transaction, CardRecommendation, CategoryOverride } from './types'
-import { getPeriodStart, getPeriodEnd, formatSGD } from './utils'
+import { getPeriodStart, getPeriodEnd, formatSGD, isoDate } from './utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Effective-date resolvers
@@ -8,7 +8,7 @@ import { getPeriodStart, getPeriodEnd, formatSGD } from './utils'
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function resolveRates(allRates: CardRate[], date: Date = new Date()): CardRate[] {
-  const dateStr = date.toISOString().slice(0, 10)
+  const dateStr = isoDate(date)
   const map = new Map<string, CardRate>()
 
   const eligible = [...allRates]
@@ -28,7 +28,7 @@ export function resolveRates(allRates: CardRate[], date: Date = new Date()): Car
 }
 
 export function resolveCaps(allCaps: SpendingCap[], date: Date = new Date()): SpendingCap[] {
-  const dateStr = date.toISOString().slice(0, 10)
+  const dateStr = isoDate(date)
   const map = new Map<string, SpendingCap>()
 
   const eligible = [...allCaps]
@@ -56,7 +56,7 @@ export function resolveOverride(
   cardId: string,
   date: Date = new Date()
 ): string[] | null {
-  const dateStr = date.toISOString().slice(0, 10)
+  const dateStr = isoDate(date)
   const eligible = overrides
     .filter(o => o.card_id === cardId && o.effective_from <= dateStr)
     .sort((a, b) => b.effective_from.localeCompare(a.effective_from))
@@ -148,8 +148,8 @@ export function buildPeriodSpending(
     if (cap.cap_period === 'per_transaction') continue
 
     const statDay = statementDays.get(cap.card_id)
-    const periodStart = getPeriodStart(cap.cap_period, now, statDay)
-    const periodEnd   = getPeriodEnd(cap.cap_period, now, statDay)
+    const startStr = isoDate(getPeriodStart(cap.cap_period, now, statDay))
+    const endStr   = isoDate(getPeriodEnd(cap.cap_period, now, statDay))
 
     if (cap.cap_payment_channel) {
       // Channel cap: sum only transactions paid via the specified payment method,
@@ -157,14 +157,11 @@ export function buildPeriodSpending(
       const channelKey = `${cap.card_id}:channel:${cap.cap_payment_channel}:${cap.cap_period}`
       if (result.has(channelKey)) continue
       const spent = transactions
-        .filter(t => {
-          const d = new Date(t.transaction_date)
-          return (
-            t.card_id === cap.card_id &&
-            t.payment_channel === cap.cap_payment_channel &&
-            d >= periodStart && d <= periodEnd
-          )
-        })
+        .filter(t => (
+          t.card_id === cap.card_id &&
+          t.payment_channel === cap.cap_payment_channel &&
+          t.transaction_date >= startStr && t.transaction_date <= endStr
+        ))
         .reduce((sum, t) => sum + t.amount, 0)
       result.set(channelKey, spent)
     } else if (cap.cap_group) {
@@ -176,16 +173,13 @@ export function buildPeriodSpending(
         .map(c => c.category_id as string)
 
       const spent = transactions
-        .filter(t => {
-          const d = new Date(t.transaction_date)
-          return (
-            t.card_id === cap.card_id &&
-            t.category_id !== null &&
-            groupCatIds.includes(t.category_id) &&
-            !countedByChannelCap(t) &&
-            d >= periodStart && d <= periodEnd
-          )
-        })
+        .filter(t => (
+          t.card_id === cap.card_id &&
+          t.category_id !== null &&
+          groupCatIds.includes(t.category_id) &&
+          !countedByChannelCap(t) &&
+          t.transaction_date >= startStr && t.transaction_date <= endStr
+        ))
         .reduce((sum, t) => sum + t.amount, 0)
 
       result.set(groupKey, spent)
@@ -198,8 +192,7 @@ export function buildPeriodSpending(
           if (t.card_id !== cap.card_id) return false
           if (cap.category_id !== null && t.category_id !== cap.category_id) return false
           if (countedByChannelCap(t)) return false
-          const d = new Date(t.transaction_date)
-          return d >= periodStart && d <= periodEnd
+          return t.transaction_date >= startStr && t.transaction_date <= endStr
         })
         .reduce((sum, t) => sum + t.amount, 0)
 
@@ -215,13 +208,10 @@ export function buildPeriodSpending(
     if (seenTotalKeys.has(totalKey)) continue
     seenTotalKeys.add(totalKey)
     const statDay = statementDays.get(cap.card_id)
-    const periodStart = getPeriodStart(cap.cap_period, now, statDay)
-    const periodEnd   = getPeriodEnd(cap.cap_period, now, statDay)
+    const startStr = isoDate(getPeriodStart(cap.cap_period, now, statDay))
+    const endStr   = isoDate(getPeriodEnd(cap.cap_period, now, statDay))
     const total = transactions
-      .filter(t => {
-        const d = new Date(t.transaction_date)
-        return t.card_id === cap.card_id && d >= periodStart && d <= periodEnd
-      })
+      .filter(t => t.card_id === cap.card_id && t.transaction_date >= startStr && t.transaction_date <= endStr)
       .reduce((sum, t) => sum + t.amount, 0)
     result.set(totalKey, total)
   }

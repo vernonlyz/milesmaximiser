@@ -88,8 +88,12 @@ export function currentMonthLabel(): string {
   return new Date().toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
 }
 
+// Local YYYY-MM-DD. Must NOT use toISOString(), which converts to UTC and in
+// SGT (UTC+8) shifts the date back ~8h — making e.g. the last day of a month or
+// "today" resolve to the wrong calendar date for boundary comparisons.
 export function isoDate(date: Date = new Date()): string {
-  return date.toISOString().slice(0, 10)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`
 }
 
 export const CARD_NETWORKS = ['Visa', 'Mastercard', 'Amex', 'UnionPay']

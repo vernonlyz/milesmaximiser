@@ -97,7 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadTransactions = useCallback(async () => {
     if (!user) return
-    const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10)
+    const yearStart = isoDate(new Date(new Date().getFullYear(), 0, 1))
     const { data, error } = await supabase
       .from('transactions')
       .select('*')

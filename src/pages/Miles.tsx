@@ -14,7 +14,9 @@ import DatePicker from '../components/DatePicker'
 interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 function monthsUntil(dateStr: string): number {
