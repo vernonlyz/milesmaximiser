@@ -41,6 +41,7 @@ export default function Transactions() {
   const [favRecur, setFavRecur] = useState(false)
   const [favRecurDay, setFavRecurDay] = useState('1')
   const [pendingRecurringId, setPendingRecurringId] = useState<string | null>(null)
+  const [recurringOpen, setRecurringOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -484,6 +485,24 @@ export default function Transactions() {
     return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`
   }
 
+  // All recurring rules, soonest-due first
+  const recurringFavs = favourites
+    .filter(f => f.recurrence === 'monthly')
+    .sort((a, b) => (a.next_due_date ?? '').localeCompare(b.next_due_date ?? ''))
+
+  // Open the log form prefilled from a recurring rule (advances next_due on save)
+  function logRecurringNow(f: TransactionFavourite) {
+    setRecurringOpen(false)
+    applyFavourite(f)
+    if (f.next_due_date) setForm(prev => ({ ...prev, transaction_date: f.next_due_date! }))
+    setPendingRecurringId(f.id)
+    setShowModal(true)
+  }
+
+  function fmtDate(s: string) {
+    return new Date(s + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
   async function advanceRecurring(favId: string) {
     const fav = favourites.find(f => f.id === favId)
     if (!fav?.next_due_date) return
@@ -620,6 +639,15 @@ export default function Transactions() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
         <div className="flex items-center gap-2">
+          <button onClick={() => setRecurringOpen(true)} className="btn-secondary text-xs">
+            <Repeat size={13} />
+            <span className="hidden sm:inline">Recurring</span>
+            {recurringFavs.length > 0 && (
+              <span className="ml-1 bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 rounded-full">
+                {recurringFavs.length}
+              </span>
+            )}
+          </button>
           {filtered.length > 0 && (
             <button onClick={handleExport} className="btn-secondary text-xs">
               <Download size={13} />
@@ -1528,6 +1556,59 @@ export default function Transactions() {
               {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
             </button>
           </div>
+        </Modal>
+      )}
+
+      {recurringOpen && (
+        <Modal title="Recurring transactions" onClose={() => setRecurringOpen(false)}>
+          {recurringFavs.length === 0 ? (
+            <div className="py-8 text-center space-y-2">
+              <Repeat size={28} className="text-gray-300 mx-auto" />
+              <p className="text-sm text-gray-500">No recurring transactions yet.</p>
+              <p className="text-xs text-gray-400">
+                When logging, tap “Save as favourite” and turn on “Repeat monthly” to add one.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500">
+                These prefill the log form on their due date (you confirm each). Manage them here.
+              </p>
+              {recurringFavs.map(f => {
+                const card = cards.find(c => c.id === f.card_id) ?? allCards.find(c => c.id === f.card_id)
+                const cat = categories.find(c => c.id === f.category_id)
+                return (
+                  <div key={f.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                    <span className="text-lg leading-none">{cat?.icon ?? '🔁'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{f.label}</p>
+                      <p className="text-xs text-gray-500 truncate">
+                        Day {f.recur_day} each month
+                        {f.next_due_date && <> · next {fmtDate(f.next_due_date)}</>}
+                        {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
+                        {f.amount != null ? ` · S$${f.amount.toFixed(2)}` : ' · amount varies'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => logRecurringNow(f)}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1"
+                      >
+                        Log now
+                      </button>
+                      <button
+                        onClick={() => { setRecurringOpen(false); setFavToDelete(f) }}
+                        title="Delete recurring"
+                        className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </Modal>
       )}
 
