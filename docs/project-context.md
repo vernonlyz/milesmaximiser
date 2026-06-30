@@ -34,7 +34,7 @@ Browser (React + Vite + TypeScript)
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
     ├─ context/          — AuthContext, AppContext, ToastContext (app-wide toast notifications)
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine
         ├─ types.ts            — All TypeScript interfaces
@@ -50,8 +50,8 @@ Supabase (Postgres + Auth + RLS)
     ├─ library_selectable_categories  — Valid bonus-category choices per selectable card
     ├─ user_card_selections           — Per-user wallet (join table)
     ├─ user_category_overrides        — Per-user chosen bonus category for selectable cards
-    ├─ transactions                   — Per-user transaction log (miles + cashback fields; vendor_name, mcc, payment_channel, personal_amount)
-    ├─ transaction_favourites         — Per-user saved transaction templates for recurring charges (migration 029)
+    ├─ transactions                   — Per-user transaction log (miles + cashback fields; vendor_name, mcc, payment_channel, personal_amount, reconciled)
+    ├─ transaction_favourites         — Per-user saved transaction templates; optional monthly recurrence (migrations 029, 033)
     ├─ miles_accounts                 — Per-user miles balance owner: opening snapshot + as-of date + expiry (migration 028)
     ├─ miles_account_cards            — Links cards to a miles account (a card belongs to one; pooling) (migration 028)
     ├─ miles_adjustments              — Dated ledger of redemptions (negative) and bonuses (positive) per account (migration 028)
@@ -140,6 +140,8 @@ Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/
 | [supabase/migrations/030_miles_account_goal.sql](../supabase/migrations/030_miles_account_goal.sql) | Per-account goal_miles (superseded by 031, which drops it) |
 | [supabase/migrations/031_user_miles_goal.sql](../supabase/migrations/031_user_miles_goal.sql) | user_settings table (cumulative miles_goal); drops per-account goal_miles |
 | [supabase/migrations/032_miles_goal_label.sql](../supabase/migrations/032_miles_goal_label.sql) | Adds miles_goal_label to user_settings (e.g. "SQ Suites to JFK") |
+| [supabase/migrations/033_recurring_favourites.sql](../supabase/migrations/033_recurring_favourites.sql) | Adds recurrence/recur_day/next_due_date to transaction_favourites (monthly recurring charges) |
+| [supabase/migrations/034_transaction_reconciled.sql](../supabase/migrations/034_transaction_reconciled.sql) | Adds reconciled BOOLEAN to transactions (bank-statement reconciliation) |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
 
 ---
@@ -240,6 +242,14 @@ The app is a functional MVP. All core features are implemented:
 | Miles goal — single cumulative target across all accounts (user_settings); progress bar with airplane marker + goal title (migrations 031–032) | Complete |
 | Mile Value benchmark changed from 1.5¢ to 1.8¢ (constant, "Good" grade, note copy) | Complete |
 | Expenses: Card spend definition banner (alongside the existing My spend banner) | Complete |
+| Dashboard: Upcoming (future-dated) split from Recent transactions; collapsible My Wallet + Recent | Complete |
+| Group split by custom divisor (÷N) + Exact $ mode | Complete |
+| Partial-cap bonus/base split on Recommend + log preview (each tier floored to earn block) | Complete |
+| Recurring charges (monthly) via favourites; Dashboard due→confirm; Recurring manager modal (migration 033) | Complete |
+| Mile Value: Redemption / Worth-paying-more tabs; break-even ceiling + verdict; optional bonus cap | Complete |
+| Styled portal DatePicker replacing native date inputs (Transactions, Cards, Miles) | Complete |
+| Transaction reconciliation — per-row checkmark, filter, progress, statement-total compare (migration 034) | Complete |
+| SGT timezone fix — local YYYY-MM-DD boundaries; end-of-month transactions no longer dropped from totals/caps | Complete |
 
 **Card library (23 cards):**
 
@@ -298,4 +308,5 @@ The app is a functional MVP. All core features are implemented:
 - **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
 - **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
-- **Manual migrations** — Migrations 027–032 (miles accounts, favourites, miles goal + label) must be run in the Supabase SQL Editor; there is no automated migration runner. The miles goal won't save until `user_settings` exists (031) and the goal title until 032.
+- **Manual migrations** — Migrations 027–034 (miles accounts, favourites + recurrence, miles goal + label, transaction reconciled) must be run in the Supabase SQL Editor; there is no automated migration runner. Recurring charges need 033 and reconciliation needs 034.
+- **Dates are local (SGT)** — All date-boundary math uses `isoDate()` (local `YYYY-MM-DD`, never `toISOString()`) and string comparisons. New date logic must follow this — mixing `new Date('YYYY-MM-DD')` (UTC) with local Date bounds previously dropped end-of-month transactions in SGT.

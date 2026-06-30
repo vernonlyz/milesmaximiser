@@ -86,7 +86,16 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-22  Docs refresh (project-context, current-work, decision-log) for v7.x work  [tag: v7.1-card-ui]
 2026-06-22  Expenses: Card spend definition banner; Mile Value benchmark 1.5¢ → 1.8¢
 2026-06-22  Cap "nearly maxed" nudge in CapUsageBar (90–99% used)
-2026-06-22  Miles goal tracker — single cumulative target (user_settings, migrations 030→031); airplane progress marker + goal title (migration 032)
+2026-06-22  Miles goal tracker — single cumulative target (user_settings, migrations 030→031); airplane progress marker + goal title (migration 032)  [tag: v7.2-miles-goal]
+2026-06-23  Dashboard: separate Upcoming (future-dated) from Recent transactions
+2026-06-24  Dashboard: My Wallet + Recent collapsible (persisted); group split by custom divisor (÷N)
+2026-06-24  Partial-cap bonus/base split shown on Recommend cards + log preview (PartialBonusNote); each tier floored to earn block independently
+2026-06-24  Recurring charges (monthly) via favourites — Dashboard "due to log" confirm flow (migration 033)
+2026-06-25  Mile Value: "worth paying more?" calculator → sub-tabs → bonus cap → merge Compare + Break-even into one tab
+2026-06-25  Styled portal DatePicker replaces native date inputs (Transactions, Cards, Miles)
+2026-06-26  Per-transaction reconciliation against bank statements — checkmark, filter, progress, statement-total compare (migration 034)
+2026-06-26  Recurring transactions manager modal (list/log-now/delete) on Transactions
+2026-06-30  Fix SGT timezone bug dropping end-of-month transactions from totals, category breakdown, and cap tracking
 ```
 
 ---
@@ -169,6 +178,15 @@ Everything listed below is in a working, committed state on `main`:
 - **Miles goal tracker** — A single cumulative target across all miles accounts, stored in a per-user `user_settings` row (`miles_goal` + `miles_goal_label`; migrations 031–032, which supersede the per-account 030). Shown in the "Total miles" card: a number input + optional title ("What for? e.g. SQ Suites to JFK"), and a progress bar with an **airplane marker** that flies along it at the current %, plus "total / goal (n%)" and "X miles to go" (emerald + "Goal reached" when hit). Save button appears when the number or title changes.
 - **Mile Value benchmark 1.8¢** — Changed the value benchmark from 1.5¢ to 1.8¢ (the `BENCHMARK_CPP` constant, the "Good" grade threshold, and the benchmark note copy).
 - **Expenses Card spend definition** — The explanatory banner (shown when group spends exist) now also appears in Card spend mode with a Card spend definition, not only in My spend mode.
+- **Dashboard Upcoming vs Recent** — Transactions arrive newest-first, so future-dated entries crowded out recent ones in the 8-row list. Split into an "Upcoming" group (future dates, soonest first, with an "in N days" badge) above "Recent" (today or earlier). Shared row renderer; Upcoming only appears when future-dated entries exist.
+- **Dashboard collapsible sections** — My Wallet and Recent Transactions collapse via a header chevron; state persisted in localStorage.
+- **Group split by custom divisor** — The transaction split section adds a ÷N custom-divisor input alongside ÷2/÷3/÷4 and an "Exact $" mode, via an explicit `splitMode` ('even' | 'amount') so the divisor and dollar inputs don't collide.
+- **Partial-cap bonus/base split** — When a transaction partly exceeds a cap, the spend splits across tiers: bonus rate on the cap remaining and base rate on the overflow. New `PartialBonusNote` shows both portions (within-cap / over-cap, with miles) on the Recommend cards and in the log form's Miles Rate preview. Each tier is floored to the card's earn block **independently** (e.g. $23 cap left, $200 spend, $5 block → $20 @ 4mpd + $175 @ 0.4mpd) — applied in both the engine (saved miles) and the display.
+- **Recurring charges (monthly)** — Favourites extended with `recurrence`/`recur_day`/`next_due_date` (migration 033). The favourite-save modal gains a "Repeat monthly on day N" option (🔁 on recurring chips). Due → confirm model (no backend scheduler): the Dashboard lists occurrences due within 7 days; Confirm opens the log form prefilled and dated to the due date, then rolls `next_due_date` forward a month on save; Skip rolls it forward without logging. One pending per rule at a time. A "Recurring" manager modal on Transactions lists all rules with schedule/next-due/card/amount and Log-now/delete.
+- **Mile Value: two-tab calculator** — Segmented sub-tabs: **Redemption value** (the original cpp tool) and **Worth paying more?** which always shows the **break-even ceiling** (max card price worth paying + premium %, from cash price + earn rate + value-per-mile + optional cap/base) and adds the specific verdict/breakdown when an optional higher card price is entered. (Built as Compare + Break-even, then merged to two tabs.)
+- **Styled DatePicker** — Portal-based month-grid date picker (`DatePicker.tsx`) replaces native `<input type="date">` in Transactions, Cards, and Miles. Renders the calendar to `document.body` with computed fixed position so it's never clipped inside scrollable modals; Today/Clear shortcuts, min/max, and a `bare` variant for the inline "as of" field.
+- **Transaction reconciliation** — `transactions.reconciled` (migration 034). A per-row checkmark (desktop column + mobile card) toggles reconciled (optimistic, via a local override map); an All/Unreconciled/Reconciled filter; a reconciliation bar with progress (n/total, S$ left), "Mark all visible"/Clear, and an in-session bank-statement-total input that compares to the logged total to flag a missing/extra charge.
+- **SGT timezone bug fix** — Date-range math mixed UTC and local time: `new Date('YYYY-MM-DD')` is UTC midnight (08:00 SGT) while period bounds were local Date objects, and month bounds used `toISOString().slice(0,10)` (shifts ~8h back). In SGT this dropped **last-day-of-month** transactions from the Dashboard total, per-card spend/category breakdown, and cap usage — for all cards. Fix: `isoDate()` now formats the **local** date, and all period-boundary checks compare `YYYY-MM-DD` strings against `isoDate(periodStart/End)`. Applied in the engine (`buildPeriodSpending` + effective-date resolvers), Dashboard, AppContext (year start), and Miles `today()`.
 
 ---
 
@@ -193,6 +211,8 @@ The core recommendation, tracking, expense, trends, and utility features are now
    - Migration 029: `029_transaction_favourites.sql` (transaction_favourites)
    - Migration 031: `031_user_miles_goal.sql` (user_settings; supersedes 030, drops per-account goal_miles)
    - Migration 032: `032_miles_goal_label.sql` (miles_goal_label on user_settings)
+   - Migration 033: `033_recurring_favourites.sql` (recurrence/recur_day/next_due_date on transaction_favourites)
+   - Migration 034: `034_transaction_reconciled.sql` (reconciled on transactions)
 2. **Dashboard "expiring miles" alert** — Surface the Miles Balance 6-month expiry warning on the home screen. (The cap "almost full" nudge is now done in CapUsageBar; surfacing expiring miles on the Dashboard remains.)
 3. **Error boundary + offline awareness** — With routes code-split, a failed lazy-chunk load (flaky mobile) currently shows a blank screen; an error boundary with retry + an offline indicator would harden it.
 4. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested.

@@ -557,3 +557,42 @@ Captures key architectural choices made during development — what was decided,
 **Why:** A per-user singleton matches the concept (one goal), syncs across devices (unlike localStorage), and renders once in the "Total miles" card instead of cluttering every account. `user_settings` is a generic per-user table that can hold future preferences. The progress bar carries an airplane marker (positioned at the current %) and an optional free-text title, making the goal read as a concrete trip.
 
 **Trade-off:** Only one goal at a time (no multiple simultaneous targets). Acceptable for the single-user scope; multiple goals would need a separate table.
+
+---
+
+## 2026-06-24 — Recurring charges: due→confirm via favourites, no backend scheduler
+
+**Decision:** Model recurring charges as favourites with an optional monthly schedule (`recurrence`/`recur_day`/`next_due_date`; migration 033). Occurrences are generated lazily when the user opens the app and surfaced on the Dashboard as "due to log"; **Confirm** opens the log form prefilled and dated to the due date (miles computed on save) and advances `next_due_date` one month; **Skip** advances without logging. One pending occurrence per rule at a time.
+
+**Alternatives considered:**
+- Auto-post on app open (back-dated) — hands-off but risky for variable amounts/missed charges, posts stale rates, and needs duplicate-guarding.
+- A true scheduler (Supabase scheduled Edge Function) — posts while the app is closed, but a bigger lift and still wouldn't let the user vet variable amounts.
+- A separate `recurring_charges` table — duplicates the favourite template fields; a favourite already stores card/category/vendor/amount.
+
+**Why:** There is no backend cron in this client + Supabase app, so nothing can post while closed — "generate on open, user confirms" is the honest, safe model. Confirming recomputes miles against current rates/caps and lets the user adjust variable amounts. Advancing `next_due` only on confirm/skip means exactly one pending per rule, so no duplicates even after a long absence.
+
+**Trade-off:** It's a smart reminder, not automation — a charge due on the 1st only appears when the app is next opened. Monthly-only in v1.
+
+---
+
+## 2026-06-24 — Partial cap: floor each rate tier to the earn block independently
+
+**Decision:** When a transaction partially exceeds a cap, compute miles as `floor(min(amount, capRemaining)/inc)·bonusMpd + floor(max(0, amount−capRemaining)/inc)·baseMpd` — each tier floored to the card's earn block (`inc`) on its own. Applied in the engine (`getEffectiveForCard`, saved miles) and the `PartialBonusNote` display (Recommend cards + log preview).
+
+**Background:** The earlier logic floored the whole amount once then split at the raw cap remaining, which didn't match how blocks straddling the cap boundary actually earn. Example ($23 cap left, $200 spend, $5 block): bonus on $20 (80 mi) + base on $175 (70 mi); the $3 and $2 partial blocks don't earn.
+
+**Why:** Miles are awarded per whole block within a rate tier; a block split across the cap boundary or the end of spend shouldn't earn. Flooring each tier independently reflects that, and showing the split (instead of only the blended effective rate) makes the bonus visible to the user.
+
+**Trade-off:** A few dollars near the boundary earn nothing — intentional and accurate to block-based earning, but slightly less than the naive single-floor.
+
+---
+
+## 2026-06-30 — All date-boundary math is local (SGT), string-compared
+
+**Decision:** `isoDate()` formats the **local** calendar date (never `toISOString()`), and every period-boundary check compares `transaction_date` (`YYYY-MM-DD` string) against `isoDate(periodStart)`/`isoDate(periodEnd)` rather than comparing `Date` objects.
+
+**Background:** `new Date('2026-06-30')` parses as UTC midnight = 08:00 SGT, while period bounds were built with local `Date` constructors (00:00 SGT), and month bounds used `toISOString().slice(0,10)` (shifts ~8h back). In SGT this excluded **last-day-of-month** transactions from the Dashboard month total, per-card spend/category breakdown, and cap usage — for all cards. Reported as a DBS Woman's World "travel doesn't count" bug on the 30th.
+
+**Why:** Transaction dates are date-only strings; the only robust comparison is local `YYYY-MM-DD` strings on both sides, with no UTC conversion anywhere. Fixing the shared `isoDate()` helper plus the boundary comparisons (engine `buildPeriodSpending` + resolvers, Dashboard, AppContext year start, Miles `today()`) closes the whole class.
+
+**Trade-off:** None functionally; `isoDate()` is now slightly more code than a one-liner. New date logic must avoid `toISOString()` for calendar dates and must not mix `new Date(str)` with local `Date` bounds.
