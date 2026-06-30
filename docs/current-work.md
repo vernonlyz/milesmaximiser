@@ -95,7 +95,9 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-25  Styled portal DatePicker replaces native date inputs (Transactions, Cards, Miles)
 2026-06-26  Per-transaction reconciliation against bank statements — checkmark, filter, progress, statement-total compare (migration 034)
 2026-06-26  Recurring transactions manager modal (list/log-now/delete) on Transactions
-2026-06-30  Fix SGT timezone bug dropping end-of-month transactions from totals, category breakdown, and cap tracking
+2026-06-30  Fix SGT timezone bug dropping end-of-month transactions from totals, category breakdown, and cap tracking  [tag: v7.3-recurring-reconcile]
+2026-07-01  Add Vitest engine test suite (18 tests over recommendations.ts); error boundaries (ErrorBoundary)
+2026-07-01  Add README and .env.example
 ```
 
 ---
@@ -187,6 +189,9 @@ Everything listed below is in a working, committed state on `main`:
 - **Styled DatePicker** — Portal-based month-grid date picker (`DatePicker.tsx`) replaces native `<input type="date">` in Transactions, Cards, and Miles. Renders the calendar to `document.body` with computed fixed position so it's never clipped inside scrollable modals; Today/Clear shortcuts, min/max, and a `bare` variant for the inline "as of" field.
 - **Transaction reconciliation** — `transactions.reconciled` (migration 034). A per-row checkmark (desktop column + mobile card) toggles reconciled (optimistic, via a local override map); an All/Unreconciled/Reconciled filter; a reconciliation bar with progress (n/total, S$ left), "Mark all visible"/Clear, and an in-session bank-statement-total input that compares to the logged total to flag a missing/extra charge.
 - **SGT timezone bug fix** — Date-range math mixed UTC and local time: `new Date('YYYY-MM-DD')` is UTC midnight (08:00 SGT) while period bounds were local Date objects, and month bounds used `toISOString().slice(0,10)` (shifts ~8h back). In SGT this dropped **last-day-of-month** transactions from the Dashboard total, per-card spend/category breakdown, and cap usage — for all cards. Fix: `isoDate()` now formats the **local** date, and all period-boundary checks compare `YYYY-MM-DD` strings against `isoDate(periodStart/End)`. Applied in the engine (`buildPeriodSpending` + effective-date resolvers), Dashboard, AppContext (year start), and Miles `today()`.
+- **Engine test suite (Vitest)** — `npm test` runs 18 unit tests over `recommendations.ts`: resolvers (effective-date, future-ignored, wildcard-by-channel, null-limit dropped), `buildPeriodSpending` (category sums, end-of-month SGT boundary, channel caps, channel-vs-category de-dup), `calcMiles` (no-cap, block rounding, within-cap, capped, partial-cap tier flooring, wildcard-online, channel-blocked, min-spend lock), and `recommendCards` ranking/status. `vitest.config.ts` (node env); `*.test.ts` excluded from the production `tsc` build via `tsconfig.app.json`.
+- **Error boundaries** — `ErrorBoundary` (class component) catches render crashes and failed lazy-chunk loads (which otherwise blank-screen after a deploy). Wrapped around the Layout `Outlet` (keyed by `location.pathname` so navigation clears it) and at the app root. Fallback offers Try again / Reload; chunk-load errors (`Loading chunk`/`Failed to fetch`) steer to a reload.
+- **README + .env.example** — Onboarding docs: features, stack, quick start, the two required `VITE_SUPABASE_*` vars, Supabase setup (manual migrations + seeds, auth, the hardcoded `ADMIN_EMAIL`), scripts, testing, structure, and Cloudflare Pages deployment.
 
 ---
 
@@ -194,7 +199,7 @@ Everything listed below is in a working, committed state on `main`:
 
 ### 1. Error handling outside Dashboard
 
-Dashboard has a full error state (retry button, connection hint). Cards, Recommend, and Transactions all render an empty state silently if a Supabase query fails — there is no user-visible indication that something went wrong.
+A top-level + per-route `ErrorBoundary` now catches render crashes and failed lazy-chunk loads (no more blank screens). Still outstanding: **silent Supabase query failures** on Cards/Recommend/Transactions render an empty state with no error indication — these don't throw, so the boundary doesn't catch them; they'd need per-page error state.
 
 ### 2. Admin tooling for library updates
 
@@ -214,7 +219,8 @@ The core recommendation, tracking, expense, trends, and utility features are now
    - Migration 033: `033_recurring_favourites.sql` (recurrence/recur_day/next_due_date on transaction_favourites)
    - Migration 034: `034_transaction_reconciled.sql` (reconciled on transactions)
 2. **Dashboard "expiring miles" alert** — Surface the Miles Balance 6-month expiry warning on the home screen. (The cap "almost full" nudge is now done in CapUsageBar; surfacing expiring miles on the Dashboard remains.)
-3. **Error boundary + offline awareness** — With routes code-split, a failed lazy-chunk load (flaky mobile) currently shows a blank screen; an error boundary with retry + an offline indicator would harden it.
-4. **Unit test suite for `recommendations.ts`** — Complex branching logic (cap types, blended MPD, wildcard rates, selectable overrides, channel caps, block rounding) is entirely untested.
+3. **Annual fee-waiver tracker** — Most SG cards waive the fee at a yearly spend threshold; track spend-to-waiver per card. Needs new library data (fee + threshold per card).
+4. **Per-page Supabase error states** — `ErrorBoundary` covers render/chunk crashes; Cards/Recommend/Transactions still show silent empty states on query failure.
+5. **FCY / overseas logging** — Transactions are SGD-only; a foreign amount + rate would make overseas tracking and FCY-bonus accuracy better.
 5. **CSV import of transactions** — Export exists; import would speed onboarding/back-fill.
 6. **Pagination or date-range filter on transactions** — Currently loads the full current year; will slow down as volume grows.

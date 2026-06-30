@@ -34,9 +34,9 @@ Browser (React + Vite + TypeScript)
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
     ├─ context/          — AuthContext, AppContext, ToastContext (app-wide toast notifications)
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary)
     └─ lib/
-        ├─ recommendations.ts  — Core cap-aware recommendation engine
+        ├─ recommendations.ts  — Core cap-aware recommendation engine (unit-tested: recommendations.test.ts)
         ├─ types.ts            — All TypeScript interfaces
         ├─ utils.ts            — Formatting, date helpers, constants
         ├─ supabase.ts         — Supabase client
@@ -61,11 +61,13 @@ Supabase (Postgres + Auth + RLS)
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
-Deployment: Cloudflare Pages (`wrangler.toml`; `[assets]` serves the Vite `dist/` output)
+Tooling: `npm run build` = `tsc -b && vite build` (→ `dist/`); `npm test` = Vitest (engine unit tests).
+  - `postbuild` copies `dist/index.html` → `dist/404.html` — this is the SPA deep-link fallback on Cloudflare Pages.
+
+Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, output dir `dist`)
   - Installable PWA via `vite-plugin-pwa` (generateSW). Service worker uses `registerType: 'autoUpdate'` with
     `cleanupOutdatedCaches` + `skipWaiting` + `clientsClaim`; `UpdatePrompt` auto-reloads once on update.
-  - `not_found_handling = "single-page-application"` ensures all unmatched routes serve index.html (SPA refresh fix)
-  - `npm run deploy` = `npm run build && wrangler deploy` (always rebuilds before uploading)
+  - SPA deep-links resolve via the `404.html` copy (postbuild); unmatched routes serve the app shell.
   - Live at `smilemax.pages.dev`; auto-deploys on push to `main`
 ```
 
@@ -250,6 +252,9 @@ The app is a functional MVP. All core features are implemented:
 | Styled portal DatePicker replacing native date inputs (Transactions, Cards, Miles) | Complete |
 | Transaction reconciliation — per-row checkmark, filter, progress, statement-total compare (migration 034) | Complete |
 | SGT timezone fix — local YYYY-MM-DD boundaries; end-of-month transactions no longer dropped from totals/caps | Complete |
+| Vitest engine test suite — 18 tests over recommendations.ts (`npm test`); test files excluded from prod build | Complete |
+| Error boundaries — ErrorBoundary around Layout Outlet (keyed by route) + app root; catches render crashes + lazy-chunk load failures | Complete |
+| README + .env.example — onboarding docs and documented env vars | Complete |
 
 **Card library (23 cards):**
 
@@ -276,13 +281,16 @@ The app is a functional MVP. All core features are implemented:
 ## 5. Outstanding Work
 
 ### Missing but impactful
-- **Test suite** — No tests exist. The recommendation engine has complex branching logic (cap types, blended MPD, wildcard rates, channel caps, selectable overrides, block rounding) that would benefit significantly from unit tests. A regression in any of these paths is currently invisible.
 - **Admin interface for library updates** — Updating card rates/caps requires manual SQL against Supabase. There is no admin UI.
+- **Annual fee-waiver tracker** — Track spend-to-waiver per card (needs new library data: fee + threshold).
+
+### Done since last review
+- **Test suite** — ✅ Vitest: `npm test` runs 18 unit tests over `recommendations.ts` (cap types, blended/partial MPD, wildcard, channel caps, min-spend, block rounding, date boundaries, ranking). Add a test alongside any new cap/rate logic.
+- **`.env.example` + README** — ✅ Added; env vars documented and full setup/deploy instructions written.
+- **Error boundary** — ✅ `ErrorBoundary` around the Layout Outlet (keyed by route) and app root catches render crashes and lazy-chunk load failures (no more blank screens).
 
 ### Missing but lower priority
-- **No `.env.example`** — Onboarding a new developer requires inspecting the code to know which env vars are needed.
-- **No README** — No setup instructions, no description of how to run locally or deploy.
-- **Silent failures on pages other than Dashboard** — If a Supabase query fails on Cards, Recommend, or Transactions, the page shows an empty state with no error message.
+- **Silent failures on pages other than Dashboard** — If a Supabase query *fails* (rather than crashes) on Cards, Recommend, or Transactions, the page shows an empty state with no error message. The ErrorBoundary covers crashes/chunk loads but not these non-throwing query failures.
 - **No pagination or date-range control on transactions** — Loads the entire current year. Will become slow with very high transaction volumes.
 - **No push notifications or reminders** — Users must actively open the app; there is no proactive "cap almost reached" or "miles expiring" alert. (Miles expiry warnings exist on the Miles Balance page but are not surfaced on the Dashboard.)
 - **Mobile dashboard navigation** — Dashboard can be long on phones (stats, milestones, wallet bars, recent transactions all on one scroll). Ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design — not implementing for now.

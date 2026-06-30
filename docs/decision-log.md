@@ -596,3 +596,33 @@ Captures key architectural choices made during development — what was decided,
 **Why:** Transaction dates are date-only strings; the only robust comparison is local `YYYY-MM-DD` strings on both sides, with no UTC conversion anywhere. Fixing the shared `isoDate()` helper plus the boundary comparisons (engine `buildPeriodSpending` + resolvers, Dashboard, AppContext year start, Miles `today()`) closes the whole class.
 
 **Trade-off:** None functionally; `isoDate()` is now slightly more code than a one-liner. New date logic must avoid `toISOString()` for calendar dates and must not mix `new Date(str)` with local `Date` bounds.
+
+---
+
+## 2026-07-01 — Vitest for the engine; test the pure functions, not the UI
+
+**Decision:** Add Vitest and unit-test `recommendations.ts` directly (resolvers, `buildPeriodSpending`, `calcMiles`, `recommendCards`) with small fixture factories. Tests run in the `node` environment (no DOM); a separate `vitest.config.ts` keeps the PWA Vite plugin out of the test run; `*.test.ts` is excluded from the production `tsc -b` build via `tsconfig.app.json`.
+
+**Alternatives considered:**
+- No tests (status quo) — every engine change risked a silent regression; the recent partial-cap rewrite and SGT timezone bug showed how easily correctness drifts.
+- Component/integration tests (Testing Library + jsdom) — higher setup cost and slower, and the real risk lives in the engine math, not the rendering.
+- E2E (Playwright) — valuable later, but heavy and doesn't pin down per-branch arithmetic.
+
+**Why:** The engine is pure, deterministic, and the highest-value/highest-risk code (cap types, blended/partial MPD, wildcard + channel caps, min-spend, block rounding, date boundaries). Pure-function tests are fast, fixture-driven, and read as executable spec — the partial-cap and end-of-month-boundary cases now lock in exactly the behaviour we hand-derived. Excluding test files from the build keeps deploys unaffected.
+
+**Trade-off:** UI/data-loading paths remain untested; a broken page render is caught by the error boundary at runtime, not by CI. Acceptable — the engine is where wrong numbers would silently cost miles.
+
+---
+
+## 2026-07-01 — Error boundary: reload-first, keyed per route
+
+**Decision:** A single `ErrorBoundary` class component wraps both the Layout `Outlet` (keyed by `location.pathname`) and the app root. Its fallback offers **Try again** (reset state) and **Reload**; when the caught error looks like a failed dynamic import (`Loading chunk` / `Failed to fetch`), it hides "Try again" and steers straight to a full reload.
+
+**Alternatives considered:**
+- No boundary (status quo) — a failed lazy-chunk load or a render crash showed a blank white screen, the worst possible failure mode on mobile.
+- Boundary only at the root — would catch the error but lose the app shell and not auto-clear on navigation.
+- A library (react-error-boundary) — fine, but a ~60-line class with the exact reload/reset UX we want avoids a dependency.
+
+**Why:** Routes are code-split, so the realistic failure is a stale chunk after a deploy — a reload (fetching the fresh manifest) fixes it, hence reload-first for chunk errors. Keying the Layout boundary on the route means navigating away automatically clears a page-level error without a manual reset. The root boundary is the catch-all for Login/Onboarding.
+
+**Trade-off:** Non-throwing failures (e.g. a Supabase query that returns an error but renders an empty state) aren't caught — those still need per-page error UI.
