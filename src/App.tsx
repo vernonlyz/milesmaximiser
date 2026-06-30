@@ -6,6 +6,7 @@ import { AppProvider } from './context/AppContext'
 import { ToastProvider } from './context/ToastContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 
 // Route pages are code-split so the initial bundle stays small (faster first load).
@@ -33,6 +34,7 @@ export default function App() {
     <AuthProvider>
       <AppProvider>
         <ToastProvider>
+        <ErrorBoundary>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
@@ -64,6 +66,7 @@ export default function App() {
             <Route path="admin"        element={<Admin />}        />
           </Route>
         </Routes>
+        </ErrorBoundary>
         </ToastProvider>
       </AppProvider>
     </AuthProvider>

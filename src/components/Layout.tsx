@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import Modal from './Modal'
 import StatementDayPrompt from './StatementDayPrompt'
 import UpdatePrompt from './UpdatePrompt'
+import ErrorBoundary from './ErrorBoundary'
 
 const ADMIN_EMAIL = 'vernonlyz@gmail.com'
 
@@ -360,13 +361,15 @@ export default function Layout() {
               </button>
             </div>
           )}
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-20 text-gray-500">
-              <Loader2 size={24} className="animate-spin" />
-            </div>
-          }>
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary key={location.pathname}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-20 text-gray-500">
+                <Loader2 size={24} className="animate-spin" />
+              </div>
+            }>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
         <StatementDayPrompt />
         <UpdatePrompt />

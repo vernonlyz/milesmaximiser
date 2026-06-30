@@ -1,0 +1,206 @@
+import { describe, it, expect } from 'vitest'
+import {
+  resolveRates, resolveCaps, buildPeriodSpending, calcMiles, recommendCards,
+} from './recommendations'
+import { CreditCard, CardRate, SpendingCap, Transaction } from './types'
+
+// ── fixtures ──────────────────────────────────────────────────────────────
+const DINING = 'cat-dining'
+const GROCERY = 'cat-grocery'
+const CARD = 'card-1'
+
+function card(p: Partial<CreditCard> = {}): CreditCard {
+  return {
+    id: CARD, name: 'Test', bank: 'TestBank', card_network: 'Visa',
+    base_mpd: 0.4, color: '#000', active: true,
+    selectable_category: false, max_selectable: 1,
+    mile_validity: null, remarks: null, default_payment_channel: null,
+    cap_cycle: 'calendar', earn_increment: 5, card_type: 'miles', cashback_rate: null,
+    created_at: '2000-01-01', ...p,
+  }
+}
+function rate(p: Partial<CardRate> = {}): CardRate {
+  return { id: `r-${Math.random()}`, card_id: CARD, category_id: DINING, mpd: 4, payment_channel: null, effective_from: '2000-01-01', ...p }
+}
+function cap(p: Partial<SpendingCap> = {}): SpendingCap {
+  return {
+    id: `c-${Math.random()}`, card_id: CARD, category_id: DINING, cap_period: 'monthly',
+    spend_limit: 600, cap_group: null, min_spend: null, cap_payment_channel: null,
+    effective_from: '2000-01-01', ...p,
+  }
+}
+function txn(p: Partial<Transaction> = {}): Transaction {
+  return {
+    id: `t-${Math.random()}`, card_id: CARD, category_id: DINING, amount: 100,
+    description: null, vendor_name: null, mcc: null, payment_channel: null,
+    transaction_date: '2026-06-15', computed_mpd: null, manual_mpd: null, override_note: null,
+    effective_mpd: null, miles_earned: null, cashback_earned: null, personal_amount: null,
+    reconciled: false, created_at: '2026-06-15', ...p,
+  }
+}
+
+const JUN = new Date(2026, 5, 15) // 15 Jun 2026, local
+
+// ── resolvers ─────────────────────────────────────────────────────────────
+describe('resolveRates', () => {
+  it('picks the latest rate with effective_from <= date', () => {
+    const rates = [
+      rate({ mpd: 2, effective_from: '2024-01-01' }),
+      rate({ mpd: 4, effective_from: '2025-06-01' }),
+    ]
+    const out = resolveRates(rates, JUN)
+    expect(out).toHaveLength(1)
+    expect(out[0].mpd).toBe(4)
+  })
+
+  it('ignores rates effective in the future', () => {
+    const rates = [
+      rate({ mpd: 2, effective_from: '2024-01-01' }),
+      rate({ mpd: 8, effective_from: '2030-01-01' }),
+    ]
+    expect(resolveRates(rates, JUN)[0].mpd).toBe(2)
+  })
+
+  it('keeps wildcard rates separate per payment channel', () => {
+    const rates = [
+      rate({ category_id: null, payment_channel: 'online', mpd: 4 }),
+      rate({ category_id: null, payment_channel: 'contactless', mpd: 4 }),
+    ]
+    expect(resolveRates(rates, JUN)).toHaveLength(2)
+  })
+})
+
+describe('resolveCaps', () => {
+  it('drops caps whose spend_limit is null (cap removed)', () => {
+    const caps = [cap({ spend_limit: 600 }), cap({ category_id: GROCERY, spend_limit: null })]
+    const out = resolveCaps(caps, JUN)
+    expect(out).toHaveLength(1)
+    expect(out[0].spend_limit).toBe(600)
+  })
+})
+
+// ── period spending ───────────────────────────────────────────────────────
+describe('buildPeriodSpending', () => {
+  it('sums spend per category within the calendar month', () => {
+    const caps = [cap()]
+    const txns = [
+      txn({ amount: 100, transaction_date: '2026-06-01' }),
+      txn({ amount: 50,  transaction_date: '2026-06-20' }),
+      txn({ amount: 999, transaction_date: '2026-05-31' }), // previous month — excluded
+    ]
+    const m = buildPeriodSpending(txns, caps, JUN)
+    expect(m.get(`${CARD}:${DINING}`)).toBe(150)
+  })
+
+  it('includes a transaction dated on the last day of the month (SGT boundary)', () => {
+    const caps = [cap()]
+    const lastDay = new Date(2026, 5, 30) // 30 Jun
+    const txns = [txn({ amount: 80, transaction_date: '2026-06-30' })]
+    const m = buildPeriodSpending(txns, caps, lastDay)
+    expect(m.get(`${CARD}:${DINING}`)).toBe(80)
+  })
+
+  it('channel cap only counts transactions on that channel', () => {
+    const caps = [cap({ category_id: null, cap_payment_channel: 'online', spend_limit: 1000 })]
+    const txns = [
+      txn({ amount: 100, payment_channel: 'online' }),
+      txn({ amount: 40,  payment_channel: 'contactless' }),
+      txn({ amount: 30,  payment_channel: null }),
+    ]
+    const m = buildPeriodSpending(txns, caps, JUN)
+    expect(m.get(`${CARD}:channel:online:monthly`)).toBe(100)
+  })
+
+  it('excludes channel-cap spend from the category cap (no double count)', () => {
+    // Card has both an online channel cap and a dining category cap.
+    const caps = [
+      cap({ category_id: null, cap_payment_channel: 'online', spend_limit: 1000 }),
+      cap({ category_id: DINING, spend_limit: 600 }),
+    ]
+    const txns = [txn({ category_id: DINING, amount: 100, payment_channel: 'online' })]
+    const m = buildPeriodSpending(txns, caps, JUN)
+    expect(m.get(`${CARD}:channel:online:monthly`)).toBe(100)
+    expect(m.get(`${CARD}:${DINING}`) ?? 0).toBe(0) // not double-counted
+  })
+})
+
+// ── calcMiles ─────────────────────────────────────────────────────────────
+describe('calcMiles', () => {
+  const rates = [rate({ mpd: 4 })]
+
+  it('earns the bonus rate with no cap', () => {
+    const c = card()
+    const { miles, effectiveMpd } = calcMiles(c, rates, [], DINING, 100, [], JUN)
+    expect(miles).toBe(400)
+    expect(effectiveMpd).toBeCloseTo(4)
+  })
+
+  it('floors the amount to the earn block', () => {
+    const { miles } = calcMiles(card({ earn_increment: 5 }), rates, [], DINING, 13.8, [], JUN)
+    expect(miles).toBe(40) // floor(13.8/5)*5 = 10 → 10 * 4
+  })
+
+  it('earns the bonus on spend within the cap', () => {
+    const { miles } = calcMiles(card(), rates, [cap({ spend_limit: 600 })], DINING, 200, [], JUN)
+    expect(miles).toBe(800)
+  })
+
+  it('falls back to base rate once the cap is exhausted', () => {
+    const prior = [txn({ amount: 600, transaction_date: '2026-06-05' })]
+    const { miles } = calcMiles(card(), rates, [cap({ spend_limit: 600 })], DINING, 100, prior, JUN)
+    expect(miles).toBe(40) // 100 * base 0.4
+  })
+
+  it('splits a partial-cap transaction, flooring each tier to the block', () => {
+    // $577 already spent → $23 cap left. $200 spend, $5 block, 4 mpd bonus / 0.4 base.
+    const prior = [txn({ amount: 577, transaction_date: '2026-06-05' })]
+    const { miles } = calcMiles(card(), rates, [cap({ spend_limit: 600 })], DINING, 200, prior, JUN)
+    // within = floor(23/5)*5 = 20 → 80 ; over = floor(177/5)*5 = 175 → 70
+    expect(miles).toBe(150)
+  })
+
+  it('prefers the online wildcard rate over a lower category rate when paid online', () => {
+    const mixed = [rate({ mpd: 2 }), rate({ category_id: null, payment_channel: 'online', mpd: 4 })]
+    const online = calcMiles(card(), mixed, [], DINING, 100, [], JUN, [], 'online')
+    expect(online.miles).toBe(400)
+    const offline = calcMiles(card(), mixed, [], DINING, 100, [], JUN, [], null)
+    expect(offline.miles).toBe(200) // only the category 2 mpd applies
+  })
+
+  it('earns base when the rate requires a different channel', () => {
+    const contactlessOnly = [rate({ mpd: 4, payment_channel: 'contactless' })]
+    const { miles } = calcMiles(card(), contactlessOnly, [], DINING, 100, [], JUN, [], 'online')
+    expect(miles).toBe(40) // channel blocked → base 0.4
+  })
+
+  it('locks the bonus until the min-spend threshold is met', () => {
+    const caps = [cap({ spend_limit: 600, min_spend: 1000 })]
+    const { miles } = calcMiles(card(), rates, caps, DINING, 100, [], JUN)
+    expect(miles).toBe(40) // total spend 0 < 1000 → locked → base
+  })
+})
+
+// ── recommendCards ────────────────────────────────────────────────────────
+describe('recommendCards', () => {
+  it('ranks the higher effective-MPD card first and reports status', () => {
+    const cardA = card({ id: 'A', base_mpd: 0.4 })
+    const cardB = card({ id: 'B', base_mpd: 1.2 })
+    const rates = [
+      rate({ card_id: 'A', mpd: 4 }),  // A: 4 mpd dining
+      rate({ card_id: 'B', mpd: 2 }),  // B: 2 mpd dining
+    ]
+    const recs = recommendCards([cardA, cardB], rates, [], DINING, 100, [], JUN)
+    expect(recs[0].card.id).toBe('A')
+    expect(recs[0].effectiveMpd).toBeCloseTo(4)
+    expect(recs[0].status).toBe('optimal')
+  })
+
+  it('marks a card partial when the spend crosses its cap', () => {
+    const c = card({ id: 'A' })
+    const rates = [rate({ card_id: 'A', mpd: 4 })]
+    const caps = [cap({ card_id: 'A', spend_limit: 600 })]
+    const prior = [txn({ card_id: 'A', amount: 577, transaction_date: '2026-06-05' })]
+    const recs = recommendCards([c], rates, caps, DINING, 200, prior, JUN)
+    expect(recs[0].status).toBe('partial')
+  })
+})
