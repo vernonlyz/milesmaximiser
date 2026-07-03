@@ -626,3 +626,20 @@ Captures key architectural choices made during development — what was decided,
 **Why:** Routes are code-split, so the realistic failure is a stale chunk after a deploy — a reload (fetching the fresh manifest) fixes it, hence reload-first for chunk errors. Keying the Layout boundary on the route means navigating away automatically clears a page-level error without a manual reset. The root boundary is the catch-all for Login/Onboarding.
 
 **Trade-off:** Non-throwing failures (e.g. a Supabase query that returns an error but renders an empty state) aren't caught — those still need per-page error UI.
+
+---
+
+## 2026-07-03 — Pin Vitest to the project's Vite major (v5), not the latest
+
+**Decision:** Pin `vitest` to `^2` (Vite 5 compatible) instead of the latest `vitest@4`. The Cloudflare Pages build failed at install with `npm ci` → "Missing: esbuild@0.28.1 from lock file".
+
+**Root cause:** Vitest 4 bundles Vite 6/7, which pulls a **second** esbuild (0.28.1) alongside the app's Vite 5 esbuild (0.21.5). npm 11 (local) and npm 10.9.2 (Cloudflare) dedupe that dual-esbuild tree differently, so a `package-lock.json` generated locally was incomplete for Cloudflare's `npm ci` (which requires an exact lock ↔ package.json match).
+
+**Alternatives considered:**
+- Regenerate the lockfile and re-push — same npm-version dedup ambiguity would likely recur.
+- Pin the Cloudflare build to npm 11 / node 24 (match local) — fragile; couples CI to a local toolchain version and still carries two esbuild trees.
+- Keep vitest 4 and add an `overrides`/resolution to force one esbuild — brittle and fights the tool.
+
+**Why:** Aligning the test runner with the project's existing Vite major means a **single** esbuild version in the tree, so the lockfile is unambiguous across npm versions and `npm ci` is stable everywhere. Vitest 2's `describe/it/expect` API is identical for our tests — zero test changes, still 18/18 passing.
+
+**Trade-off:** We're a major behind on Vitest. Revisit only when the app itself upgrades to Vite 6/7 — at which point vitest and the app share the newer esbuild again and the constraint dissolves.

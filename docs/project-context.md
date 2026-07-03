@@ -63,6 +63,7 @@ Supabase (Postgres + Auth + RLS)
 
 Tooling: `npm run build` = `tsc -b && vite build` (→ `dist/`); `npm test` = Vitest (engine unit tests).
   - `postbuild` copies `dist/index.html` → `dist/404.html` — this is the SPA deep-link fallback on Cloudflare Pages.
+  - **Vitest is pinned to `^2`** (vite-5 compatible). Vitest 4 bundles vite 6/7 → a second esbuild (0.28.1) tree that npm 10 (Cloudflare) and npm 11 (local) dedupe differently, breaking `npm ci`. Keep it aligned with the project's vite 5 (single esbuild 0.21.5).
 
 Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, output dir `dist`)
   - Installable PWA via `vite-plugin-pwa` (generateSW). Service worker uses `registerType: 'autoUpdate'` with

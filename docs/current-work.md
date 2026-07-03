@@ -96,8 +96,10 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-06-26  Per-transaction reconciliation against bank statements — checkmark, filter, progress, statement-total compare (migration 034)
 2026-06-26  Recurring transactions manager modal (list/log-now/delete) on Transactions
 2026-06-30  Fix SGT timezone bug dropping end-of-month transactions from totals, category breakdown, and cap tracking  [tag: v7.3-recurring-reconcile]
-2026-07-01  Add Vitest engine test suite (18 tests over recommendations.ts); error boundaries (ErrorBoundary)
+2026-07-01  Add Vitest engine test suite (18 tests over recommendations.ts); error boundaries (ErrorBoundary)  [tag: v7.4-tests-hardening]
 2026-07-01  Add README and .env.example
+2026-07-03  Recurring modal: let the detail line wrap instead of truncating
+2026-07-03  Fix Cloudflare build — pin vitest to ^2 (vite 5) to resolve dual-esbuild lockfile drift
 ```
 
 ---
@@ -192,6 +194,8 @@ Everything listed below is in a working, committed state on `main`:
 - **Engine test suite (Vitest)** — `npm test` runs 18 unit tests over `recommendations.ts`: resolvers (effective-date, future-ignored, wildcard-by-channel, null-limit dropped), `buildPeriodSpending` (category sums, end-of-month SGT boundary, channel caps, channel-vs-category de-dup), `calcMiles` (no-cap, block rounding, within-cap, capped, partial-cap tier flooring, wildcard-online, channel-blocked, min-spend lock), and `recommendCards` ranking/status. `vitest.config.ts` (node env); `*.test.ts` excluded from the production `tsc` build via `tsconfig.app.json`.
 - **Error boundaries** — `ErrorBoundary` (class component) catches render crashes and failed lazy-chunk loads (which otherwise blank-screen after a deploy). Wrapped around the Layout `Outlet` (keyed by `location.pathname` so navigation clears it) and at the app root. Fallback offers Try again / Reload; chunk-load errors (`Loading chunk`/`Failed to fetch`) steer to a reload.
 - **README + .env.example** — Onboarding docs: features, stack, quick start, the two required `VITE_SUPABASE_*` vars, Supabase setup (manual migrations + seeds, auth, the hardcoded `ADMIN_EMAIL`), scripts, testing, structure, and Cloudflare Pages deployment.
+- **Recurring modal truncation fix** — The per-row detail line (schedule · next-due · card · amount) had `truncate`, clamping it to one line and cutting off the card/amount. Removed `truncate` so it wraps; the label above keeps `truncate`.
+- **Cloudflare build fix (vitest ↔ vite 5)** — vitest 4 bundled vite 6/7, adding a second esbuild (0.28.1) tree that npm 10 (Cloudflare) and npm 11 (local) deduped differently, so `npm ci` failed with "Missing: esbuild@0.28.1 from lock file". Pinned **vitest to ^2** (vite-5 compatible) → a single esbuild (0.21.5) and a version-agnostic lockfile. Verified `npm ci` succeeds and 18/18 tests still pass.
 
 ---
 
