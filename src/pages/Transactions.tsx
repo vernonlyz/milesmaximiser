@@ -1582,7 +1582,7 @@ export default function Transactions() {
                     <span className="text-lg leading-none">{cat?.icon ?? '🔁'}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{f.label}</p>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-gray-500">
                         Day {f.recur_day} each month
                         {f.next_due_date && <> · next {fmtDate(f.next_due_date)}</>}
                         {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
