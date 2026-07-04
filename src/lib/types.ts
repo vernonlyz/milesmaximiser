@@ -172,6 +172,48 @@ export interface MilesAdjustment {
   created_at: string
 }
 
+// ── Reward points (EXPERIMENTAL) ──────────────────────────────────────────
+// A bank reward currency (UOB UNI$, DBS Points, …) that converts to miles.
+export interface RewardProgram {
+  id: string
+  name: string
+  unit_label: string
+  miles_per_point: number       // 1 point → this many miles
+  convert_block: number | null  // min transfer unit (points)
+  transfer_fee: number | null
+  points_expiry_months: number | null
+  transfer_partner: string | null
+  notes: string | null
+}
+
+// Shared library link: which currency a card earns.
+export interface CardRewardProgram {
+  card_id: string
+  program_id: string
+}
+
+// Per-user points balance snapshot for one program (the program is the pool).
+export interface PointsAccount {
+  id: string
+  user_id: string
+  program_id: string
+  opening_points: number
+  as_of_date: string   // app-tracked points only count txns after this
+  expiry_date: string | null
+  updated_at: string
+}
+
+// Dated manual points adjustment: redemptions/conversions (negative), bonuses (positive).
+export interface PointsAdjustment {
+  id: string
+  account_id: string
+  user_id: string
+  adjustment_date: string
+  points: number
+  note: string | null
+  created_at: string
+}
+
 // A saved transaction template for quick reuse of recurring charges.
 // Stores only reusable inputs; miles/cashback are recomputed at log time.
 export interface TransactionFavourite {
