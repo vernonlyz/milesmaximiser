@@ -508,6 +508,23 @@ export function recommendCards(
     })
 }
 
+// Split a transaction's total earned miles into the base component (earned on all
+// spend at the card's base rate) and the bonus component (everything above base,
+// which caps/min-spend can reduce to zero). base + bonus === milesEarned exactly.
+// Used for reconciling expected base vs bonus against what the bank credits.
+export function splitBaseBonus(
+  baseMpd: number,
+  earnIncrement: number,
+  amount: number,
+  milesEarned: number
+): { base: number; bonus: number } {
+  const inc = earnIncrement || 1
+  const rounded = Math.floor(amount / inc) * inc
+  const base = rounded * baseMpd
+  const bonus = Math.max(0, milesEarned - base)
+  return { base, bonus }
+}
+
 export function calcMiles(
   card: CreditCard,
   allRates: CardRate[],

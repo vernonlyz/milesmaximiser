@@ -21,6 +21,7 @@ const MileValue    = lazy(() => import('./pages/MileValue'))
 const Miles        = lazy(() => import('./pages/Miles'))
 const Earnings     = lazy(() => import('./pages/Earnings'))
 const Points       = lazy(() => import('./pages/Points'))
+const Reconcile    = lazy(() => import('./pages/Reconcile'))
 
 function PageLoader() {
   return (
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="miles"        element={<Miles />}        />
             <Route path="earnings"     element={<Earnings />}     />
             <Route path="points"       element={<Points />}       />
+            <Route path="reconcile"    element={<Reconcile />}     />
             <Route path="admin"        element={<Admin />}        />
           </Route>
         </Routes>

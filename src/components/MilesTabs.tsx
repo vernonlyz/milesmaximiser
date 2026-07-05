@@ -19,6 +19,7 @@ export default function MilesTabs() {
       <NavLink to="/miles" end className={({ isActive }) => cls(isActive)}>Balance</NavLink>
       <NavLink to="/earnings" className={({ isActive }) => cls(isActive)}>Earned</NavLink>
       {showPoints && <NavLink to="/points" className={({ isActive }) => cls(isActive)}>Points</NavLink>}
+      {showPoints && <NavLink to="/reconcile" className={({ isActive }) => cls(isActive)}>Reconcile</NavLink>}
     </div>
   )
 }

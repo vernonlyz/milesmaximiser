@@ -22,6 +22,10 @@ export interface CreditCard {
   earn_increment: number  // miles awarded per $N block: 1 for HSBC/Citi, 5 for most other banks
   card_type: 'miles' | 'cashback' | 'debit'
   cashback_rate: number | null  // base cashback rate, e.g. 0.015 = 1.5%; null for miles/debit cards
+  // Crediting schedule (for reconciliation) — how/when the bank credits base & bonus.
+  base_timing?: 'on_post' | 'statement_close'
+  bonus_timing?: 'on_post' | 'statement_close' | 'next_calendar_month' | 'quarter_end'
+  bonus_by_category?: boolean
   created_at: string
 }
 
@@ -210,6 +214,22 @@ export interface PointsAdjustment {
   user_id: string
   adjustment_date: string
   points: number
+  note: string | null
+  created_at: string
+}
+
+// Reconciliation of one credit event (card × cycle × kind [× category]).
+// Expected is recomputed from transactions; only actual/reconciled/note persist.
+export interface CreditReconciliation {
+  id: string
+  user_id: string
+  card_id: string
+  kind: 'base' | 'bonus'
+  cycle_month: string        // 'YYYY-MM-01'
+  category_id: string | null
+  actual_points: number | null
+  actual_miles: number | null
+  reconciled: boolean
   note: string | null
   created_at: string
 }

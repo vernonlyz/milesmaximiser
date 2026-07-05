@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  resolveRates, resolveCaps, buildPeriodSpending, calcMiles, recommendCards,
+  resolveRates, resolveCaps, buildPeriodSpending, calcMiles, recommendCards, splitBaseBonus,
 } from './recommendations'
 import { CreditCard, CardRate, SpendingCap, Transaction } from './types'
 
@@ -177,6 +177,28 @@ describe('calcMiles', () => {
     const caps = [cap({ spend_limit: 600, min_spend: 1000 })]
     const { miles } = calcMiles(card(), rates, caps, DINING, 100, [], JUN)
     expect(miles).toBe(40) // total spend 0 < 1000 → locked → base
+  })
+})
+
+// ── splitBaseBonus ────────────────────────────────────────────────────────
+describe('splitBaseBonus', () => {
+  it('splits a fully-bonused transaction into base + bonus', () => {
+    // $100, base 0.4, inc 5, earned 400 (4 mpd) → base 40, bonus 360
+    expect(splitBaseBonus(0.4, 5, 100, 400)).toEqual({ base: 40, bonus: 360 })
+  })
+
+  it('reports zero bonus when only the base rate was earned (capped/locked)', () => {
+    expect(splitBaseBonus(0.4, 5, 100, 40)).toEqual({ base: 40, bonus: 0 })
+  })
+
+  it('matches the partial-cap split (base on all, bonus on the rest)', () => {
+    // $200, base 0.4, inc 5, earned 150 (partial cap) → base 80, bonus 70
+    expect(splitBaseBonus(0.4, 5, 200, 150)).toEqual({ base: 80, bonus: 70 })
+  })
+
+  it('base + bonus always equals the total', () => {
+    const { base, bonus } = splitBaseBonus(1.2, 5, 87.4, 262)
+    expect(base + bonus).toBe(262)
   })
 })
 
