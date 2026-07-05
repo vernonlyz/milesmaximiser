@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } from '../lib/types'
-import { splitBaseBonus } from '../lib/recommendations'
+import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides } from '../lib/recommendations'
 import MilesTabs from '../components/MilesTabs'
 
 interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
@@ -28,7 +28,7 @@ interface BonusLump { key: string; card: CreditCard; cycleMonth: string; categor
 interface Block { key: string; card: CreditCard; mk: string; prog: RewardProgram | null; lines: Line[]; lumps: BonusLump[] }
 
 export default function Reconcile() {
-  const { cards, categories } = useApp()
+  const { cards, categories, caps, rates, overrides } = useApp()
   const { user } = useAuth()
 
   const [txns, setTxns] = useState<TxnRow[]>([])
@@ -67,6 +67,27 @@ export default function Reconcile() {
     return m
   }, [mapping, programs])
 
+  // Monthly cap that bounds a bonus bucket: the category cap (or group) for
+  // by-category buckets, else a channel/global cap. Used to cap aggregate spend.
+  function capForBucket(card: CreditCard, categoryId: string | null): number | null {
+    const rel = caps.filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
+      && (categoryId ? (c.category_id === categoryId || c.cap_group != null) : (c.cap_payment_channel != null || c.category_id == null)))
+    return rel.length ? Math.min(...rel.map(c => c.spend_limit as number)) : null
+  }
+
+  // Bonus categories a card earns (with selectable override applied) → per-$ bonus
+  // rate above base. Lets aggregate cards include EVERY eligible charge (even sub-$5
+  // ones that individually round to zero bonus), keyed by category.
+  function bonusDeltaByCat(card: CreditCard, dateStr: string): Map<string, number> {
+    const date = new Date(dateStr)
+    const resolved = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date).rates
+    const m = new Map<string, number>()
+    for (const r of resolved) {
+      if (r.card_id === card.id && r.category_id != null && r.mpd > card.base_mpd) m.set(r.category_id, r.mpd - card.base_mpd)
+    }
+    return m
+  }
+
   // Build per-(card, cycle) blocks: transaction lines + accumulated bonus lumps.
   const blocks = useMemo<Block[]>(() => {
     const map = new Map<string, Block>()
@@ -93,32 +114,59 @@ export default function Reconcile() {
       const { card, mk, prog } = blk
       const deferred = card.bonus_timing === 'next_calendar_month'
       const creditDate = deferred ? firstOfNext(mk) : lastDayOf(mk)
-      const buckets = new Map<string, { miles: number; count: number }>()
-      for (const l of blk.lines) {
-        if (l.bonusMi <= 0) continue
-        const key = card.bonus_by_category ? (l.txn.category_id ?? 'none') : 'all'
-        const b = buckets.get(key) ?? { miles: 0, count: 0 }
-        b.miles += l.bonusMi; b.count += 1
-        buckets.set(key, b)
-      }
-      for (const [key, b] of buckets) {
-        const categoryId = card.bonus_by_category && key !== 'none' && key !== 'all' ? key : null
-        blk.lumps.push({
-          key: `${card.id}:bonus:${firstOf(mk)}:${categoryId ?? 'none'}`,
-          card, cycleMonth: firstOf(mk), categoryId,
-          categoryName: categoryId ? (catById.get(categoryId)?.name ?? null) : null,
-          creditDate,
-          expectedMi: b.miles,
-          expectedPt: prog ? b.miles / prog.miles_per_point : null,
-          unit: prog?.unit_label ?? null,
-          count: b.count,
-        })
+      const block = card.earn_increment || 1
+      const pushLump = (categoryId: string | null, miles: number, count: number) => blk.lumps.push({
+        key: `${card.id}:bonus:${firstOf(mk)}:${categoryId ?? 'none'}`,
+        card, cycleMonth: firstOf(mk), categoryId,
+        categoryName: categoryId ? (catById.get(categoryId)?.name ?? null) : null,
+        creditDate, expectedMi: miles,
+        expectedPt: prog ? miles / prog.miles_per_point : null,
+        unit: prog?.unit_label ?? null, count,
+      })
+
+      if (card.bonus_rounding === 'aggregate' && card.bonus_by_category) {
+        // Exact aggregate: sum ALL eligible-category spend (incl. sub-block charges
+        // and cents), cap it, floor the total once to the block, ×per-$ bonus rate.
+        const deltas = bonusDeltaByCat(card, lastDayOf(mk))
+        const cats = new Map<string, { raw: number; count: number }>()
+        for (const l of blk.lines) {
+          const cat = l.txn.category_id
+          if (cat && deltas.has(cat)) { const b = cats.get(cat) ?? { raw: 0, count: 0 }; b.raw += l.txn.amount; b.count += 1; cats.set(cat, b) }
+        }
+        for (const [cat, b] of cats) {
+          const cap = capForBucket(card, cat)
+          const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
+          pushLump(cat, Math.floor(eligible / block) * block * (deltas.get(cat) ?? 0), b.count)
+        }
+      } else {
+        // per_transaction (default), or aggregate channel/pool cards (approximate):
+        // sum per-transaction bonus; for aggregate, floor the summed eligible spend.
+        const buckets = new Map<string, { miles: number; count: number; raw: number; delta: number }>()
+        for (const l of blk.lines) {
+          if (l.bonusMi <= 0) continue
+          const key = card.bonus_by_category ? (l.txn.category_id ?? 'none') : 'all'
+          const b = buckets.get(key) ?? { miles: 0, count: 0, raw: 0, delta: 0 }
+          b.miles += l.bonusMi; b.count += 1; b.raw += l.txn.amount
+          const rounded = Math.floor(l.txn.amount / block) * block
+          if (rounded > 0) b.delta = Math.max(b.delta, l.bonusMi / rounded)
+          buckets.set(key, b)
+        }
+        for (const [key, b] of buckets) {
+          const categoryId = card.bonus_by_category && key !== 'none' && key !== 'all' ? key : null
+          let miles = b.miles
+          if (card.bonus_rounding === 'aggregate') {
+            const cap = capForBucket(card, categoryId)
+            const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
+            miles = Math.floor(eligible / block) * block * b.delta
+          }
+          pushLump(categoryId, miles, b.count)
+        }
       }
       blk.lines.sort((a, z) => a.txn.transaction_date.localeCompare(z.txn.transaction_date))
     }
 
     return [...map.values()].sort((a, z) => z.mk.localeCompare(a.mk) || a.card.name.localeCompare(z.card.name))
-  }, [txns, cardById, catById, progForCard])
+  }, [txns, cardById, catById, progForCard, caps, rates, overrides, cards])
 
   const baseDone = new Set(txnRecon.filter(r => r.base_reconciled).map(r => r.transaction_id))
   function bonusReconFor(l: BonusLump) {

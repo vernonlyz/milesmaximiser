@@ -26,6 +26,7 @@ export interface CreditCard {
   base_timing?: 'on_post' | 'statement_close'
   bonus_timing?: 'on_post' | 'statement_close' | 'next_calendar_month' | 'quarter_end'
   bonus_by_category?: boolean
+  bonus_rounding?: 'per_transaction' | 'aggregate'  // aggregate = sum eligible spend, then floor once
   created_at: string
 }
 
