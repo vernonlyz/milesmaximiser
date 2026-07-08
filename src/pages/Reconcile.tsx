@@ -38,6 +38,9 @@ export default function Reconcile() {
   const [txnRecon, setTxnRecon] = useState<TxnRecon[]>([])
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [filterCard, setFilterCard] = useState<string>('all')
+  const [filterMonth, setFilterMonth] = useState<string>('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'unreconciled' | 'mismatch'>('all')
 
   async function load() {
     setLoading(true)
@@ -237,7 +240,22 @@ export default function Reconcile() {
   const baseReconciled = blocks.reduce((s, b) => s + b.lines.filter(l => baseDone.has(l.txn.id)).length, 0)
   const allLumps = blocks.flatMap(b => b.lumps)
   const bonusReconciled = allLumps.filter(l => bonusReconFor(l)?.reconciled).length
-  const mismatches = allLumps.filter(l => { const a = bonusActual(l); const e = l.expectedPt ?? l.expectedMi; return a != null && Math.round(a) !== Math.round(e) }).length
+  const lumpMismatch = (l: BonusLump) => { const a = bonusActual(l); const e = l.expectedPt ?? l.expectedMi; return a != null && Math.round(a) !== Math.round(e) }
+  const mismatches = allLumps.filter(lumpMismatch).length
+
+  // Filter options + filtered block list
+  const cardOptions = Array.from(new Map(blocks.map(b => [b.card.id, `${b.card.bank} ${b.card.name}`])))
+  const monthOptions = Array.from(new Set(blocks.map(b => b.mk))).sort((a, z) => z.localeCompare(a))
+  const blockUnreconciled = (b: typeof blocks[number]) =>
+    b.lines.some(l => !baseDone.has(l.txn.id)) || b.lumps.some(l => !bonusReconFor(l)?.reconciled)
+  const visibleBlocks = blocks.filter(b =>
+    (filterCard === 'all' || b.card.id === filterCard) &&
+    (filterMonth === 'all' || b.mk === filterMonth) &&
+    (filterStatus === 'all'
+      || (filterStatus === 'unreconciled' && blockUnreconciled(b))
+      || (filterStatus === 'mismatch' && b.lumps.some(lumpMismatch)))
+  )
+  const filtersActive = filterCard !== 'all' || filterMonth !== 'all' || filterStatus !== 'all'
 
   const unitCol = (pt: number | null, mi: number, unit: string | null) =>
     pt != null ? <>{fmtNum(pt)} <span className="text-gray-400">{unit}</span></> : <>{fmtNum(mi)} <span className="text-gray-400">mi</span></>
@@ -275,7 +293,33 @@ export default function Reconcile() {
             {mismatches > 0 && <span className="text-red-600 inline-flex items-center gap-1"><AlertTriangle size={13} /> {mismatches} bonus mismatch</span>}
           </div>
 
-          {blocks.map(blk => (
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={filterCard} onChange={e => setFilterCard(e.target.value)} className="input text-sm w-auto">
+              <option value="all">All cards</option>
+              {cardOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="input text-sm w-auto">
+              <option value="all">All months</option>
+              {monthOptions.map(mk => <option key={mk} value={mk}>{fmtMonth(mk)}</option>)}
+            </select>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+              {(['all', 'unreconciled', 'mismatch'] as const).map(s => (
+                <button key={s} onClick={() => setFilterStatus(s)}
+                  className={`px-2.5 py-1.5 capitalize ${filterStatus === s ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            {filtersActive && (
+              <button onClick={() => { setFilterCard('all'); setFilterMonth('all'); setFilterStatus('all') }}
+                className="text-xs text-gray-500 hover:text-gray-700 underline">Clear</button>
+            )}
+          </div>
+
+          {visibleBlocks.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">No credit events match these filters.</p>
+          ) : visibleBlocks.map(blk => (
             <div key={blk.key} className="card p-4 space-y-3">
               <div className="flex items-baseline justify-between gap-2">
                 <h2 className="font-semibold text-gray-900">{blk.card.bank} {blk.card.name}</h2>
