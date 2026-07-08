@@ -115,6 +115,19 @@ export function applyAllSelectableOverrides(
   return { rates, caps }
 }
 
+// Raise a card's bonus-category rates to its boost rate when the user has the
+// boost enabled (e.g. UOB Lady's Solitaire + Lady's Savings Account → 6 mpd).
+// Only bonus rows (category set, above base) are raised; caps are untouched.
+export function applyRateBoosts(cards: CreditCard[], resolvedRates: CardRate[]): CardRate[] {
+  const boost = new Map<string, { mpd: number; base: number }>()
+  for (const c of cards) if (c.rate_boost && c.boost_mpd != null) boost.set(c.id, { mpd: c.boost_mpd, base: c.base_mpd })
+  if (boost.size === 0) return resolvedRates
+  return resolvedRates.map(r => {
+    const b = boost.get(r.card_id)
+    return b && r.category_id !== null && r.mpd > b.base ? { ...r, mpd: b.mpd } : r
+  })
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Period spending
 // Sums actual spend for each (card, category) combination within the cap period.
@@ -432,6 +445,7 @@ export function recommendCards(
     resolved = applied.rates
     resolvedCaps = applied.caps
   }
+  resolved = applyRateBoosts(cards, resolved)
 
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
 
@@ -548,6 +562,7 @@ export function calcMiles(
       resolvedCaps = applied.caps
     }
   }
+  resolved = applyRateBoosts([card], resolved)
 
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
   const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel)

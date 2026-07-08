@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } from '../lib/types'
-import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides } from '../lib/recommendations'
+import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, applyRateBoosts } from '../lib/recommendations'
 import MilesTabs from '../components/MilesTabs'
 
 interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
@@ -80,7 +80,8 @@ export default function Reconcile() {
   // ones that individually round to zero bonus), keyed by category.
   function bonusDeltaByCat(card: CreditCard, dateStr: string): Map<string, number> {
     const date = new Date(dateStr)
-    const resolved = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date).rates
+    const overridden = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date).rates
+    const resolved = applyRateBoosts(cards, overridden)
     const m = new Map<string, number>()
     for (const r of resolved) {
       if (r.card_id === card.id && r.category_id != null && r.mpd > card.base_mpd) m.set(r.category_id, r.mpd - card.base_mpd)

@@ -27,6 +27,10 @@ export interface CreditCard {
   bonus_timing?: 'on_post' | 'statement_close' | 'next_calendar_month' | 'quarter_end'
   bonus_by_category?: boolean
   bonus_rounding?: 'per_transaction' | 'aggregate'  // aggregate = sum eligible spend, then floor once
+  // Optional rate boost unlocked by a linked product (e.g. UOB Lady's Savings Account).
+  boost_mpd?: number | null       // bonus-category rate when the boost is enabled
+  boost_label?: string | null     // what unlocks it, shown on the toggle
+  rate_boost?: boolean            // per-user: whether this user has the boost enabled (runtime, from user_card_selections)
   created_at: string
 }
 

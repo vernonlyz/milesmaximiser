@@ -9,9 +9,9 @@ import DatePicker from '../components/DatePicker'
 
 export default function Cards() {
   const {
-    allCards, selectedCardIds, categories, rates, caps,
+    allCards, cards: walletCards, selectedCardIds, categories, rates, caps,
     selectableCategories, overrides, statementDays,
-    addCardSelection, removeCardSelection, saveOverride, saveStatementDay,
+    addCardSelection, removeCardSelection, saveOverride, saveStatementDay, setRateBoost,
   } = useApp()
 
   // Inline statement-day editing state — keyed by card id
@@ -376,6 +376,24 @@ export default function Cards() {
                             })}
                           </div>
                         )
+                      )}
+
+                      {/* Optional rate boost (e.g. UOB Lady's Savings Account → 6 mpd) */}
+                      {inWallet && card.boost_mpd != null && (
+                        <label className="mt-3 flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={walletCards.find(c => c.id === card.id)?.rate_boost ?? false}
+                            onChange={e => setRateBoost(card.id, e.target.checked)}
+                            className="mt-0.5 accent-indigo-600"
+                          />
+                          <span className="text-sm text-gray-700">
+                            I have a {card.boost_label}
+                            <span className="block text-xs text-gray-400">
+                              Boosts your chosen categories to {card.boost_mpd} mpd while enabled.
+                            </span>
+                          </span>
+                        </label>
                       )}
 
                       {/* Caps */}

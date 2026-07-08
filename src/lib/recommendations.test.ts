@@ -178,6 +178,13 @@ describe('calcMiles', () => {
     const { miles } = calcMiles(card(), rates, caps, DINING, 100, [], JUN)
     expect(miles).toBe(40) // total spend 0 < 1000 → locked → base
   })
+
+  it('applies the rate boost to the bonus category when enabled', () => {
+    const boosted = card({ boost_mpd: 6, rate_boost: true }) // 4 mpd → 6 mpd
+    expect(calcMiles(boosted, rates, [], DINING, 100, [], JUN).miles).toBe(600)
+    const off = card({ boost_mpd: 6, rate_boost: false })
+    expect(calcMiles(off, rates, [], DINING, 100, [], JUN).miles).toBe(400)
+  })
 })
 
 // ── splitBaseBonus ────────────────────────────────────────────────────────
