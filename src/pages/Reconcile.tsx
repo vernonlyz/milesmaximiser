@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } from '../lib/types'
-import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, applyRateBoosts } from '../lib/recommendations'
+import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, applyRateBoosts, resolveBoost } from '../lib/recommendations'
 import MilesTabs from '../components/MilesTabs'
 
 interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
@@ -28,7 +28,7 @@ interface BonusLump { key: string; card: CreditCard; kind: string; label: string
 interface Block { key: string; card: CreditCard; mk: string; prog: RewardProgram | null; lines: Line[]; lumps: BonusLump[] }
 
 export default function Reconcile() {
-  const { cards, categories, caps, rates, overrides } = useApp()
+  const { cards, categories, caps, rates, overrides, boosts } = useApp()
   const { user } = useAuth()
 
   const [txns, setTxns] = useState<TxnRow[]>([])
@@ -83,7 +83,9 @@ export default function Reconcile() {
   function bonusInfoByCat(card: CreditCard, dateStr: string): Map<string, { baseDelta: number; boostDelta: number; cap: number | null }> {
     const date = new Date(dateStr)
     const applied = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date)
-    const boosted = applyRateBoosts(cards, applied.rates)
+    // Resolve the boost AS OF this cycle's date, so past cycles reflect whether it was active then.
+    const cardsAtDate = cards.map(c => ({ ...c, rate_boost: resolveBoost(boosts, c.id, date) }))
+    const boosted = applyRateBoosts(cardsAtDate, applied.rates)
     const boostedMpd = new Map<string, number>()
     for (const r of boosted) if (r.card_id === card.id && r.category_id != null) boostedMpd.set(r.category_id, r.mpd)
     const capFor = (catId: string): number | null => {
@@ -196,7 +198,7 @@ export default function Reconcile() {
     }
 
     return [...map.values()].sort((a, z) => z.mk.localeCompare(a.mk) || a.card.name.localeCompare(z.card.name))
-  }, [txns, cardById, catById, progForCard, caps, rates, overrides, cards])
+  }, [txns, cardById, catById, progForCard, caps, rates, overrides, cards, boosts])
 
   const baseDone = new Set(txnRecon.filter(r => r.base_reconciled).map(r => r.transaction_id))
   function bonusReconFor(l: BonusLump) {

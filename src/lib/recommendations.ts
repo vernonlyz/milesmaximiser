@@ -1,4 +1,4 @@
-import { CreditCard, CardRate, SpendingCap, Transaction, CardRecommendation, CategoryOverride } from './types'
+import { CreditCard, CardRate, SpendingCap, Transaction, CardRecommendation, CategoryOverride, CardBoost } from './types'
 import { getPeriodStart, getPeriodEnd, formatSGD, isoDate } from './utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +113,16 @@ export function applyAllSelectableOverrides(
     caps = applied.caps
   }
   return { rates, caps }
+}
+
+// Resolve whether a card's rate boost is active on a date: the most recent dated
+// toggle with effective_from <= date. No rows → off.
+export function resolveBoost(boosts: CardBoost[], cardId: string, date: Date = new Date()): boolean {
+  const dateStr = isoDate(date)
+  const rows = boosts
+    .filter(b => b.card_id === cardId && b.effective_from <= dateStr)
+    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))
+  return rows[0]?.enabled ?? false
 }
 
 // Raise a card's bonus-category rates to its boost rate when the user has the

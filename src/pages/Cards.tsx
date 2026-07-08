@@ -23,6 +23,7 @@ export default function Cards() {
   const [pendingAddCard, setPendingAddCard] = useState<CreditCard | null>(null)
   const [pendingRemoveCard, setPendingRemoveCard] = useState<CreditCard | null>(null)
   const [detailsCard, setDetailsCard] = useState<CreditCard | null>(null)
+  const [boostDate, setBoostDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
   const [pendingDay, setPendingDay] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
@@ -380,20 +381,26 @@ export default function Cards() {
 
                       {/* Optional rate boost (e.g. UOB Lady's Savings Account → 6 mpd) */}
                       {inWallet && card.boost_mpd != null && (
-                        <label className="mt-3 flex items-start gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={walletCards.find(c => c.id === card.id)?.rate_boost ?? false}
-                            onChange={e => setRateBoost(card.id, e.target.checked)}
-                            className="mt-0.5 accent-indigo-600"
-                          />
-                          <span className="text-sm text-gray-700">
-                            I have a {card.boost_label}
-                            <span className="block text-xs text-gray-400">
-                              Boosts your chosen categories to {card.boost_mpd} mpd while enabled.
+                        <div className="mt-3 space-y-1.5">
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={walletCards.find(c => c.id === card.id)?.rate_boost ?? false}
+                              onChange={e => setRateBoost(card.id, e.target.checked, boostDate)}
+                              className="mt-0.5 accent-indigo-600"
+                            />
+                            <span className="text-sm text-gray-700">
+                              I have a {card.boost_label}
+                              <span className="block text-xs text-gray-400">
+                                Boosts your chosen categories to {card.boost_mpd} mpd from the effective date.
+                              </span>
                             </span>
-                          </span>
-                        </label>
+                          </label>
+                          <div className="flex items-center gap-2 pl-6">
+                            <span className="text-xs text-gray-500 shrink-0">Effective from</span>
+                            <DatePicker value={boostDate} onChange={setBoostDate} />
+                          </div>
+                        </div>
                       )}
 
                       {/* Caps */}

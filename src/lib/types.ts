@@ -30,7 +30,17 @@ export interface CreditCard {
   // Optional rate boost unlocked by a linked product (e.g. UOB Lady's Savings Account).
   boost_mpd?: number | null       // bonus-category rate when the boost is enabled
   boost_label?: string | null     // what unlocks it, shown on the toggle
-  rate_boost?: boolean            // per-user: whether this user has the boost enabled (runtime, from user_card_selections)
+  rate_boost?: boolean            // per-user runtime flag: boost active as of the resolution date (from user_card_boosts)
+  created_at: string
+}
+
+// A dated on/off toggle for a card's rate boost (effective-dated like overrides).
+export interface CardBoost {
+  id: string
+  user_id: string
+  card_id: string
+  effective_from: string
+  enabled: boolean
   created_at: string
 }
 

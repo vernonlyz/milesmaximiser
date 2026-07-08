@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
-import { Category, CreditCard, CardRate, SpendingCap, Transaction, SelectableCategory, CategoryOverride, MccEntry, Vendor, CashbackRate } from '../lib/types'
+import { Category, CreditCard, CardRate, SpendingCap, Transaction, SelectableCategory, CategoryOverride, MccEntry, Vendor, CashbackRate, CardBoost } from '../lib/types'
 import { isoDate } from '../lib/utils'
+import { resolveBoost } from '../lib/recommendations'
 
 interface AppContextValue {
   categories: Category[]
@@ -26,7 +27,8 @@ interface AppContextValue {
   removeCardSelection: (cardId: string) => Promise<void>
   saveOverride: (cardId: string, categoryIds: string[], effectiveFrom?: string) => Promise<void>
   saveStatementDay: (cardId: string, day: number | null) => Promise<void>
-  setRateBoost: (cardId: string, enabled: boolean) => Promise<void>
+  boosts: CardBoost[]
+  setRateBoost: (cardId: string, enabled: boolean, effectiveFrom?: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -38,7 +40,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [allCards, setAllCards]                       = useState<CreditCard[]>([])
   const [selectedCardIds, setSelectedCardIds]         = useState<Set<string>>(new Set())
   const [statementDays, setStatementDays]             = useState<Map<string, number>>(new Map())
-  const [boostedCardIds, setBoostedCardIds]           = useState<Set<string>>(new Set())
+  const [boosts, setBoosts]                           = useState<CardBoost[]>([])
   const [rates, setRates]                             = useState<CardRate[]>([])
   const [caps, setCaps]                               = useState<SpendingCap[]>([])
   const [selectableCategories, setSelectableCategories] = useState<SelectableCategory[]>([])
@@ -81,9 +83,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadSelections = useCallback(async () => {
     if (!user) return
-    const [selRes, overrideRes] = await Promise.all([
-      supabase.from('user_card_selections').select('card_id, statement_day, rate_boost').eq('user_id', user.id),
+    const [selRes, overrideRes, boostRes] = await Promise.all([
+      supabase.from('user_card_selections').select('card_id, statement_day').eq('user_id', user.id),
       supabase.from('user_category_overrides').select('*').eq('user_id', user.id),
+      supabase.from('user_card_boosts').select('*').eq('user_id', user.id),
     ])
     if (selRes.error)      throw selRes.error
     if (overrideRes.error) throw overrideRes.error
@@ -94,7 +97,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (s.statement_day != null) days.set(s.card_id, s.statement_day)
     }
     setStatementDays(days)
-    setBoostedCardIds(new Set(sels.filter(s => s.rate_boost).map(s => s.card_id)))
+    setBoosts((boostRes.data as CardBoost[]) ?? [])
     setOverrides(overrideRes.data ?? [])
   }, [user?.id])
 
@@ -157,17 +160,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  // Toggle a per-user rate boost (e.g. Lady's Savings Account → 6 mpd).
-  async function setRateBoost(cardId: string, enabled: boolean) {
+  // Record an effective-dated rate-boost toggle (e.g. Lady's Savings Account → 6 mpd).
+  async function setRateBoost(cardId: string, enabled: boolean, effectiveFrom: string = isoDate()) {
     if (!user) return
-    await supabase.from('user_card_selections')
-      .update({ rate_boost: enabled })
-      .eq('user_id', user.id)
-      .eq('card_id', cardId)
-    setBoostedCardIds(prev => {
-      const next = new Set(prev)
-      if (enabled) next.add(cardId); else next.delete(cardId)
-      return next
+    const { data, error } = await supabase
+      .from('user_card_boosts')
+      .upsert(
+        { user_id: user.id, card_id: cardId, effective_from: effectiveFrom, enabled },
+        { onConflict: 'user_id,card_id,effective_from' }
+      )
+      .select()
+      .single()
+    if (error) throw error
+    setBoosts(prev => {
+      const without = prev.filter(b => !(b.card_id === cardId && b.effective_from === effectiveFrom))
+      return [...without, data as CardBoost]
     })
   }
 
@@ -201,7 +208,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAllCards([])
       setSelectedCardIds(new Set())
       setStatementDays(new Map())
-      setBoostedCardIds(new Set())
+      setBoosts([])
       setRates([])
       setCaps([])
       setSelectableCategories([])
@@ -214,10 +221,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id])
 
-  // Derive wallet cards from library + selections (merge per-user rate boost)
+  // Derive wallet cards from library + selections (merge boost state as of today)
   const cards = allCards
     .filter(c => selectedCardIds.has(c.id))
-    .map(c => (boostedCardIds.has(c.id) ? { ...c, rate_boost: true } : c))
+    .map(c => (resolveBoost(boosts, c.id) ? { ...c, rate_boost: true } : c))
 
   return (
     <AppContext.Provider value={{
@@ -226,7 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       transactions, mccCatalogue, vendorCatalogue, cashbackRates,
       loading, error,
       refresh, refreshTransactions,
-      addCardSelection, removeCardSelection, saveOverride, saveStatementDay, setRateBoost,
+      addCardSelection, removeCardSelection, saveOverride, saveStatementDay, boosts, setRateBoost,
     }}>
       {children}
     </AppContext.Provider>
