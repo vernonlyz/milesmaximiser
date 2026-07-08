@@ -24,7 +24,7 @@ const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 // One transaction's expected split, in miles + (optional) program points.
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
 // A bonus lump as it appears on the statement.
-interface BonusLump { key: string; card: CreditCard; cycleMonth: string; categoryId: string | null; categoryName: string | null; creditDate: string; expectedMi: number; expectedPt: number | null; unit: string | null; count: number; capped: boolean; capMi: number | null; capPt: number | null }
+interface BonusLump { key: string; card: CreditCard; kind: string; label: string; cycleMonth: string; categoryId: string | null; categoryName: string | null; creditDate: string; expectedMi: number; expectedPt: number | null; unit: string | null; count: number; capped: boolean; capMi: number | null; capPt: number | null }
 interface Block { key: string; card: CreditCard; mk: string; prog: RewardProgram | null; lines: Line[]; lumps: BonusLump[] }
 
 export default function Reconcile() {
@@ -45,7 +45,7 @@ export default function Reconcile() {
       supabase.from('transactions').select('id, card_id, category_id, amount, miles_earned, vendor_name, transaction_date'),
       supabase.from('reward_programs').select('*'),
       supabase.from('card_reward_program').select('*'),
-      supabase.from('credit_reconciliations').select('*').eq('kind', 'bonus'),
+      supabase.from('credit_reconciliations').select('*').in('kind', ['bonus', 'bonus_boost']),
       supabase.from('transaction_point_recon').select('transaction_id, base_reconciled'),
     ])
     setTxns((txRes.data as TxnRow[]) ?? [])
@@ -56,7 +56,7 @@ export default function Reconcile() {
     setLoading(false)
   }
   useEffect(() => { if (user) load() }, [user])
-  async function refetchBonus() { const { data } = await supabase.from('credit_reconciliations').select('*').eq('kind', 'bonus'); setBonusRecon((data as CreditReconciliation[]) ?? []) }
+  async function refetchBonus() { const { data } = await supabase.from('credit_reconciliations').select('*').in('kind', ['bonus', 'bonus_boost']); setBonusRecon((data as CreditReconciliation[]) ?? []) }
   async function refetchTxnRecon() { const { data } = await supabase.from('transaction_point_recon').select('transaction_id, base_reconciled'); setTxnRecon((data as TxnRecon[]) ?? []) }
 
   const cardById = useMemo(() => new Map(cards.map(c => [c.id, c])), [cards])
@@ -80,18 +80,24 @@ export default function Reconcile() {
   // Resolving caps through the override matters for selectable cards: the raw cap
   // rows carry the template category, so a chosen non-default category would
   // otherwise find no cap and reconcile uncapped.
-  function bonusInfoByCat(card: CreditCard, dateStr: string): Map<string, { delta: number; cap: number | null }> {
+  function bonusInfoByCat(card: CreditCard, dateStr: string): Map<string, { baseDelta: number; boostDelta: number; cap: number | null }> {
     const date = new Date(dateStr)
     const applied = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date)
-    const resolved = applyRateBoosts(cards, applied.rates)
+    const boosted = applyRateBoosts(cards, applied.rates)
+    const boostedMpd = new Map<string, number>()
+    for (const r of boosted) if (r.card_id === card.id && r.category_id != null) boostedMpd.set(r.category_id, r.mpd)
     const capFor = (catId: string): number | null => {
       const rel = applied.caps.filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
         && (c.category_id === catId || c.cap_group != null))
       return rel.length ? Math.min(...rel.map(c => c.spend_limit as number)) : null
     }
-    const m = new Map<string, { delta: number; cap: number | null }>()
-    for (const r of resolved) {
-      if (r.card_id === card.id && r.category_id != null && r.mpd > card.base_mpd) m.set(r.category_id, { delta: r.mpd - card.base_mpd, cap: capFor(r.category_id) })
+    // baseDelta = standard bonus above base; boostDelta = extra from the boost (e.g. +2 mpd)
+    const m = new Map<string, { baseDelta: number; boostDelta: number; cap: number | null }>()
+    for (const r of applied.rates) {
+      if (r.card_id === card.id && r.category_id != null && r.mpd > card.base_mpd) {
+        const bm = boostedMpd.get(r.category_id) ?? r.mpd
+        m.set(r.category_id, { baseDelta: r.mpd - card.base_mpd, boostDelta: Math.max(0, bm - r.mpd), cap: capFor(r.category_id) })
+      }
     }
     return m
   }
@@ -123,9 +129,9 @@ export default function Reconcile() {
       const deferred = card.bonus_timing === 'next_calendar_month'
       const creditDate = deferred ? firstOfNext(mk) : lastDayOf(mk)
       const block = card.earn_increment || 1
-      const pushLump = (categoryId: string | null, miles: number, count: number, capped = false, capMi: number | null = null) => blk.lumps.push({
-        key: `${card.id}:bonus:${firstOf(mk)}:${categoryId ?? 'none'}`,
-        card, cycleMonth: firstOf(mk), categoryId,
+      const pushLump = (categoryId: string | null, miles: number, count: number, capped = false, capMi: number | null = null, kind = 'bonus', label = 'Bonus') => blk.lumps.push({
+        key: `${card.id}:${kind}:${firstOf(mk)}:${categoryId ?? 'none'}`,
+        card, kind, label, cycleMonth: firstOf(mk), categoryId,
         categoryName: categoryId ? (catById.get(categoryId)?.name ?? null) : null,
         creditDate, expectedMi: miles,
         expectedPt: prog ? miles / prog.miles_per_point : null,
@@ -143,10 +149,18 @@ export default function Reconcile() {
           if (cat && info.has(cat)) { const b = cats.get(cat) ?? { raw: 0, count: 0 }; b.raw += l.txn.amount; b.count += 1; cats.set(cat, b) }
         }
         for (const [cat, b] of cats) {
-          const { delta, cap } = info.get(cat)!
-          const capMi = cap != null ? Math.floor(cap / block) * block * delta : null   // max bonus miles
+          const { baseDelta, boostDelta, cap } = info.get(cat)!
           const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
-          pushLump(cat, Math.floor(eligible / block) * block * delta, b.count, cap != null && b.raw > cap, capMi)
+          const spendBlocks = Math.floor(eligible / block) * block
+          const capBlocks = cap != null ? Math.floor(cap / block) * block : null
+          const overCap = cap != null && b.raw > cap
+          // Standard program bonus
+          pushLump(cat, spendBlocks * baseDelta, b.count, overCap, capBlocks != null ? capBlocks * baseDelta : null)
+          // Extra from the rate boost (e.g. +2 mpd Lady's Savings), as its own lump
+          if (boostDelta > 0) {
+            pushLump(cat, spendBlocks * boostDelta, b.count, overCap, capBlocks != null ? capBlocks * boostDelta : null,
+              'bonus_boost', `${card.boost_label ?? 'Boost'} · +${boostDelta} mpd`)
+          }
         }
       } else {
         // per_transaction (default), or aggregate channel/pool cards (approximate):
@@ -186,7 +200,7 @@ export default function Reconcile() {
 
   const baseDone = new Set(txnRecon.filter(r => r.base_reconciled).map(r => r.transaction_id))
   function bonusReconFor(l: BonusLump) {
-    return bonusRecon.find(r => r.card_id === l.card.id && r.cycle_month === l.cycleMonth && (r.category_id ?? null) === l.categoryId)
+    return bonusRecon.find(r => r.card_id === l.card.id && r.kind === l.kind && r.cycle_month === l.cycleMonth && (r.category_id ?? null) === l.categoryId)
   }
 
   async function toggleBase(txnId: string) {
@@ -203,13 +217,13 @@ export default function Reconcile() {
     const patch = l.expectedPt != null ? { actual_points: val } : { actual_miles: val }
     const existing = bonusReconFor(l)
     if (existing) await supabase.from('credit_reconciliations').update(patch).eq('id', existing.id)
-    else await supabase.from('credit_reconciliations').insert({ user_id: user!.id, card_id: l.card.id, kind: 'bonus', cycle_month: l.cycleMonth, category_id: l.categoryId, ...patch })
+    else await supabase.from('credit_reconciliations').insert({ user_id: user!.id, card_id: l.card.id, kind: l.kind, cycle_month: l.cycleMonth, category_id: l.categoryId, ...patch })
     await refetchBonus()
   }
   async function toggleBonus(l: BonusLump) {
     const existing = bonusReconFor(l)
     if (existing) await supabase.from('credit_reconciliations').update({ reconciled: !existing.reconciled }).eq('id', existing.id)
-    else await supabase.from('credit_reconciliations').insert({ user_id: user!.id, card_id: l.card.id, kind: 'bonus', cycle_month: l.cycleMonth, category_id: l.categoryId, reconciled: true })
+    else await supabase.from('credit_reconciliations').insert({ user_id: user!.id, card_id: l.card.id, kind: l.kind, cycle_month: l.cycleMonth, category_id: l.categoryId, reconciled: true })
     await refetchBonus()
   }
   const bonusActual = (l: BonusLump) => { const r = bonusReconFor(l); return l.expectedPt != null ? r?.actual_points ?? null : r?.actual_miles ?? null }
@@ -302,7 +316,7 @@ export default function Reconcile() {
                       <div key={l.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-indigo-50/40 rounded-lg px-3 py-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-800">
-                            Bonus{l.categoryName ? ` · ${l.categoryName}` : ''}
+                            {l.label}{l.categoryName ? ` · ${l.categoryName}` : ''}
                           </p>
                           <p className="text-xs text-gray-400">
                             credited {fmtDate(l.creditDate)} · {l.count} txn{l.count > 1 ? 's' : ''}
