@@ -25,7 +25,7 @@ const EMPTY_FORM: TransactionFormData = {
 type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 
 export default function Transactions() {
-  const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
+  const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
   const { user } = useAuth()
   const toast = useToast()
   const location = useLocation()
@@ -165,16 +165,16 @@ export default function Transactions() {
     const card = cards.find(c => c.id === form.card_id)
     if (!card) return null
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel, statementDays).effectiveMpd
-  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel])
+    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel, statementDays, boosts).effectiveMpd
+  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel, statementDays, boosts])
 
   // Live recommendations while filling form
   const recs = useMemo<CardRecommendation[]>(() => {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel)
-  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel])
+    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel, statementDays, boosts)
+  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel, statementDays, boosts])
 
   const bestCardId = recs[0]?.card.id ?? ''
   const selectedRec = useMemo(() => recs.find(r => r.card.id === form.card_id) ?? null, [recs, form.card_id])
@@ -318,7 +318,7 @@ export default function Transactions() {
       const rate = override?.cashback_rate ?? card.cashback_rate ?? 0
       cashback_earned = parseFloat((amount * rate).toFixed(4))
     } else if (card.card_type === 'miles') {
-      ;({ effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel, statementDays))
+      ;({ effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel, statementDays, boosts))
     }
 
     const parsedManual = parseFloat(manualMpd)

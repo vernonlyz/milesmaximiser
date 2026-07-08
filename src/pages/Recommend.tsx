@@ -9,7 +9,7 @@ import { formatSGD } from '../lib/utils'
 import { CardRecommendation, Vendor } from '../lib/types'
 
 export default function Recommend() {
-  const { cards, categories, rates, caps, transactions, overrides, statementDays, mccCatalogue, vendorCatalogue } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue } = useApp()
 
   const [categoryId, setCategoryId] = useState('')
   const [amountStr, setAmountStr] = useState('')
@@ -24,8 +24,8 @@ export default function Recommend() {
 
   const recs = useMemo<CardRecommendation[]>(() => {
     if (!categoryId || amount <= 0) return []
-    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides, paymentChannel, statementDays)
-  }, [cards, rates, caps, categoryId, amount, transactions, overrides, paymentChannel, statementDays])
+    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides, paymentChannel, statementDays, boosts)
+  }, [cards, rates, caps, categoryId, amount, transactions, overrides, paymentChannel, statementDays, boosts])
 
   const cat = categories.find(c => c.id === categoryId)
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined

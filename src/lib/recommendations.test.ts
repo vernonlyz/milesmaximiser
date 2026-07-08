@@ -185,6 +185,15 @@ describe('calcMiles', () => {
     const off = card({ boost_mpd: 6, rate_boost: false })
     expect(calcMiles(off, rates, [], DINING, 100, [], JUN).miles).toBe(400)
   })
+
+  it('resolves the boost by the transaction date when boost history is passed', () => {
+    const c = card({ boost_mpd: 6 })
+    const boosts = [{ id: 'b1', user_id: 'u', card_id: CARD, effective_from: '2026-06-10', enabled: true, created_at: '' }]
+    // before the effective date → no boost (4 mpd)
+    expect(calcMiles(c, rates, [], DINING, 100, [], new Date(2026, 5, 5), [], null, new Map(), boosts).miles).toBe(400)
+    // on/after the effective date → boosted (6 mpd)
+    expect(calcMiles(c, rates, [], DINING, 100, [], new Date(2026, 5, 15), [], null, new Map(), boosts).miles).toBe(600)
+  })
 })
 
 // ── splitBaseBonus ────────────────────────────────────────────────────────

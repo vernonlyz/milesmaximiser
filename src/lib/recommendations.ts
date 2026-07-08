@@ -125,12 +125,23 @@ export function resolveBoost(boosts: CardBoost[], cardId: string, date: Date = n
   return rows[0]?.enabled ?? false
 }
 
-// Raise a card's bonus-category rates to its boost rate when the user has the
-// boost enabled (e.g. UOB Lady's Solitaire + Lady's Savings Account → 6 mpd).
-// Only bonus rows (category set, above base) are raised; caps are untouched.
-export function applyRateBoosts(cards: CreditCard[], resolvedRates: CardRate[]): CardRate[] {
+// Raise a card's bonus-category rates to its boost rate when the boost is active
+// (e.g. UOB Lady's Solitaire + Lady's Savings Account → 6 mpd). Only bonus rows
+// (category set, above base) are raised; caps are untouched.
+// Boost state resolves by `date` when `boosts` is given (effective-dated); otherwise
+// it falls back to the card's precomputed `rate_boost` flag.
+export function applyRateBoosts(
+  cards: CreditCard[],
+  resolvedRates: CardRate[],
+  boosts?: CardBoost[],
+  date: Date = new Date()
+): CardRate[] {
   const boost = new Map<string, { mpd: number; base: number }>()
-  for (const c of cards) if (c.rate_boost && c.boost_mpd != null) boost.set(c.id, { mpd: c.boost_mpd, base: c.base_mpd })
+  for (const c of cards) {
+    if (c.boost_mpd == null) continue
+    const on = boosts ? resolveBoost(boosts, c.id, date) : !!c.rate_boost
+    if (on) boost.set(c.id, { mpd: c.boost_mpd, base: c.base_mpd })
+  }
   if (boost.size === 0) return resolvedRates
   return resolvedRates.map(r => {
     const b = boost.get(r.card_id)
@@ -440,7 +451,8 @@ export function recommendCards(
   transactionDate: Date = new Date(),
   overrides: CategoryOverride[] = [],
   paymentChannel: 'contactless' | 'online' | 'chip' | null = null,
-  statementDays: Map<string, number> = new Map()
+  statementDays: Map<string, number> = new Map(),
+  boosts?: CardBoost[]
 ): CardRecommendation[] {
   if (!categoryId || amount <= 0) return []
 
@@ -455,7 +467,7 @@ export function recommendCards(
     resolved = applied.rates
     resolvedCaps = applied.caps
   }
-  resolved = applyRateBoosts(cards, resolved)
+  resolved = applyRateBoosts(cards, resolved, boosts, transactionDate)
 
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
 
@@ -559,7 +571,8 @@ export function calcMiles(
   transactionDate: Date = new Date(),
   overrides: CategoryOverride[] = [],
   paymentChannel: 'contactless' | 'online' | 'chip' | null = null,
-  statementDays: Map<string, number> = new Map()
+  statementDays: Map<string, number> = new Map(),
+  boosts?: CardBoost[]
 ): { miles: number; effectiveMpd: number } {
   let resolved = resolveRates(allRates, transactionDate)
   let resolvedCaps = resolveCaps(allCaps, transactionDate)
@@ -572,7 +585,7 @@ export function calcMiles(
       resolvedCaps = applied.caps
     }
   }
-  resolved = applyRateBoosts([card], resolved)
+  resolved = applyRateBoosts([card], resolved, boosts, transactionDate)
 
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
   const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel)
