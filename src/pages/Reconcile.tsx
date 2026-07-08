@@ -24,7 +24,7 @@ const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 // One transaction's expected split, in miles + (optional) program points.
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
 // A bonus lump as it appears on the statement.
-interface BonusLump { key: string; card: CreditCard; cycleMonth: string; categoryId: string | null; categoryName: string | null; creditDate: string; expectedMi: number; expectedPt: number | null; unit: string | null; count: number }
+interface BonusLump { key: string; card: CreditCard; cycleMonth: string; categoryId: string | null; categoryName: string | null; creditDate: string; expectedMi: number; expectedPt: number | null; unit: string | null; count: number; capped: boolean }
 interface Block { key: string; card: CreditCard; mk: string; prog: RewardProgram | null; lines: Line[]; lumps: BonusLump[] }
 
 export default function Reconcile() {
@@ -75,16 +75,23 @@ export default function Reconcile() {
     return rel.length ? Math.min(...rel.map(c => c.spend_limit as number)) : null
   }
 
-  // Bonus categories a card earns (with selectable override applied) → per-$ bonus
-  // rate above base. Lets aggregate cards include EVERY eligible charge (even sub-$5
-  // ones that individually round to zero bonus), keyed by category.
-  function bonusDeltaByCat(card: CreditCard, dateStr: string): Map<string, number> {
+  // Bonus categories a card earns (with selectable override + boost applied) → the
+  // per-$ bonus rate above base, AND the monthly spend cap bounding that category.
+  // Resolving caps through the override matters for selectable cards: the raw cap
+  // rows carry the template category, so a chosen non-default category would
+  // otherwise find no cap and reconcile uncapped.
+  function bonusInfoByCat(card: CreditCard, dateStr: string): Map<string, { delta: number; cap: number | null }> {
     const date = new Date(dateStr)
-    const overridden = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date).rates
-    const resolved = applyRateBoosts(cards, overridden)
-    const m = new Map<string, number>()
+    const applied = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date)
+    const resolved = applyRateBoosts(cards, applied.rates)
+    const capFor = (catId: string): number | null => {
+      const rel = applied.caps.filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
+        && (c.category_id === catId || c.cap_group != null))
+      return rel.length ? Math.min(...rel.map(c => c.spend_limit as number)) : null
+    }
+    const m = new Map<string, { delta: number; cap: number | null }>()
     for (const r of resolved) {
-      if (r.card_id === card.id && r.category_id != null && r.mpd > card.base_mpd) m.set(r.category_id, r.mpd - card.base_mpd)
+      if (r.card_id === card.id && r.category_id != null && r.mpd > card.base_mpd) m.set(r.category_id, { delta: r.mpd - card.base_mpd, cap: capFor(r.category_id) })
     }
     return m
   }
@@ -116,28 +123,28 @@ export default function Reconcile() {
       const deferred = card.bonus_timing === 'next_calendar_month'
       const creditDate = deferred ? firstOfNext(mk) : lastDayOf(mk)
       const block = card.earn_increment || 1
-      const pushLump = (categoryId: string | null, miles: number, count: number) => blk.lumps.push({
+      const pushLump = (categoryId: string | null, miles: number, count: number, capped = false) => blk.lumps.push({
         key: `${card.id}:bonus:${firstOf(mk)}:${categoryId ?? 'none'}`,
         card, cycleMonth: firstOf(mk), categoryId,
         categoryName: categoryId ? (catById.get(categoryId)?.name ?? null) : null,
         creditDate, expectedMi: miles,
         expectedPt: prog ? miles / prog.miles_per_point : null,
-        unit: prog?.unit_label ?? null, count,
+        unit: prog?.unit_label ?? null, count, capped,
       })
 
       if (card.bonus_rounding === 'aggregate' && card.bonus_by_category) {
         // Exact aggregate: sum ALL eligible-category spend (incl. sub-block charges
-        // and cents), cap it, floor the total once to the block, ×per-$ bonus rate.
-        const deltas = bonusDeltaByCat(card, lastDayOf(mk))
+        // and cents), cap it at the category cap, floor once to the block, ×per-$ rate.
+        const info = bonusInfoByCat(card, lastDayOf(mk))
         const cats = new Map<string, { raw: number; count: number }>()
         for (const l of blk.lines) {
           const cat = l.txn.category_id
-          if (cat && deltas.has(cat)) { const b = cats.get(cat) ?? { raw: 0, count: 0 }; b.raw += l.txn.amount; b.count += 1; cats.set(cat, b) }
+          if (cat && info.has(cat)) { const b = cats.get(cat) ?? { raw: 0, count: 0 }; b.raw += l.txn.amount; b.count += 1; cats.set(cat, b) }
         }
         for (const [cat, b] of cats) {
-          const cap = capForBucket(card, cat)
+          const { delta, cap } = info.get(cat)!
           const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
-          pushLump(cat, Math.floor(eligible / block) * block * (deltas.get(cat) ?? 0), b.count)
+          pushLump(cat, Math.floor(eligible / block) * block * delta, b.count, cap != null && b.raw > cap)
         }
       } else {
         // per_transaction (default), or aggregate channel/pool cards (approximate):
@@ -155,12 +162,14 @@ export default function Reconcile() {
         for (const [key, b] of buckets) {
           const categoryId = card.bonus_by_category && key !== 'none' && key !== 'all' ? key : null
           let miles = b.miles
+          let capped = false
           if (card.bonus_rounding === 'aggregate') {
             const cap = capForBucket(card, categoryId)
             const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
             miles = Math.floor(eligible / block) * block * b.delta
+            capped = cap != null && b.raw > cap
           }
-          pushLump(categoryId, miles, b.count)
+          pushLump(categoryId, miles, b.count, capped)
         }
       }
       blk.lines.sort((a, z) => a.txn.transaction_date.localeCompare(z.txn.transaction_date))
@@ -289,7 +298,10 @@ export default function Reconcile() {
                           <p className="text-sm font-medium text-gray-800">
                             Bonus{l.categoryName ? ` · ${l.categoryName}` : ''}
                           </p>
-                          <p className="text-xs text-gray-400">credited {fmtDate(l.creditDate)} · {l.count} txn{l.count > 1 ? 's' : ''}</p>
+                          <p className="text-xs text-gray-400">
+                            credited {fmtDate(l.creditDate)} · {l.count} txn{l.count > 1 ? 's' : ''}
+                            {l.capped && <span className="ml-1 text-amber-600">· cap reached</span>}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="text-[11px] text-gray-400">Expected</p>
