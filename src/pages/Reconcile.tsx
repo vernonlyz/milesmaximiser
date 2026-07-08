@@ -24,7 +24,7 @@ const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 // One transaction's expected split, in miles + (optional) program points.
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
 // A bonus lump as it appears on the statement.
-interface BonusLump { key: string; card: CreditCard; cycleMonth: string; categoryId: string | null; categoryName: string | null; creditDate: string; expectedMi: number; expectedPt: number | null; unit: string | null; count: number; capped: boolean }
+interface BonusLump { key: string; card: CreditCard; cycleMonth: string; categoryId: string | null; categoryName: string | null; creditDate: string; expectedMi: number; expectedPt: number | null; unit: string | null; count: number; capped: boolean; capMi: number | null; capPt: number | null }
 interface Block { key: string; card: CreditCard; mk: string; prog: RewardProgram | null; lines: Line[]; lumps: BonusLump[] }
 
 export default function Reconcile() {
@@ -123,13 +123,14 @@ export default function Reconcile() {
       const deferred = card.bonus_timing === 'next_calendar_month'
       const creditDate = deferred ? firstOfNext(mk) : lastDayOf(mk)
       const block = card.earn_increment || 1
-      const pushLump = (categoryId: string | null, miles: number, count: number, capped = false) => blk.lumps.push({
+      const pushLump = (categoryId: string | null, miles: number, count: number, capped = false, capMi: number | null = null) => blk.lumps.push({
         key: `${card.id}:bonus:${firstOf(mk)}:${categoryId ?? 'none'}`,
         card, cycleMonth: firstOf(mk), categoryId,
         categoryName: categoryId ? (catById.get(categoryId)?.name ?? null) : null,
         creditDate, expectedMi: miles,
         expectedPt: prog ? miles / prog.miles_per_point : null,
         unit: prog?.unit_label ?? null, count, capped,
+        capMi, capPt: prog && capMi != null ? capMi / prog.miles_per_point : null,
       })
 
       if (card.bonus_rounding === 'aggregate' && card.bonus_by_category) {
@@ -143,8 +144,9 @@ export default function Reconcile() {
         }
         for (const [cat, b] of cats) {
           const { delta, cap } = info.get(cat)!
+          const capMi = cap != null ? Math.floor(cap / block) * block * delta : null   // max bonus miles
           const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
-          pushLump(cat, Math.floor(eligible / block) * block * delta, b.count, cap != null && b.raw > cap)
+          pushLump(cat, Math.floor(eligible / block) * block * delta, b.count, cap != null && b.raw > cap, capMi)
         }
       } else {
         // per_transaction (default), or aggregate channel/pool cards (approximate):
@@ -161,15 +163,19 @@ export default function Reconcile() {
         }
         for (const [key, b] of buckets) {
           const categoryId = card.bonus_by_category && key !== 'none' && key !== 'all' ? key : null
+          const capSpend = capForBucket(card, categoryId)
+          const capMi = capSpend != null && b.delta > 0 ? Math.floor(capSpend / block) * block * b.delta : null  // max bonus miles
           let miles = b.miles
           let capped = false
           if (card.bonus_rounding === 'aggregate') {
-            const cap = capForBucket(card, categoryId)
-            const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
+            const eligible = capSpend != null ? Math.min(b.raw, capSpend) : b.raw
             miles = Math.floor(eligible / block) * block * b.delta
-            capped = cap != null && b.raw > cap
+            capped = capSpend != null && b.raw > capSpend
+          } else if (capMi != null && miles > capMi) {
+            // per-transaction: clamp the summed stored bonus at the cap ceiling
+            miles = capMi; capped = true
           }
-          pushLump(categoryId, miles, b.count, capped)
+          pushLump(categoryId, miles, b.count, capped, capMi)
         }
       }
       blk.lines.sort((a, z) => a.txn.transaction_date.localeCompare(z.txn.transaction_date))
@@ -308,6 +314,11 @@ export default function Reconcile() {
                           <p className="text-sm font-medium text-gray-700">
                             {l.expectedPt != null ? <>{fmtNum(l.expectedPt)} {l.unit} <span className="text-gray-400 font-normal">· {fmtNum(l.expectedMi)} mi</span></> : <>{fmtNum(l.expectedMi)} mi</>}
                           </p>
+                          {l.capMi != null && (
+                            <p className="text-[11px] text-gray-400">
+                              cap {l.capPt != null ? <>{fmtNum(l.capPt)} {l.unit}</> : <>{fmtNum(l.capMi)} mi</>}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right">
                           <label className="text-[11px] text-gray-400 block">Actual {l.unit ?? 'mi'}</label>
