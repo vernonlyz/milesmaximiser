@@ -29,6 +29,8 @@ interface AppContextValue {
   saveStatementDay: (cardId: string, day: number | null) => Promise<void>
   boosts: CardBoost[]
   setRateBoost: (cardId: string, enabled: boolean, effectiveFrom?: string) => Promise<void>
+  updateBoost: (id: string, effectiveFrom: string, enabled: boolean) => Promise<void>
+  deleteBoost: (id: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -178,6 +180,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  // Edit an existing boost entry (change its date or on/off state).
+  async function updateBoost(id: string, effectiveFrom: string, enabled: boolean) {
+    const { data, error } = await supabase
+      .from('user_card_boosts')
+      .update({ effective_from: effectiveFrom, enabled })
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    setBoosts(prev => prev.map(b => (b.id === id ? (data as CardBoost) : b)))
+  }
+
+  // Remove a boost entry (e.g. an accidental toggle).
+  async function deleteBoost(id: string) {
+    const { error } = await supabase.from('user_card_boosts').delete().eq('id', id)
+    if (error) throw error
+    setBoosts(prev => prev.filter(b => b.id !== id))
+  }
+
   // Upsert a bonus-category override for a selectable card.
   // Uses effectiveFrom (default today) so history is preserved on future changes.
   async function saveOverride(
@@ -233,7 +254,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       transactions, mccCatalogue, vendorCatalogue, cashbackRates,
       loading, error,
       refresh, refreshTransactions,
-      addCardSelection, removeCardSelection, saveOverride, saveStatementDay, boosts, setRateBoost,
+      addCardSelection, removeCardSelection, saveOverride, saveStatementDay, boosts, setRateBoost, updateBoost, deleteBoost,
     }}>
       {children}
     </AppContext.Provider>

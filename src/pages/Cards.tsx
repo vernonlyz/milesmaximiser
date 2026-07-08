@@ -1,17 +1,40 @@
 import { useMemo, useState } from 'react'
-import { Check, Plus, Minus, Info, Pencil, CalendarDays } from 'lucide-react'
+import { Check, Plus, Minus, Info, Pencil, CalendarDays, Clock, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } from '../lib/recommendations'
 import { capPeriodLabel, isoDate } from '../lib/utils'
-import { CreditCard, SpendingCap } from '../lib/types'
+import { CreditCard, SpendingCap, CardBoost } from '../lib/types'
 import Modal from '../components/Modal'
 import DatePicker from '../components/DatePicker'
+
+const todayLocal = () => new Date().toLocaleDateString('en-CA')
+function minusOneDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() - 1)
+  return d.toLocaleDateString('en-CA')
+}
+function fmtBoostDate(dateStr: string) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+// Derive active periods from the dated on/off log. end = first day WITHOUT boost.
+function boostPeriods(rows: CardBoost[]): { start: string; end: string | null }[] {
+  const sorted = [...rows].sort((a, z) => a.effective_from.localeCompare(z.effective_from))
+  const out: { start: string; end: string | null }[] = []
+  let start: string | null = null
+  for (const r of sorted) {
+    if (r.enabled && !start) start = r.effective_from
+    else if (!r.enabled && start) { out.push({ start, end: r.effective_from }); start = null }
+  }
+  if (start) out.push({ start, end: null })
+  return out
+}
 
 export default function Cards() {
   const {
     allCards, cards: walletCards, selectedCardIds, categories, rates, caps,
     selectableCategories, overrides, statementDays,
-    addCardSelection, removeCardSelection, saveOverride, saveStatementDay, setRateBoost,
+    addCardSelection, removeCardSelection, saveOverride, saveStatementDay,
+    boosts, setRateBoost, updateBoost, deleteBoost,
   } = useApp()
 
   // Inline statement-day editing state — keyed by card id
@@ -24,6 +47,22 @@ export default function Cards() {
   const [pendingRemoveCard, setPendingRemoveCard] = useState<CreditCard | null>(null)
   const [detailsCard, setDetailsCard] = useState<CreditCard | null>(null)
   const [boostDate, setBoostDate] = useState<string>(new Date().toLocaleDateString('en-CA'))
+  // Rate-boost end-confirmation + history editing
+  const [endingBoost, setEndingBoost] = useState<{ card: CreditCard; date: string } | null>(null)
+  const [historyOpen, setHistoryOpen] = useState<string | null>(null)
+  const [editingBoostId, setEditingBoostId] = useState<string | null>(null)
+  const [boostError, setBoostError] = useState<string | null>(null)
+
+  async function handleEditBoost(b: CardBoost, newDate: string) {
+    setEditingBoostId(null)
+    if (newDate === b.effective_from) return
+    if (boosts.some(x => x.card_id === b.card_id && x.id !== b.id && x.effective_from === newDate)) {
+      setBoostError('Another boost entry already exists on that date.')
+      return
+    }
+    setBoostError(null)
+    try { await updateBoost(b.id, newDate, b.enabled) } catch { setBoostError('Could not update that entry.') }
+  }
   const [pendingDay, setPendingDay] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
@@ -380,28 +419,84 @@ export default function Cards() {
                       )}
 
                       {/* Optional rate boost (e.g. UOB Lady's Savings Account → 6 mpd) */}
-                      {inWallet && card.boost_mpd != null && (
-                        <div className="mt-3 space-y-1.5">
-                          <label className="flex items-start gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={walletCards.find(c => c.id === card.id)?.rate_boost ?? false}
-                              onChange={e => setRateBoost(card.id, e.target.checked, boostDate)}
-                              className="mt-0.5 accent-indigo-600"
-                            />
-                            <span className="text-sm text-gray-700">
-                              I have a {card.boost_label}
-                              <span className="block text-xs text-gray-400">
-                                Boosts your chosen categories to {card.boost_mpd} mpd from the effective date.
+                      {inWallet && card.boost_mpd != null && (() => {
+                        const boostOn = walletCards.find(c => c.id === card.id)?.rate_boost ?? false
+                        const cardBoosts = boosts.filter(b => b.card_id === card.id)
+                        const periods = boostPeriods(cardBoosts)
+                        return (
+                          <div className="mt-3 space-y-2">
+                            <label className="flex items-start gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={boostOn}
+                                onChange={e => {
+                                  if (e.target.checked) setRateBoost(card.id, true, boostDate)
+                                  else setEndingBoost({ card, date: todayLocal() })
+                                }}
+                                className="mt-0.5 accent-indigo-600"
+                              />
+                              <span className="text-sm text-gray-700">
+                                I have a {card.boost_label}
+                                <span className="block text-xs text-gray-400">
+                                  Boosts your chosen categories to {card.boost_mpd} mpd (effective-dated).
+                                </span>
                               </span>
-                            </span>
-                          </label>
-                          <div className="flex items-center gap-2 pl-6">
-                            <span className="text-xs text-gray-500 shrink-0">Effective from</span>
-                            <DatePicker value={boostDate} onChange={setBoostDate} />
+                            </label>
+
+                            {/* Enabling (currently off): pick the start date */}
+                            {!boostOn && (
+                              <div className="flex items-center gap-2 pl-6">
+                                <span className="text-xs text-gray-500 shrink-0">Active from</span>
+                                <DatePicker value={boostDate} onChange={setBoostDate} />
+                              </div>
+                            )}
+
+                            {/* History */}
+                            {cardBoosts.length > 0 && (
+                              <div className="pl-6">
+                                <button
+                                  onClick={() => { setHistoryOpen(o => (o === card.id ? null : card.id)); setBoostError(null) }}
+                                  className="text-xs text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1"
+                                >
+                                  <Clock size={12} /> Boost history ({periods.length})
+                                </button>
+                                {historyOpen === card.id && (
+                                  <div className="mt-1.5 space-y-1.5">
+                                    {periods.length > 0 && (
+                                      <ul className="text-xs text-gray-500 space-y-0.5">
+                                        {periods.map((p, i) => (
+                                          <li key={i}>• {fmtBoostDate(p.start)} – {p.end ? fmtBoostDate(minusOneDay(p.end)) : 'present'}</li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                    <div className="space-y-1 border-t border-gray-100 pt-1.5">
+                                      {[...cardBoosts].sort((a, z) => a.effective_from.localeCompare(z.effective_from)).map(b => (
+                                        <div key={b.id} className="flex items-center gap-2 text-xs">
+                                          <span className={`px-1.5 py-0.5 rounded-full ${b.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            {b.enabled ? 'On' : 'Off'}
+                                          </span>
+                                          {editingBoostId === b.id ? (
+                                            <DatePicker value={b.effective_from} onChange={v => handleEditBoost(b, v)} />
+                                          ) : (
+                                            <button onClick={() => setEditingBoostId(b.id)} className="text-gray-600 hover:text-indigo-600">
+                                              {fmtBoostDate(b.effective_from)}
+                                            </button>
+                                          )}
+                                          <button onClick={() => deleteBoost(b.id).catch(() => setBoostError('Could not delete that entry.'))}
+                                            className="ml-auto text-gray-300 hover:text-red-500 p-0.5">
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {boostError && <p className="text-xs text-red-500">{boostError}</p>}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        )
+                      })()}
 
                       {/* Caps */}
                       {capGroupMap.size > 0 && (
@@ -639,6 +734,32 @@ export default function Cards() {
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
               >
                 Remove
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* End-boost confirmation */}
+      {endingBoost && (
+        <Modal title="End boost" onClose={() => setEndingBoost(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              End the <span className="font-semibold text-gray-900">{endingBoost.card.boost_label}</span> boost on{' '}
+              {endingBoost.card.bank} {endingBoost.card.name}? Spending from the date below earns the normal rate
+              (that day counts as the first day without the boost). Earlier periods stay in the history.
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 shrink-0">Active until</span>
+              <DatePicker value={endingBoost.date} onChange={v => setEndingBoost(e => (e ? { ...e, date: v } : e))} />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setEndingBoost(null)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={async () => { await setRateBoost(endingBoost.card.id, false, endingBoost.date); setEndingBoost(null) }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
+              >
+                End boost
               </button>
             </div>
           </div>
