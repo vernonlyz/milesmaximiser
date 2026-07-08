@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } from '../lib/types'
-import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, applyRateBoosts, resolveBoost } from '../lib/recommendations'
+import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, resolveBoost } from '../lib/recommendations'
 import MilesTabs from '../components/MilesTabs'
 
 interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
@@ -83,22 +83,19 @@ export default function Reconcile() {
   function bonusInfoByCat(card: CreditCard, dateStr: string): Map<string, { baseDelta: number; boostDelta: number; cap: number | null }> {
     const date = new Date(dateStr)
     const applied = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date)
-    // Resolve the boost AS OF this cycle's date, so past cycles reflect whether it was active then.
-    const cardsAtDate = cards.map(c => ({ ...c, rate_boost: resolveBoost(boosts, c.id, date) }))
-    const boosted = applyRateBoosts(cardsAtDate, applied.rates)
-    const boostedMpd = new Map<string, number>()
-    for (const r of boosted) if (r.card_id === card.id && r.category_id != null) boostedMpd.set(r.category_id, r.mpd)
     const capFor = (catId: string): number | null => {
       const rel = applied.caps.filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
         && (c.category_id === catId || c.cap_group != null))
       return rel.length ? Math.min(...rel.map(c => c.spend_limit as number)) : null
     }
-    // baseDelta = standard bonus above base; boostDelta = extra from the boost (e.g. +2 mpd)
+    // baseDelta = standard bonus above base; boostDelta = the POTENTIAL boost extra
+    // (from card config, date-independent). Which spend actually gets the boost is
+    // decided per transaction by resolveBoost, so mid-cycle toggles split correctly.
     const m = new Map<string, { baseDelta: number; boostDelta: number; cap: number | null }>()
     for (const r of applied.rates) {
       if (r.card_id === card.id && r.category_id != null && r.mpd > card.base_mpd) {
-        const bm = boostedMpd.get(r.category_id) ?? r.mpd
-        m.set(r.category_id, { baseDelta: r.mpd - card.base_mpd, boostDelta: Math.max(0, bm - r.mpd), cap: capFor(r.category_id) })
+        const boostDelta = card.boost_mpd != null && card.boost_mpd > r.mpd ? card.boost_mpd - r.mpd : 0
+        m.set(r.category_id, { baseDelta: r.mpd - card.base_mpd, boostDelta, cap: capFor(r.category_id) })
       }
     }
     return m
@@ -145,22 +142,28 @@ export default function Reconcile() {
         // Exact aggregate: sum ALL eligible-category spend (incl. sub-block charges
         // and cents), cap it at the category cap, floor once to the block, ×per-$ rate.
         const info = bonusInfoByCat(card, lastDayOf(mk))
-        const cats = new Map<string, { raw: number; count: number }>()
+        // raw = all eligible spend; rawBoost = only spend dated while the boost was
+        // active (resolved per transaction), so a mid-cycle toggle splits correctly.
+        const cats = new Map<string, { raw: number; rawBoost: number; count: number }>()
         for (const l of blk.lines) {
           const cat = l.txn.category_id
-          if (cat && info.has(cat)) { const b = cats.get(cat) ?? { raw: 0, count: 0 }; b.raw += l.txn.amount; b.count += 1; cats.set(cat, b) }
+          if (cat && info.has(cat)) {
+            const b = cats.get(cat) ?? { raw: 0, rawBoost: 0, count: 0 }
+            b.raw += l.txn.amount; b.count += 1
+            if (resolveBoost(boosts, card.id, new Date(l.txn.transaction_date))) b.rawBoost += l.txn.amount
+            cats.set(cat, b)
+          }
         }
         for (const [cat, b] of cats) {
           const { baseDelta, boostDelta, cap } = info.get(cat)!
-          const eligible = cap != null ? Math.min(b.raw, cap) : b.raw
-          const spendBlocks = Math.floor(eligible / block) * block
           const capBlocks = cap != null ? Math.floor(cap / block) * block : null
-          const overCap = cap != null && b.raw > cap
-          // Standard program bonus
-          pushLump(cat, spendBlocks * baseDelta, b.count, overCap, capBlocks != null ? capBlocks * baseDelta : null)
-          // Extra from the rate boost (e.g. +2 mpd Lady's Savings), as its own lump
-          if (boostDelta > 0) {
-            pushLump(cat, spendBlocks * boostDelta, b.count, overCap, capBlocks != null ? capBlocks * boostDelta : null,
+          // Standard program bonus — all eligible spend (boost-independent)
+          const eligAll = Math.floor((cap != null ? Math.min(b.raw, cap) : b.raw) / block) * block
+          pushLump(cat, eligAll * baseDelta, b.count, cap != null && b.raw > cap, capBlocks != null ? capBlocks * baseDelta : null)
+          // Boost extra — only spend charged while the boost was active
+          if (boostDelta > 0 && b.rawBoost > 0) {
+            const eligBoost = Math.floor((cap != null ? Math.min(b.rawBoost, cap) : b.rawBoost) / block) * block
+            pushLump(cat, eligBoost * boostDelta, b.count, cap != null && b.rawBoost > cap, capBlocks != null ? capBlocks * boostDelta : null,
               'bonus_boost', `${card.boost_label ?? 'Boost'} · +${boostDelta} mpd`)
           }
         }
