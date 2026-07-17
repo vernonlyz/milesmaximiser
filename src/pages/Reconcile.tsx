@@ -126,7 +126,11 @@ export default function Reconcile() {
       }
       const bk = `${card.id}:${cycleStart}`
       const blk = map.get(bk) ?? { key: bk, card, cycleStart, cycleEnd, label, prog, lines: [], lumps: [] }
-      const { base, bonus } = splitBaseBonus(card.base_mpd, card.earn_increment, t.amount, t.miles_earned)
+      // Direct-credit cards (e.g. KrisFlyer Visa) have no base/bonus split — the whole
+      // earned amount is shown as base.
+      const { base, bonus } = card.no_bonus_split
+        ? { base: t.miles_earned, bonus: 0 }
+        : splitBaseBonus(card.base_mpd, card.earn_increment, t.amount, t.miles_earned)
       blk.lines.push({
         txn: t,
         catName: t.category_id ? (catById.get(t.category_id)?.name ?? null) : null,
@@ -140,6 +144,7 @@ export default function Reconcile() {
     // Accumulated bonus lumps per block (per category for split cards, else one).
     for (const blk of map.values()) {
       const { card, cycleStart, cycleEnd, prog } = blk
+      if (card.no_bonus_split) continue   // direct-credit cards: no bonus lumps
       const deferred = card.bonus_timing === 'next_calendar_month'
       const creditDate = deferred ? firstOfNext(monthKey(cycleStart)) : cycleEnd
       const block = card.earn_increment || 1
