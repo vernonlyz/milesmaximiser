@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } from '../lib/types'
 import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, resolveBoost } from '../lib/recommendations'
+import { getPeriodStart, getPeriodEnd, isoDate } from '../lib/utils'
 import MilesTabs from '../components/MilesTabs'
 
 interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
@@ -25,10 +26,10 @@ const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
 // A bonus lump as it appears on the statement.
 interface BonusLump { key: string; card: CreditCard; kind: string; label: string; cycleMonth: string; categoryId: string | null; categoryName: string | null; creditDate: string; expectedMi: number; expectedPt: number | null; unit: string | null; count: number; capped: boolean; capMi: number | null; capPt: number | null }
-interface Block { key: string; card: CreditCard; mk: string; prog: RewardProgram | null; lines: Line[]; lumps: BonusLump[] }
+interface Block { key: string; card: CreditCard; cycleStart: string; cycleEnd: string; label: string; prog: RewardProgram | null; lines: Line[]; lumps: BonusLump[] }
 
 export default function Reconcile() {
-  const { cards, categories, caps, rates, overrides, boosts } = useApp()
+  const { cards, categories, caps, rates, overrides, boosts, statementDays } = useApp()
   const { user } = useAuth()
 
   const [txns, setTxns] = useState<TxnRow[]>([])
@@ -111,9 +112,20 @@ export default function Reconcile() {
       const card = t.card_id ? cardById.get(t.card_id) : null
       if (!card || card.card_type !== 'miles' || t.miles_earned == null) continue
       const prog = progForCard.get(card.id) ?? null
-      const mk = monthKey(t.transaction_date)
-      const bk = `${card.id}:${mk}`
-      const blk = map.get(bk) ?? { key: bk, card, mk, prog, lines: [], lumps: [] }
+      // Statement-cycle cards bucket by their statement period; others by calendar month.
+      const sDay = statementDays.get(card.id)
+      let cycleStart: string, cycleEnd: string, label: string
+      if (card.cap_cycle === 'statement' && sDay && sDay > 1) {
+        const d = new Date(t.transaction_date + 'T00:00:00')
+        cycleStart = isoDate(getPeriodStart('monthly', d, sDay))
+        cycleEnd = isoDate(getPeriodEnd('monthly', d, sDay))
+        label = `${fmtDay(cycleStart)} – ${fmtDate(cycleEnd)}`
+      } else {
+        const mk = monthKey(t.transaction_date)
+        cycleStart = firstOf(mk); cycleEnd = lastDayOf(mk); label = fmtMonth(mk)
+      }
+      const bk = `${card.id}:${cycleStart}`
+      const blk = map.get(bk) ?? { key: bk, card, cycleStart, cycleEnd, label, prog, lines: [], lumps: [] }
       const { base, bonus } = splitBaseBonus(card.base_mpd, card.earn_increment, t.amount, t.miles_earned)
       blk.lines.push({
         txn: t,
@@ -127,13 +139,13 @@ export default function Reconcile() {
 
     // Accumulated bonus lumps per block (per category for split cards, else one).
     for (const blk of map.values()) {
-      const { card, mk, prog } = blk
+      const { card, cycleStart, cycleEnd, prog } = blk
       const deferred = card.bonus_timing === 'next_calendar_month'
-      const creditDate = deferred ? firstOfNext(mk) : lastDayOf(mk)
+      const creditDate = deferred ? firstOfNext(monthKey(cycleStart)) : cycleEnd
       const block = card.earn_increment || 1
       const pushLump = (categoryId: string | null, miles: number, count: number, capped = false, capMi: number | null = null, kind = 'bonus', label = 'Bonus') => blk.lumps.push({
-        key: `${card.id}:${kind}:${firstOf(mk)}:${categoryId ?? 'none'}`,
-        card, kind, label, cycleMonth: firstOf(mk), categoryId,
+        key: `${card.id}:${kind}:${cycleStart}:${categoryId ?? 'none'}`,
+        card, kind, label, cycleMonth: cycleStart, categoryId,
         categoryName: categoryId ? (catById.get(categoryId)?.name ?? null) : null,
         creditDate, expectedMi: miles,
         expectedPt: prog ? miles / prog.miles_per_point : null,
@@ -144,7 +156,7 @@ export default function Reconcile() {
       if (card.bonus_rounding === 'aggregate' && card.bonus_by_category) {
         // Exact aggregate: sum ALL eligible-category spend (incl. sub-block charges
         // and cents), cap it at the category cap, floor once to the block, ×per-$ rate.
-        const info = bonusInfoByCat(card, lastDayOf(mk))
+        const info = bonusInfoByCat(card, cycleEnd)
         // raw = all eligible spend; rawBoost = only spend dated while the boost was
         // active (resolved per transaction), so a mid-cycle toggle splits correctly.
         const cats = new Map<string, { raw: number; rawBoost: number; count: number }>()
@@ -203,7 +215,7 @@ export default function Reconcile() {
       blk.lines.sort((a, z) => a.txn.transaction_date.localeCompare(z.txn.transaction_date))
     }
 
-    return [...map.values()].sort((a, z) => z.mk.localeCompare(a.mk) || a.card.name.localeCompare(z.card.name))
+    return [...map.values()].sort((a, z) => z.cycleStart.localeCompare(a.cycleStart) || a.card.name.localeCompare(z.card.name))
   }, [txns, cardById, catById, progForCard, caps, rates, overrides, cards, boosts])
 
   const baseDone = new Set(txnRecon.filter(r => r.base_reconciled).map(r => r.transaction_id))
@@ -238,6 +250,7 @@ export default function Reconcile() {
 
   const totalTxns = blocks.reduce((s, b) => s + b.lines.length, 0)
   const baseReconciled = blocks.reduce((s, b) => s + b.lines.filter(l => baseDone.has(l.txn.id)).length, 0)
+  const totalBaseMi = blocks.reduce((s, b) => s + b.lines.reduce((ss, l) => ss + l.baseMi, 0), 0)
   const allLumps = blocks.flatMap(b => b.lumps)
   const bonusReconciled = allLumps.filter(l => bonusReconFor(l)?.reconciled).length
   const lumpMismatch = (l: BonusLump) => { const a = bonusActual(l); const e = l.expectedPt ?? l.expectedMi; return a != null && Math.round(a) !== Math.round(e) }
@@ -245,12 +258,12 @@ export default function Reconcile() {
 
   // Filter options + filtered block list
   const cardOptions = Array.from(new Map(blocks.map(b => [b.card.id, `${b.card.bank} ${b.card.name}`])))
-  const monthOptions = Array.from(new Set(blocks.map(b => b.mk))).sort((a, z) => z.localeCompare(a))
+  const monthOptions = Array.from(new Map(blocks.map(b => [b.cycleStart, b.label]))).sort((a, z) => z[0].localeCompare(a[0]))
   const blockUnreconciled = (b: typeof blocks[number]) =>
     b.lines.some(l => !baseDone.has(l.txn.id)) || b.lumps.some(l => !bonusReconFor(l)?.reconciled)
   const visibleBlocks = blocks.filter(b =>
     (filterCard === 'all' || b.card.id === filterCard) &&
-    (filterMonth === 'all' || b.mk === filterMonth) &&
+    (filterMonth === 'all' || b.cycleStart === filterMonth) &&
     (filterStatus === 'all'
       || (filterStatus === 'unreconciled' && blockUnreconciled(b))
       || (filterStatus === 'mismatch' && b.lumps.some(lumpMismatch)))
@@ -288,7 +301,7 @@ export default function Reconcile() {
       ) : (
         <>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            <span className="text-gray-500">Base: {baseReconciled}/{totalTxns} reconciled</span>
+            <span className="text-gray-500">Base: {baseReconciled}/{totalTxns} reconciled · ≈ {fmtNum(totalBaseMi)} mi</span>
             <span className="text-gray-500">Bonus: {bonusReconciled}/{allLumps.length} lumps</span>
             {mismatches > 0 && <span className="text-red-600 inline-flex items-center gap-1"><AlertTriangle size={13} /> {mismatches} bonus mismatch</span>}
           </div>
@@ -301,7 +314,7 @@ export default function Reconcile() {
             </select>
             <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="input text-sm w-auto">
               <option value="all">All months</option>
-              {monthOptions.map(mk => <option key={mk} value={mk}>{fmtMonth(mk)}</option>)}
+              {monthOptions.map(([start, lbl]) => <option key={start} value={start}>{lbl}</option>)}
             </select>
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
               {(['all', 'unreconciled', 'mismatch'] as const).map(s => (
@@ -323,7 +336,7 @@ export default function Reconcile() {
             <div key={blk.key} className="card p-4 space-y-3">
               <div className="flex items-baseline justify-between gap-2">
                 <h2 className="font-semibold text-gray-900">{blk.card.bank} {blk.card.name}</h2>
-                <span className="text-xs text-gray-500">{fmtMonth(blk.mk)}</span>
+                <span className="text-xs text-gray-500">{blk.label}</span>
               </div>
 
               {/* Per-transaction: base (with tick) + bonus contribution */}
@@ -348,6 +361,18 @@ export default function Reconcile() {
                     </button>
                   </div>
                 ))}
+                {(() => {
+                  const baseMiTotal = blk.lines.reduce((s, l) => s + l.baseMi, 0)
+                  const basePtTotal = blk.prog ? baseMiTotal / blk.prog.miles_per_point : null
+                  return (
+                    <div className="flex items-center gap-2 pt-1.5 text-sm font-medium">
+                      <span className="flex-1 text-gray-500">Base total</span>
+                      <span className="w-20 text-right text-gray-800">{unitCol(basePtTotal, baseMiTotal, blk.prog?.unit_label ?? null)}</span>
+                      <span className="w-20" />
+                      <span className="w-7" />
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Accumulated bonus lump(s) — as shown on the statement */}
