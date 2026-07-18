@@ -643,3 +643,42 @@ Captures key architectural choices made during development — what was decided,
 **Why:** Aligning the test runner with the project's existing Vite major means a **single** esbuild version in the tree, so the lockfile is unambiguous across npm versions and `npm ci` is stable everywhere. Vitest 2's `describe/it/expect` API is identical for our tests — zero test changes, still 18/18 passing.
 
 **Trade-off:** We're a major behind on Vitest. Revisit only when the app itself upgrades to Vite 6/7 — at which point vitest and the app share the newer esbuild again and the constraint dissolves.
+
+---
+
+## 2026-07-05 — Points & credit reconciliation: experimental, admin-gated, indicative
+
+**Decision:** Build reward-points tracking and base/bonus credit reconciliation as **hidden, admin-gated** tabs (`MilesTabs` checks `ADMIN_EMAIL`) with **indicative** seeded data (per-program `miles_per_point`, per-card crediting rules), validated against real statements before any wider exposure.
+
+**Why:** These model bank-specific mechanics (UNI$/points currencies, base-vs-bonus, crediting schedules) that vary per card and aren't documented uniformly. Gating avoids shipping wrong numbers to other users while the model matures; keeping the data in shared library tables means one SQL edit corrects everyone once verified.
+
+**Notable sub-decisions:**
+- **`splitBaseBonus`** derives base/bonus from the *stored* `miles_earned` (base = block-rounded spend × base rate; bonus = remainder) — no cap re-allocation, always sums to the total.
+- **Aggregate rounding** (`bonus_rounding='aggregate'`, UOB): sum eligible spend (incl. cents) → floor once to the block → × per-$ rate, computed from resolved rates so sub-block charges still count. Summing per-transaction bonus loses cents and under-credits.
+- **Cap ceiling**: every bonus lump is clamped to `floor(capSpend/block)×block×rate` so it can't exceed the cap.
+- **Statement cycles**: statement-cycle cards bucket by `getPeriodStart/End`, not calendar month.
+- **Direct-credit cards** (`no_bonus_split`, e.g. KrisFlyer Visa): whole earned amount shown as base, no bonus lump.
+
+---
+
+## 2026-07-08 — Rate boost is effective-dated and resolved by transaction date
+
+**Decision:** The optional rate boost (e.g. Lady's Solitaire + Lady's Savings Account → 6 mpd) is stored as a **dated on/off log** (`user_card_boosts`), like category overrides, and resolved **per date** (`resolveBoost`) — threaded into `calcMiles`/`recommendCards` so a transaction earns the boost only if it was active on its own date, and into the reconcile bonus split per transaction (handling mid-cycle toggles).
+
+**Alternatives:** a single boolean flag (current-state only) — simpler, but wrong for periods where the boost was on/off, and can't reconcile past cycles. Rejected.
+
+**Trade-off:** already-logged transactions keep their stored miles (not recomputed) when history changes; the reconcile page surfaces the diff rather than rewriting rows.
+
+---
+
+## 2026-07-17 — Recurring rules materialise real future transactions
+
+**Decision:** Recurring charges are rules (repeat every N days/weeks/months/years, end on a date / after N) that **create real future transaction rows** (`recurring_id`) up to a ~12-month horizon, rather than projecting virtual occurrences or the old due→confirm prompts.
+
+**Why:** The user's goal is **realistic cap planning** — future charges must count toward the engine's period spending, which only happens if they're real rows. Real rows also make the Upcoming lists and edits straightforward.
+
+**Alternatives considered:**
+- Virtual projection (materialise on due) — clean data + correct miles, but future spend wouldn't count toward caps.
+- A `scheduled` status column — lets every total/cap/balance query opt in/out, but broad blast radius. Chose plain rows keyed by `date > today` = upcoming instead.
+
+**Trade-offs:** upcoming miles are estimates (computed at generation, not recomputed), and future rows also appear in month spend totals / future Miles Earned. Accepted as the cost of cap-planning realism. The due→confirm model and its Dashboard card were retired.

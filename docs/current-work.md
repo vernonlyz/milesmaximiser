@@ -99,7 +99,18 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-07-01  Add Vitest engine test suite (18 tests over recommendations.ts); error boundaries (ErrorBoundary)  [tag: v7.4-tests-hardening]
 2026-07-01  Add README and .env.example
 2026-07-03  Recurring modal: let the detail line wrap instead of truncating
-2026-07-03  Fix Cloudflare build — pin vitest to ^2 (vite 5) to resolve dual-esbuild lockfile drift
+2026-07-03  Fix Cloudflare build — pin vitest to ^2 (vite 5) to resolve dual-esbuild lockfile drift  [tag: v7.5-build-fix]
+2026-07-05  EXPERIMENTAL Points tracking (/points, admin-gated) — reward_programs + card_reward_program + points_accounts/adjustments (migration 035)
+2026-07-05  EXPERIMENTAL Credit reconciliation (/reconcile, admin-gated) — base/bonus split, credit rules, credit_reconciliations (migration 036); splitBaseBonus engine helper
+2026-07-05  Reconcile: base per transaction + accumulated bonus lump (migration 037); aggregate bonus rounding for UOB (migration 038)
+2026-07-08  Per-user rate boost — Lady's Savings → 6 mpd (migration 039); effective-dated (migration 040); threaded through engine; boost history editor
+2026-07-08  Reconcile: cap ceiling on bonus; split program bonus vs savings-boost lumps; split boost by per-transaction window
+2026-07-17  Reconcile: statement-cycle bucketing + base-point totals; direct-credit cards (KrisFlyer Visa) show full miles as base (migration 041)
+2026-07-17  Reconcile: card / month / status filters
+2026-07-17  Recurring rework — rules generate real future transactions (every N days/weeks/months/years, end date/count); Transactions Upcoming section (migration 042)
+2026-07-18  Add Insurance / Subscription / Health categories (migration 043); recategorise vendors (subscriptions, health, insurers)
+2026-07-19  Upcoming range presets (default next 1 month); show full month inline when a month is filtered
+2026-07-19  Dashboard: collapsible Upcoming (default expanded), next-5 preview + View-all→Transactions (opens all upcoming)
 ```
 
 ---
@@ -197,6 +208,22 @@ Everything listed below is in a working, committed state on `main`:
 - **Recurring modal truncation fix** — The per-row detail line (schedule · next-due · card · amount) had `truncate`, clamping it to one line and cutting off the card/amount. Removed `truncate` so it wraps; the label above keeps `truncate`.
 - **Cloudflare build fix (vitest ↔ vite 5)** — vitest 4 bundled vite 6/7, adding a second esbuild (0.28.1) tree that npm 10 (Cloudflare) and npm 11 (local) deduped differently, so `npm ci` failed with "Missing: esbuild@0.28.1 from lock file". Pinned **vitest to ^2** (vite-5 compatible) → a single esbuild (0.21.5) and a version-agnostic lockfile. Verified `npm ci` succeeds and 18/18 tests still pass.
 
+### Miles → Points & Reconcile (EXPERIMENTAL, admin-gated hidden tabs)
+The Miles section (`MilesTabs`) has two extra tabs — **Points** and **Reconcile** — rendered only for `ADMIN_EMAIL` (drop the check in `MilesTabs.tsx` to expose). Migrations 035–041.
+- **Reward points model** — `reward_programs` (bank currency: UNI$, DBS Points… with `miles_per_point`), `card_reward_program` (card → currency), `points_accounts` + `points_adjustments` (per-user). Seeded indicative rates + bank→program mapping (migration 035). **Points page**: per-program balance = opening + Σ(txn miles ÷ rate after snapshot) + adjustments, with a miles-equivalent grand total.
+- **splitBaseBonus** (engine) — decomposes a transaction's earned miles into base (all spend × base rate, block-rounded) + bonus (the rest); base + bonus === total. Unit-tested.
+- **Credit reconciliation** — per-card crediting rule on `card_library`: `base_timing`, `bonus_timing`, `bonus_by_category`, `bonus_rounding` (per_transaction | aggregate), `no_bonus_split` (migrations 036/038/041). `credit_reconciliations` (per-user, kind base|bonus|bonus_boost, cycle_month, category) + `transaction_point_recon` (per-transaction base tick; migration 037). **Reconcile page**: base reconciled per transaction; **accumulated bonus lump** per cycle (per category for split cards) with expected (points + miles), actual input, mismatch flag, reconcile tick, and a **cap ceiling** clamp. **UOB aggregate rounding**: sum eligible spend (incl. cents), floor once to the block, × per-$ rate — using rates (so sub-block charges count). **Statement-cycle bucketing** for `cap_cycle='statement'` cards via getPeriodStart/End. **Direct-credit cards** (KrisFlyer Visa, `no_bonus_split`) show full miles as base, no lumps. Card / month / status filters; base-point totals.
+- **Rate boost** — a card may define an optional boost (`card_library.boost_mpd` + `boost_label`); UOB Lady's Solitaire → 6 mpd with a Lady's Savings Account (migration 039). **Effective-dated** via `user_card_boosts` (dated on/off log; migration 040) — resolved per date by `resolveBoost`, threaded through `calcMiles`/`recommendCards` (so a transaction earns the boost only if it was active on its date) and the reconcile bonus split (per-transaction window handles mid-cycle toggles). Cards → Details has the boost checkbox with an effective-from date, confirm-on-end, and an editable boost history.
+
+### Recurring rework — real future transactions
+Recurring charges are now **rules** (on `transaction_favourites`: `recur_unit`/`recur_interval`/`start_date`/`end_date`/`max_occurrences`; migration 042) that **materialise real future transactions** (`transactions.recurring_id`), so they count toward caps for planning. Repeat every N days/weeks/months/years, ending never / on a date / after N occurrences. On save (and a rolling ~12-month top-up on load) occurrences are created with miles computed per date; editing a rule regenerates future occurrences; deleting removes future ones (past kept). The **due→confirm** model and its Dashboard card were retired; the Recurring manager is now a rule editor.
+- **Transactions Upcoming section** — collapsible, future-dated, with range presets (default next 1 month; 1M/3M/6M/All) + count/total. Selecting a specific month shows that whole month inline (past + future) and hides the separate Upcoming section.
+- **Dashboard Upcoming** — collapsible (default expanded), next-5 preview + "View all N upcoming →" that opens Transactions with the month filter cleared, Upcoming expanded, range = All.
+
+### Categories & vendors
+- **New categories** (migration 043 + seed): Insurance 🛡️ (013), Subscription 📺 (014), Health 🩺 (015) — base rate only.
+- **Vendor recategorisation** (`vendor_seed.sql`): streaming + Investing Note → Subscription; medical + Guardian/Watsons → Health; added SG insurers (AIA, Great Eastern, Prudential, Income, Singlife, FWD, Manulife, AXA, MSIG) under Insurance.
+
 ---
 
 ## Partially completed
@@ -222,6 +249,9 @@ The core recommendation, tracking, expense, trends, and utility features are now
    - Migration 032: `032_miles_goal_label.sql` (miles_goal_label on user_settings)
    - Migration 033: `033_recurring_favourites.sql` (recurrence/recur_day/next_due_date on transaction_favourites)
    - Migration 034: `034_transaction_reconciled.sql` (reconciled on transactions)
+   - Migrations 035–041 (EXPERIMENTAL Points/Reconcile/boost): `035_points_tracking`, `036_credit_reconciliation`, `037_transaction_point_recon`, `038_bonus_rounding`, `039_rate_boost`, `040_rate_boost_dated`, `041_no_bonus_split`
+   - Migration 042: `042_recurring_rules.sql` (recur fields on transaction_favourites; transactions.recurring_id) — required for the new recurring model
+   - Migration 043: `043_add_categories.sql` (Insurance / Subscription / Health); then re-run `vendor_seed.sql` for recategorisation
 2. **Dashboard "expiring miles" alert** — Surface the Miles Balance 6-month expiry warning on the home screen. (The cap "almost full" nudge is now done in CapUsageBar; surfacing expiring miles on the Dashboard remains.)
 3. **Annual fee-waiver tracker** — Most SG cards waive the fee at a yearly spend threshold; track spend-to-waiver per card. Needs new library data (fee + threshold per card).
 4. **Per-page Supabase error states** — `ErrorBoundary` covers render/chunk crashes; Cards/Recommend/Transactions still show silent empty states on query failure.

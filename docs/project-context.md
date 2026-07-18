@@ -29,6 +29,8 @@ Browser (React + Vite + TypeScript)
     │   ├─ Transactions   — Transaction log with filters, sort, inline miles/cashback; favourite (recurring) templates
     │   ├─ Miles          — Miles Balance: per-account opening snapshot, expiry warnings, pooling, redemption ledger (Balance tab)
     │   ├─ Earnings       — Miles Earned: per-card earnings by billing cycle, monthly + cumulative chart (Earned tab)
+    │   ├─ Points         — EXPERIMENTAL (admin-gated): bank reward-points balance per program (Points tab)
+    │   ├─ Reconcile      — EXPERIMENTAL (admin-gated): base/bonus credit reconciliation per cycle (Reconcile tab)
     │   ├─ Onboarding     — First-run card selection flow
     │   ├─ Login          — Auth entry point
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
@@ -43,20 +45,26 @@ Browser (React + Vite + TypeScript)
         └─ starterCards.ts     — Default card data for onboarding seed
 
 Supabase (Postgres + Auth + RLS)
-    ├─ card_library                   — Admin-managed list of SG credit cards (card_type, cashback_rate added)
+    ├─ card_library                   — Admin-managed SG cards (card_type, cashback_rate; credit rules: base_timing/bonus_timing/bonus_by_category/bonus_rounding/no_bonus_split; boost_mpd/boost_label) (migrations 036/038/039/041)
     ├─ library_rates                  — Bonus MPD per (card, category, effective_from)
     ├─ library_caps                   — Spending caps per (card, category, period, effective_from, cap_group)
     ├─ library_cashback_rates         — Per-category cashback rate overrides (e.g. Citi 8% dining)
     ├─ library_selectable_categories  — Valid bonus-category choices per selectable card
     ├─ user_card_selections           — Per-user wallet (join table)
     ├─ user_category_overrides        — Per-user chosen bonus category for selectable cards
-    ├─ transactions                   — Per-user transaction log (miles + cashback fields; vendor_name, mcc, payment_channel, personal_amount, reconciled)
-    ├─ transaction_favourites         — Per-user saved transaction templates; optional monthly recurrence (migrations 029, 033)
+    ├─ transactions                   — Per-user transaction log (…, reconciled, recurring_id → rule; future-dated rows are recurring occurrences) (migration 042)
+    ├─ transaction_favourites         — Saved templates + recurring RULES (recur_unit/recur_interval/start_date/end_date/max_occurrences) (migrations 029, 033, 042)
+    ├─ user_card_boosts               — Per-user effective-dated rate-boost on/off log (migration 040)
+    ├─ reward_programs                — EXPERIMENTAL: bank reward currency + miles_per_point (migration 035)
+    ├─ card_reward_program            — EXPERIMENTAL: card → reward currency (migration 035)
+    ├─ points_accounts / points_adjustments — EXPERIMENTAL: per-user points balance + ledger (migration 035)
+    ├─ credit_reconciliations         — EXPERIMENTAL: per-cycle base/bonus/bonus_boost reconciliation (migrations 036)
+    ├─ transaction_point_recon        — EXPERIMENTAL: per-transaction base reconciled flag (migration 037)
     ├─ miles_accounts                 — Per-user miles balance owner: opening snapshot + as-of date + expiry (migration 028)
     ├─ miles_account_cards            — Links cards to a miles account (a card belongs to one; pooling) (migration 028)
     ├─ miles_adjustments              — Dated ledger of redemptions (negative) and bonuses (positive) per account (migration 028)
     ├─ user_settings                  — Per-user singleton: cumulative miles_goal + miles_goal_label (migrations 031–032)
-    ├─ categories                     — Shared lookup table (ids 001–012)
+    ├─ categories                     — Shared lookup table (ids 001–015; +Insurance/Subscription/Health, migration 043)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
@@ -145,7 +153,11 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [supabase/migrations/032_miles_goal_label.sql](../supabase/migrations/032_miles_goal_label.sql) | Adds miles_goal_label to user_settings (e.g. "SQ Suites to JFK") |
 | [supabase/migrations/033_recurring_favourites.sql](../supabase/migrations/033_recurring_favourites.sql) | Adds recurrence/recur_day/next_due_date to transaction_favourites (monthly recurring charges) |
 | [supabase/migrations/034_transaction_reconciled.sql](../supabase/migrations/034_transaction_reconciled.sql) | Adds reconciled BOOLEAN to transactions (bank-statement reconciliation) |
+| supabase/migrations/035–041 | EXPERIMENTAL Points/Reconcile/rate-boost: reward programs & points ledgers (035), credit rules + credit_reconciliations (036), transaction_point_recon (037), bonus_rounding (038), rate boost + effective-dating (039–040), no_bonus_split (041) |
+| [supabase/migrations/042_recurring_rules.sql](../supabase/migrations/042_recurring_rules.sql) | Recurring rules (recur fields on transaction_favourites; transactions.recurring_id) — real future transactions |
+| [supabase/migrations/043_add_categories.sql](../supabase/migrations/043_add_categories.sql) | Adds Insurance / Subscription / Health categories |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
+| [supabase/vendor_seed.sql](../supabase/vendor_seed.sql) | Vendor → default category/MCC (re-run after 043 for subscription/health/insurer recategorisation) |
 
 ---
 
@@ -256,6 +268,12 @@ The app is a functional MVP. All core features are implemented:
 | Vitest engine test suite — 18 tests over recommendations.ts (`npm test`); test files excluded from prod build | Complete |
 | Error boundaries — ErrorBoundary around Layout Outlet (keyed by route) + app root; catches render crashes + lazy-chunk load failures | Complete |
 | README + .env.example — onboarding docs and documented env vars | Complete |
+| Recurring rules → real future transactions (every N units, end date/count); Transactions Upcoming section w/ range presets | Complete |
+| Dashboard collapsible Upcoming (preview + View-all → Transactions) | Complete |
+| New categories: Insurance / Subscription / Health; vendor recategorisation | Complete |
+| EXPERIMENTAL (admin-gated) Points tab — reward-points balance per program | Experimental |
+| EXPERIMENTAL (admin-gated) Reconcile tab — base/bonus credit reconciliation, cap ceilings, aggregate rounding, statement cycles | Experimental |
+| EXPERIMENTAL rate boost (Lady's Savings → 6 mpd), effective-dated + engine-threaded | Experimental |
 
 **Card library (23 cards):**
 
@@ -317,5 +335,7 @@ The app is a functional MVP. All core features are implemented:
 - **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
 - **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
-- **Manual migrations** — Migrations 027–034 (miles accounts, favourites + recurrence, miles goal + label, transaction reconciled) must be run in the Supabase SQL Editor; there is no automated migration runner. Recurring charges need 033 and reconciliation needs 034.
+- **Manual migrations** — Migrations 027–043 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`).
+- **Experimental Miles tabs** — The **Points** (`/points`) and **Reconcile** (`/reconcile`) tabs are admin-gated in `MilesTabs.tsx` (`user.email === ADMIN_EMAIL`) and not shown to other users. Their seeded reward-program rates and card crediting rules are indicative — verify against real statements. Drop the gate to expose.
+- **Recurring generates real rows** — Recurring rules pre-create real future transactions (miles computed at generation, not recomputed later), so they count toward caps and also appear in month spend totals / future Miles Earned. Intentional (for cap planning); the estimates can drift if later spend fills a cap first.
 - **Dates are local (SGT)** — All date-boundary math uses `isoDate()` (local `YYYY-MM-DD`, never `toISOString()`) and string comparisons. New date logic must follow this — mixing `new Date('YYYY-MM-DD')` (UTC) with local Date bounds previously dropped end-of-month transactions in SGT.
