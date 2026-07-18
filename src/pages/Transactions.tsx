@@ -93,6 +93,7 @@ export default function Transactions() {
   const [upcoming, setUpcoming] = useState<Transaction[]>([])
   const [recurringOpen, setRecurringOpen] = useState(false)
   const [upcomingCollapsed, setUpcomingCollapsed] = useState(() => localStorage.getItem('txnUpcomingCollapsed') === '1')
+  const [upcomingRange, setUpcomingRange] = useState<'1m' | '3m' | '6m' | 'all'>(() => (localStorage.getItem('txnUpcomingRange') as '1m' | '3m' | '6m' | 'all') || '1m')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const todayStr = new Date().toLocaleDateString('en-CA')
@@ -667,10 +668,18 @@ export default function Transactions() {
 
   // Split future-dated (upcoming) from the main list so it isn't cluttered.
   const pastFiltered = useMemo(() => filtered.filter(t => t.transaction_date <= todayStr), [filtered, todayStr])
-  const upcomingShown = useMemo(
+  const upcomingForCard = useMemo(
     () => (filterCard ? upcoming.filter(t => t.card_id === filterCard) : upcoming),
     [upcoming, filterCard]
   )
+  // Apply the range window (default next 1 month) on top of the card filter.
+  const upcomingShown = useMemo(() => {
+    if (upcomingRange === 'all') return upcomingForCard
+    const months = upcomingRange === '1m' ? 1 : upcomingRange === '3m' ? 3 : 6
+    const end = addUnit(todayStr, 'month', months)
+    return upcomingForCard.filter(t => t.transaction_date <= end)
+  }, [upcomingForCard, upcomingRange, todayStr])
+  const upcomingTotal = upcomingShown.reduce((s, t) => s + t.amount, 0)
   const totalMiles = pastFiltered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = pastFiltered.reduce((s, t) => s + t.amount, 0)
 
@@ -916,7 +925,7 @@ export default function Transactions() {
       )}
 
       {/* Upcoming (future-dated) — collapsible so the log isn't cluttered */}
-      {upcomingShown.length > 0 && (
+      {upcomingForCard.length > 0 && (
         <div className="card overflow-hidden">
           <button
             onClick={() => setUpcomingCollapsed(v => { const n = !v; localStorage.setItem('txnUpcomingCollapsed', n ? '1' : '0'); return n })}
@@ -924,12 +933,30 @@ export default function Transactions() {
           >
             <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
               <Repeat size={14} className="text-indigo-500" /> Upcoming
-              <span className="bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 rounded-full">{upcomingShown.length}</span>
+              <span className="bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 rounded-full">{upcomingForCard.length}</span>
             </span>
             <ChevronDown size={16} className={`text-gray-400 transition-transform ${upcomingCollapsed ? '-rotate-90' : ''}`} />
           </button>
           {!upcomingCollapsed && (
-            <div className="divide-y divide-gray-50 border-t border-gray-100">
+            <div className="border-t border-gray-100">
+              {/* Range presets + summary */}
+              <div className="flex items-center gap-2 px-4 py-2 flex-wrap">
+                <span className="text-xs text-gray-500">Next</span>
+                {(['1m', '3m', '6m', 'all'] as const).map(r => (
+                  <button key={r}
+                    onClick={() => { setUpcomingRange(r); localStorage.setItem('txnUpcomingRange', r) }}
+                    className={`text-xs px-2 py-1 rounded ${upcomingRange === r ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {r === 'all' ? 'All' : r === '1m' ? '1 month' : r === '3m' ? '3 months' : '6 months'}
+                  </button>
+                ))}
+                <span className="ml-auto text-xs text-gray-500">{upcomingShown.length} · S${upcomingTotal.toFixed(2)}</span>
+              </div>
+              {upcomingShown.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-gray-500 text-center border-t border-gray-50">
+                  Nothing in this range — {upcomingForCard.length} further out. Try a wider range.
+                </p>
+              ) : (
+              <div className="divide-y divide-gray-50 border-t border-gray-50">
               {upcomingShown.map(t => {
                 const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
                 const cat = categories.find(c => c.id === t.category_id)
@@ -950,6 +977,8 @@ export default function Transactions() {
                   </div>
                 )
               })}
+              </div>
+              )}
             </div>
           )}
         </div>
