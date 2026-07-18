@@ -146,9 +146,9 @@ export default function Transactions() {
   const [sortBy, setSortBy] = useState<SortCol>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  // Handle navigation intents: open the add modal, or reveal all upcoming.
+  // Handle navigation intents: open the add modal, reveal all upcoming, or filter to a card.
   useEffect(() => {
-    const st = location.state as { openModal?: boolean; showUpcoming?: 'all' } | null
+    const st = location.state as { openModal?: boolean; showUpcoming?: 'all'; filterCardId?: string } | null
     if (st?.openModal) {
       openAdd()
       window.history.replaceState({}, '')
@@ -156,6 +156,9 @@ export default function Transactions() {
       setFilterMonthNum('')   // clear the current-month filter so Upcoming isn't hidden
       setUpcomingRange('all')
       setUpcomingCollapsed(false)
+      window.history.replaceState({}, '')
+    } else if (st?.filterCardId) {
+      setFilterCard(st.filterCardId)   // keeps the default current-month filter
       window.history.replaceState({}, '')
     }
   }, [])

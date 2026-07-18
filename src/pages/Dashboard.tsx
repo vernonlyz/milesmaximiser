@@ -458,23 +458,28 @@ export default function Dashboard() {
             <div className="space-y-5">
               {visibleSummaries.map(({ card, capRows, spendRows, monthlySpent, monthlyMiles }) => (
                 <div key={card.id}>
-                  {/* Card name row */}
-                  <div className="flex items-center gap-2 mb-2">
+                  {/* Card name row — click to view this card's transactions (this month) */}
+                  <button
+                    onClick={() => navigate('/transactions', { state: { filterCardId: card.id } })}
+                    className="group flex items-center gap-2 mb-2 w-full text-left"
+                    title="View this card's transactions"
+                  >
                     <div
                       className="w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold shrink-0"
                       style={{ backgroundColor: card.color }}
                     >
                       {card.bank.slice(0, 2).toUpperCase()}
                     </div>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-600 transition-colors">
                       {card.bank} {card.name}
                     </span>
+                    <ChevronRight size={13} className="text-gray-300 group-hover:text-indigo-400 shrink-0" />
                     <span className="ml-auto text-xs text-gray-500 shrink-0">
                       {card.cap_cycle === 'statement' && statementDays.has(card.id)
                         ? `Stmt day ${statementDays.get(card.id)}`
                         : 'Calendar Mth'}
                     </span>
-                  </div>
+                  </button>
                   <div className="pl-7 space-y-3">
                     {/* Cap bars for capped categories */}
                     {capRows.map(row => (
