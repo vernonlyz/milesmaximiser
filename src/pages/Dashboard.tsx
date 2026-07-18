@@ -29,8 +29,7 @@ export default function Dashboard() {
   // Collapsible Dashboard sections (persisted)
   const [walletCollapsed, setWalletCollapsed] = useState(() => localStorage.getItem('dashWalletCollapsed') === '1')
   const [recentCollapsed, setRecentCollapsed] = useState(() => localStorage.getItem('dashRecentCollapsed') === '1')
-  // Upcoming defaults to collapsed (recurring rules can generate many future rows).
-  const [upcomingCollapsed, setUpcomingCollapsed] = useState(() => localStorage.getItem('dashUpcomingCollapsed') !== '0')
+  const [upcomingCollapsed, setUpcomingCollapsed] = useState(() => localStorage.getItem('dashUpcomingCollapsed') === '1')
   function toggleWallet() { setWalletCollapsed(c => { localStorage.setItem('dashWalletCollapsed', c ? '0' : '1'); return !c }) }
   function toggleRecent() { setRecentCollapsed(c => { localStorage.setItem('dashRecentCollapsed', c ? '0' : '1'); return !c }) }
   function toggleUpcoming() { setUpcomingCollapsed(c => { localStorage.setItem('dashUpcomingCollapsed', c ? '0' : '1'); return !c }) }
@@ -253,7 +252,6 @@ export default function Dashboard() {
     .filter(t => t.transaction_date > todayStr)
     .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date))
   const recent = transactions.filter(t => t.transaction_date <= todayStr).slice(0, 8)
-  const upcomingTotal = upcoming.reduce((s, t) => s + t.amount, 0)
   const upcomingPreview = upcoming.slice(0, 5)
   const upLabel = (t: Transaction) => t.vendor_name || categories.find(c => c.id === t.category_id)?.name || 'Transaction'
   const fmtShortDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })
@@ -585,7 +583,6 @@ export default function Dashboard() {
                   <button onClick={toggleUpcoming} className="w-full flex items-center gap-1.5 text-left">
                     <CalendarClock size={12} className="text-indigo-600" />
                     <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">Upcoming ({upcoming.length})</span>
-                    <span className="text-xs text-gray-400">· S${upcomingTotal.toFixed(2)}</span>
                     <span className="ml-auto text-gray-300">{upcomingCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</span>
                   </button>
                   {upcomingCollapsed ? (
