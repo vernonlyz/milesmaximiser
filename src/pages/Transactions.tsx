@@ -666,8 +666,13 @@ export default function Transactions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseFiltered, reconcileFilter, reconOverrides, sortBy, sortDir])
 
-  // Split future-dated (upcoming) from the main list so it isn't cluttered.
-  const pastFiltered = useMemo(() => filtered.filter(t => t.transaction_date <= todayStr), [filtered, todayStr])
+  // Split future-dated (upcoming) from the main list so it isn't cluttered — but
+  // when a specific month is selected, show the whole month inline (past + future).
+  const monthFilterActive = !!filterMonthNum
+  const pastFiltered = useMemo(
+    () => (monthFilterActive ? filtered : filtered.filter(t => t.transaction_date <= todayStr)),
+    [filtered, todayStr, monthFilterActive]
+  )
   const upcomingForCard = useMemo(
     () => (filterCard ? upcoming.filter(t => t.card_id === filterCard) : upcoming),
     [upcoming, filterCard]
@@ -924,8 +929,9 @@ export default function Transactions() {
         </div>
       )}
 
-      {/* Upcoming (future-dated) — collapsible so the log isn't cluttered */}
-      {upcomingForCard.length > 0 && (
+      {/* Upcoming (future-dated) — collapsible so the log isn't cluttered.
+          Hidden when a month is selected, since that month shows future inline. */}
+      {!monthFilterActive && upcomingForCard.length > 0 && (
         <div className="card overflow-hidden">
           <button
             onClick={() => setUpcomingCollapsed(v => { const n = !v; localStorage.setItem('txnUpcomingCollapsed', n ? '1' : '0'); return n })}
