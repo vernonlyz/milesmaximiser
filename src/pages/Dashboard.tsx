@@ -593,7 +593,7 @@ export default function Dashboard() {
                     <>
                       {upcomingPreview.map(txnRow)}
                       {upcoming.length > upcomingPreview.length && (
-                        <Link to="/transactions" className="text-xs text-indigo-600 hover:underline pl-1 inline-block">
+                        <Link to="/transactions" state={{ showUpcoming: 'all' }} className="text-xs text-indigo-600 hover:underline pl-1 inline-block">
                           View all {upcoming.length} upcoming →
                         </Link>
                       )}

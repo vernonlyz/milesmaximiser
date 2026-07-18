@@ -141,11 +141,15 @@ export default function Transactions() {
   const [sortBy, setSortBy] = useState<SortCol>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  // Auto-open the add modal when navigated here with { openModal: true }.
+  // Handle navigation intents: open the add modal, or reveal all upcoming.
   useEffect(() => {
-    const st = location.state as { openModal?: boolean } | null
+    const st = location.state as { openModal?: boolean; showUpcoming?: 'all' } | null
     if (st?.openModal) {
       openAdd()
+      window.history.replaceState({}, '')
+    } else if (st?.showUpcoming === 'all') {
+      setUpcomingRange('all')
+      setUpcomingCollapsed(false)
       window.history.replaceState({}, '')
     }
   }, [])
