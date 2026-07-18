@@ -14,6 +14,48 @@ import { recommendCards, calcMiles } from '../lib/recommendations'
 import { isoDate, exportCsv, getPeriodEnd } from '../lib/utils'
 import { TransactionFormData, CardRecommendation, Transaction, Vendor, TransactionFavourite } from '../lib/types'
 
+type RecurUnit = 'day' | 'week' | 'month' | 'year'
+const RECUR_UNITS: RecurUnit[] = ['day', 'week', 'month', 'year']
+
+// Add N units to a YYYY-MM-DD date (local), returning YYYY-MM-DD.
+function addUnit(dateStr: string, unit: RecurUnit, n: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  if (unit === 'day') dt.setDate(dt.getDate() + n)
+  else if (unit === 'week') dt.setDate(dt.getDate() + 7 * n)
+  else if (unit === 'month') dt.setMonth(dt.getMonth() + n)
+  else dt.setFullYear(dt.getFullYear() + n)
+  const p = (x: number) => String(x).padStart(2, '0')
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`
+}
+
+// Occurrence dates of a recurring rule that fall on/after `todayStr` and within the
+// horizon, honoring end_date / max_occurrences (counted from start_date).
+function futureOccurrences(fav: TransactionFavourite, todayStr: string, horizonStr: string): string[] {
+  if (!fav.recur_unit || !fav.start_date) return []
+  const interval = Math.max(1, fav.recur_interval || 1)
+  const out: string[] = []
+  let cur = fav.start_date
+  let count = 0
+  while (count <= 600) {
+    if (fav.max_occurrences != null && count >= fav.max_occurrences) break
+    if (fav.end_date && cur > fav.end_date) break
+    if (cur > horizonStr) break
+    if (cur >= todayStr) out.push(cur)
+    count++
+    cur = addUnit(cur, fav.recur_unit, interval)
+  }
+  return out
+}
+
+function recurLabel(f: TransactionFavourite): string {
+  if (!f.recur_unit) return ''
+  const n = f.recur_interval || 1
+  const every = n === 1 ? `every ${f.recur_unit}` : `every ${n} ${f.recur_unit}s`
+  const end = f.end_date ? ` · until ${f.end_date}` : f.max_occurrences != null ? ` · ${f.max_occurrences}×` : ''
+  return every + end
+}
+
 const EMPTY_FORM: TransactionFormData = {
   card_id: '',
   category_id: '',
@@ -38,12 +80,22 @@ export default function Transactions() {
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
   const [favNameOpen, setFavNameOpen] = useState(false)
   const [favNameInput, setFavNameInput] = useState('')
+  const [editingFavId, setEditingFavId] = useState<string | null>(null)   // editing an existing rule
+  // Recurring rule editor
   const [favRecur, setFavRecur] = useState(false)
-  const [favRecurDay, setFavRecurDay] = useState('1')
-  const [pendingRecurringId, setPendingRecurringId] = useState<string | null>(null)
+  const [recurUnit, setRecurUnit] = useState<RecurUnit>('month')
+  const [recurInterval, setRecurInterval] = useState('1')
+  const [recurStart, setRecurStart] = useState('')
+  const [recurEndMode, setRecurEndMode] = useState<'never' | 'date' | 'count'>('never')
+  const [recurEndDate, setRecurEndDate] = useState('')
+  const [recurCount, setRecurCount] = useState('12')
+  const [favAmount, setFavAmount] = useState('')          // rule amount (editable in the modal)
+  const [upcoming, setUpcoming] = useState<Transaction[]>([])
   const [recurringOpen, setRecurringOpen] = useState(false)
+  const [upcomingCollapsed, setUpcomingCollapsed] = useState(() => localStorage.getItem('txnUpcomingCollapsed') === '1')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const todayStr = new Date().toLocaleDateString('en-CA')
 
   // Vendor / MCC state
   const [vendorName, setVendorName] = useState('')
@@ -88,20 +140,10 @@ export default function Transactions() {
   const [sortBy, setSortBy] = useState<SortCol>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  // Auto-open the add modal when navigated here. Plain { openModal: true } opens a
-  // blank form; a recurring confirm passes the favourite + due date to prefill.
+  // Auto-open the add modal when navigated here with { openModal: true }.
   useEffect(() => {
-    const st = location.state as {
-      openModal?: boolean; favourite?: TransactionFavourite; dueDate?: string; recurringFavId?: string
-    } | null
-    if (st?.favourite) {
-      resetModal()
-      applyFavourite(st.favourite)
-      if (st.dueDate) setForm(f => ({ ...f, transaction_date: st.dueDate! }))
-      setPendingRecurringId(st.recurringFavId ?? null)
-      setShowModal(true)
-      window.history.replaceState({}, '')
-    } else if (st?.openModal) {
+    const st = location.state as { openModal?: boolean } | null
+    if (st?.openModal) {
       openAdd()
       window.history.replaceState({}, '')
     }
@@ -227,7 +269,6 @@ export default function Transactions() {
     setSplitCustom('')
     setSplitInfoOpen(false)
     setError(null)
-    setPendingRecurringId(null)
   }
 
   function openAdd() {
@@ -359,10 +400,6 @@ export default function Transactions() {
     setShowModal(false)
     toast(editingId ? 'Transaction updated' : 'Transaction saved')
     refreshTransactions()
-    if (pendingRecurringId && !editingId) {
-      await advanceRecurring(pendingRecurringId)
-      setPendingRecurringId(null)
-    }
   }
 
   async function confirmDeleteTransaction() {
@@ -395,7 +432,20 @@ export default function Transactions() {
   }
 
   // ---- favourites (saved transaction templates) ----
-  useEffect(() => { loadFavourites() }, [])
+  useEffect(() => { loadFavourites(); loadUpcoming() }, [])
+
+  // Rolling top-up: keep each recurring rule's occurrences generated up to the
+  // horizon as time passes (idempotent — skips dates that already exist).
+  useEffect(() => {
+    if (!favourites.length || !cards.length) return
+    ;(async () => {
+      const rules = favourites.filter(f => f.recur_unit != null)
+      if (!rules.length) return
+      for (const f of rules) await generateForFav(f)
+      loadUpcoming(); refreshTransactions()
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [favourites.length, cards.length])
 
   async function loadFavourites() {
     const { data } = await supabase
@@ -432,92 +482,152 @@ export default function Transactions() {
     return vendorName.trim() || categories.find(c => c.id === form.category_id)?.name || 'Favourite'
   }
 
+  function resetRecurEditor() {
+    setFavRecur(false)
+    setRecurUnit('month'); setRecurInterval('1')
+    setRecurStart(todayStr)
+    setRecurEndMode('never'); setRecurEndDate(''); setRecurCount('12')
+  }
+
   function openSaveFavourite() {
     if (!form.card_id && !vendorName.trim()) {
       setError('Pick a card or vendor before saving a favourite.')
       return
     }
+    setEditingFavId(null)
     setFavNameInput(favouriteFallbackName())
-    setFavRecur(false)
-    setFavRecurDay(String(Math.min(new Date().getDate(), 28)))
+    setFavAmount(form.amount || '')
+    resetRecurEditor()
     setFavNameOpen(true)
+  }
+
+  // Edit an existing recurring rule (label / amount / schedule); card & category stay.
+  function openEditRule(f: TransactionFavourite) {
+    setRecurringOpen(false)
+    setEditingFavId(f.id)
+    setFavNameInput(f.label)
+    setFavAmount(f.amount != null ? String(f.amount) : '')
+    setFavRecur(!!f.recur_unit)
+    setRecurUnit((f.recur_unit as RecurUnit) ?? 'month')
+    setRecurInterval(String(f.recur_interval || 1))
+    setRecurStart(f.start_date ?? todayStr)
+    setRecurEndMode(f.end_date ? 'date' : f.max_occurrences != null ? 'count' : 'never')
+    setRecurEndDate(f.end_date ?? '')
+    setRecurCount(String(f.max_occurrences ?? 12))
+    setFavNameOpen(true)
+  }
+
+  // Compute the earn fields for a generated occurrence, mirroring handleSave.
+  function computeEarn(card: typeof cards[number], categoryId: string, amount: number, dateStr: string, channel: typeof paymentChannel) {
+    if (card.card_type === 'cashback') {
+      const override = cashbackRates.find(r => r.card_id === card.id && r.category_id === categoryId)
+      const rate = override?.cashback_rate ?? card.cashback_rate ?? 0
+      return { computed_mpd: null, manual_mpd: null, override_note: null, effective_mpd: null, miles_earned: null, cashback_earned: parseFloat((amount * rate).toFixed(4)) }
+    }
+    if (card.card_type === 'miles') {
+      const { effectiveMpd } = calcMiles(card, rates, caps, categoryId, amount, transactions, new Date(dateStr), overrides, channel, statementDays, boosts)
+      return { computed_mpd: parseFloat(effectiveMpd.toFixed(4)), manual_mpd: null, override_note: null, effective_mpd: parseFloat(effectiveMpd.toFixed(4)), miles_earned: Math.round(amount * effectiveMpd), cashback_earned: null }
+    }
+    return { computed_mpd: null, manual_mpd: null, override_note: null, effective_mpd: null, miles_earned: null, cashback_earned: null }
+  }
+
+  // Create the rule's upcoming occurrences (skipping any that already exist).
+  async function generateForFav(fav: TransactionFavourite) {
+    if (!fav.recur_unit || !fav.card_id || !fav.category_id || fav.amount == null) return
+    const card = cards.find(c => c.id === fav.card_id) ?? allCards.find(c => c.id === fav.card_id)
+    if (!card) return
+    const horizonStr = addUnit(todayStr, 'year', 1)
+    const occ = futureOccurrences(fav, todayStr, horizonStr)
+    if (!occ.length) return
+    const { data: existing } = await supabase.from('transactions').select('transaction_date').eq('recurring_id', fav.id)
+    const have = new Set((existing ?? []).map((r: { transaction_date: string }) => r.transaction_date))
+    const rows = occ.filter(d => !have.has(d)).map(d => ({
+      user_id: user!.id,
+      card_id: fav.card_id, category_id: fav.category_id,
+      amount: fav.amount, description: fav.description, vendor_name: fav.vendor_name,
+      mcc: fav.mcc, payment_channel: fav.payment_channel, transaction_date: d,
+      ...computeEarn(card, fav.category_id!, fav.amount!, d, fav.payment_channel),
+      personal_amount: null, reconciled: false, recurring_id: fav.id,
+    }))
+    if (rows.length) await supabase.from('transactions').insert(rows)
+  }
+
+  async function loadUpcoming() {
+    if (!user) return
+    const { data } = await supabase.from('transactions').select('*')
+      .eq('user_id', user.id).gt('transaction_date', todayStr).order('transaction_date')
+    setUpcoming((data as Transaction[]) ?? [])
   }
 
   async function submitFavourite() {
     const label = favNameInput.trim() || favouriteFallbackName()
-    const day = favRecur ? Math.min(Math.max(parseInt(favRecurDay) || 1, 1), 28) : null
-    const { error: e } = await supabase.from('transaction_favourites').insert({
-      user_id: user!.id,
-      label,
-      card_id: form.card_id || null,
-      category_id: form.category_id || null,
-      vendor_name: vendorName.trim() || null,
-      mcc: mcc.trim() || null,
-      payment_channel: paymentChannel,
-      amount: form.amount ? parseFloat(form.amount) : null,
-      description: form.description || null,
-      recurrence: favRecur ? 'monthly' : null,
-      recur_day: day,
-      next_due_date: favRecur && day != null ? monthlyDueFrom(day) : null,
-    })
-    if (e) { setError(e.message); return }
+    const amt = favAmount ? parseFloat(favAmount) : null
+    if (favRecur && (!form.category_id || amt == null || amt <= 0) && !editingFavId) {
+      setError('Recurring charges need a category and amount.'); return
+    }
+    const interval = Math.max(1, parseInt(recurInterval) || 1)
+    const recurFields = favRecur ? {
+      recur_unit: recurUnit,
+      recur_interval: interval,
+      start_date: recurStart || todayStr,
+      end_date: recurEndMode === 'date' ? (recurEndDate || null) : null,
+      max_occurrences: recurEndMode === 'count' ? Math.max(1, parseInt(recurCount) || 1) : null,
+      recurrence: null as null, recur_day: null as number | null, next_due_date: null as string | null,
+    } : { recur_unit: null, recur_interval: 1, start_date: null, end_date: null, max_occurrences: null, recurrence: null, recur_day: null, next_due_date: null }
+
+    if (editingFavId) {
+      // Edit an existing rule: update fields, then regenerate FUTURE occurrences.
+      const { data, error: e } = await supabase.from('transaction_favourites')
+        .update({ label, amount: amt, ...recurFields }).eq('id', editingFavId).select().single()
+      if (e) { setError(e.message); return }
+      await supabase.from('transactions').delete().eq('recurring_id', editingFavId).gt('transaction_date', todayStr)
+      await generateForFav(data as TransactionFavourite)
+      toast('Recurring updated · future occurrences regenerated')
+    } else {
+      const { data, error: e } = await supabase.from('transaction_favourites').insert({
+        user_id: user!.id, label,
+        card_id: form.card_id || null, category_id: form.category_id || null,
+        vendor_name: vendorName.trim() || null, mcc: mcc.trim() || null,
+        payment_channel: paymentChannel, amount: amt, description: form.description || null,
+        ...recurFields,
+      }).select().single()
+      if (e) { setError(e.message); return }
+      if (favRecur) await generateForFav(data as TransactionFavourite)
+      toast(favRecur ? 'Recurring created' : 'Favourite saved')
+    }
     setFavNameOpen(false)
-    toast(favRecur ? 'Recurring favourite saved' : 'Favourite saved')
+    setEditingFavId(null)
     loadFavourites()
+    loadUpcoming()
+    refreshTransactions()
   }
 
-  // ---- recurring helpers ----
-  // Next occurrence of `day` (1-28): this month if not yet passed, else next month.
-  function monthlyDueFrom(day: number, from = new Date()): string {
-    const d = Math.min(Math.max(day, 1), 28)
-    const base = from.getDate() <= d
-      ? new Date(from.getFullYear(), from.getMonth(), d)
-      : new Date(from.getFullYear(), from.getMonth() + 1, d)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}`
-  }
-
-  // Roll a due date forward one month (day preserved; recur_day is always <= 28).
-  function addMonthDue(dateStr: string): string {
-    const [y, m, dd] = dateStr.split('-').map(Number)
-    const next = new Date(y, m, dd) // m is 1-based, so index m = next month
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`
-  }
-
-  // All recurring rules, soonest-due first
+  // All recurring rules
   const recurringFavs = favourites
-    .filter(f => f.recurrence === 'monthly')
-    .sort((a, b) => (a.next_due_date ?? '').localeCompare(b.next_due_date ?? ''))
-
-  // Open the log form prefilled from a recurring rule (advances next_due on save)
-  function logRecurringNow(f: TransactionFavourite) {
-    setRecurringOpen(false)
-    applyFavourite(f)
-    if (f.next_due_date) setForm(prev => ({ ...prev, transaction_date: f.next_due_date! }))
-    setPendingRecurringId(f.id)
-    setShowModal(true)
-  }
+    .filter(f => f.recur_unit != null)
+    .sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
 
   function fmtDate(s: string) {
     return new Date(s + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
-  async function advanceRecurring(favId: string) {
-    const fav = favourites.find(f => f.id === favId)
-    if (!fav?.next_due_date) return
-    await supabase.from('transaction_favourites')
-      .update({ next_due_date: addMonthDue(fav.next_due_date) })
-      .eq('id', favId)
-    loadFavourites()
+  // Delete a rule and its upcoming (future-dated) occurrences; past ones are kept.
+  async function deleteRuleAndFuture(favId: string) {
+    await supabase.from('transactions').delete().eq('recurring_id', favId).gt('transaction_date', todayStr)
+    await supabase.from('transaction_favourites').delete().eq('id', favId)
+    loadFavourites(); loadUpcoming(); refreshTransactions()
   }
 
   async function confirmDeleteFavourite() {
     if (!favToDelete) return
-    await supabase.from('transaction_favourites').delete().eq('id', favToDelete.id)
-    setFavourites(prev => prev.filter(x => x.id !== favToDelete.id))
+    if (favToDelete.recur_unit) {
+      await deleteRuleAndFuture(favToDelete.id)   // also removes upcoming occurrences
+    } else {
+      await supabase.from('transaction_favourites').delete().eq('id', favToDelete.id)
+      setFavourites(prev => prev.filter(x => x.id !== favToDelete.id))
+    }
     setFavToDelete(null)
-    toast('Favourite removed')
+    toast('Removed')
   }
 
   // Active transaction pool — current year from AppContext, previous years from Supabase
@@ -555,8 +665,14 @@ export default function Transactions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseFiltered, reconcileFilter, reconOverrides, sortBy, sortDir])
 
-  const totalMiles = filtered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
-  const totalSpent = filtered.reduce((s, t) => s + t.amount, 0)
+  // Split future-dated (upcoming) from the main list so it isn't cluttered.
+  const pastFiltered = useMemo(() => filtered.filter(t => t.transaction_date <= todayStr), [filtered, todayStr])
+  const upcomingShown = useMemo(
+    () => (filterCard ? upcoming.filter(t => t.card_id === filterCard) : upcoming),
+    [upcoming, filterCard]
+  )
+  const totalMiles = pastFiltered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
+  const totalSpent = pastFiltered.reduce((s, t) => s + t.amount, 0)
 
   // Reconciliation summary over the base set (whole statement)
   const reconCount   = baseFiltered.filter(isReconciled).length
@@ -799,9 +915,49 @@ export default function Transactions() {
         </div>
       )}
 
+      {/* Upcoming (future-dated) — collapsible so the log isn't cluttered */}
+      {upcomingShown.length > 0 && (
+        <div className="card overflow-hidden">
+          <button
+            onClick={() => setUpcomingCollapsed(v => { const n = !v; localStorage.setItem('txnUpcomingCollapsed', n ? '1' : '0'); return n })}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50"
+          >
+            <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+              <Repeat size={14} className="text-indigo-500" /> Upcoming
+              <span className="bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 rounded-full">{upcomingShown.length}</span>
+            </span>
+            <ChevronDown size={16} className={`text-gray-400 transition-transform ${upcomingCollapsed ? '-rotate-90' : ''}`} />
+          </button>
+          {!upcomingCollapsed && (
+            <div className="divide-y divide-gray-50 border-t border-gray-100">
+              {upcomingShown.map(t => {
+                const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
+                const cat = categories.find(c => c.id === t.category_id)
+                return (
+                  <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-gray-800 truncate">{t.vendor_name || cat?.name || 'Transaction'}</p>
+                      <p className="text-xs text-gray-400">
+                        {fmtDate(t.transaction_date)}
+                        {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
+                        {t.recurring_id && <span className="text-indigo-400"> · recurring</span>}
+                      </p>
+                    </div>
+                    <span className="text-gray-700 shrink-0">S${t.amount.toFixed(2)}</span>
+                    <span className="text-indigo-600 shrink-0 w-16 text-right">{t.miles_earned != null ? `+${Math.round(t.miles_earned).toLocaleString()}` : '—'}</span>
+                    <button onClick={() => openEdit(t)} className="text-gray-300 hover:text-indigo-500 p-1" title="Edit"><Pencil size={13} /></button>
+                    <button onClick={() => setTxToDelete(t)} className="text-gray-300 hover:text-red-500 p-1" title="Delete"><Trash2 size={13} /></button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div className="card overflow-hidden">
-        {filtered.length === 0 ? (
+        {pastFiltered.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-gray-500 text-sm">No transactions found.</p>
             <button
@@ -815,7 +971,7 @@ export default function Transactions() {
           <>
             {/* ── Mobile: card list (hidden on sm+) ── */}
             <div className="sm:hidden divide-y divide-gray-100">
-              {filtered.map(t => {
+              {pastFiltered.map(t => {
                 const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
                 const cat  = categories.find(c => c.id === t.category_id)
                 const isManual = t.manual_mpd != null
@@ -927,7 +1083,7 @@ export default function Transactions() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filtered.map(t => {
+                  {pastFiltered.map(t => {
                     const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
                     const cat  = categories.find(c => c.id === t.category_id)
                     const isManual = t.manual_mpd != null
@@ -1551,7 +1707,7 @@ export default function Transactions() {
           )}
 
           <div className="flex gap-3 pt-2">
-            <button onClick={() => { setShowModal(false); setPendingRecurringId(null) }} className="btn-secondary flex-1">Cancel</button>
+            <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
               {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
             </button>
@@ -1564,15 +1720,15 @@ export default function Transactions() {
           {recurringFavs.length === 0 ? (
             <div className="py-8 text-center space-y-2">
               <Repeat size={28} className="text-gray-300 mx-auto" />
-              <p className="text-sm text-gray-500">No recurring transactions yet.</p>
+              <p className="text-sm text-gray-500">No recurring charges yet.</p>
               <p className="text-xs text-gray-400">
-                When logging, tap “Save as favourite” and turn on “Repeat monthly” to add one.
+                When logging, tap “Save as favourite” and turn on “Repeat” to schedule future charges.
               </p>
             </div>
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-gray-500">
-                These prefill the log form on their due date (you confirm each). Manage them here.
+                Each rule auto-creates its upcoming transactions (they count toward caps). Editing regenerates future occurrences.
               </p>
               {recurringFavs.map(f => {
                 const card = cards.find(c => c.id === f.card_id) ?? allCards.find(c => c.id === f.card_id)
@@ -1583,18 +1739,17 @@ export default function Transactions() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{f.label}</p>
                       <p className="text-xs text-gray-500">
-                        Day {f.recur_day} each month
-                        {f.next_due_date && <> · next {fmtDate(f.next_due_date)}</>}
+                        {recurLabel(f)}
                         {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
-                        {f.amount != null ? ` · S$${f.amount.toFixed(2)}` : ' · amount varies'}
+                        {f.amount != null ? ` · S$${f.amount.toFixed(2)}` : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        onClick={() => logRecurringNow(f)}
+                        onClick={() => openEditRule(f)}
                         className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1"
                       >
-                        Log now
+                        Edit
                       </button>
                       <button
                         onClick={() => { setRecurringOpen(false); setFavToDelete(f) }}
@@ -1616,8 +1771,10 @@ export default function Transactions() {
         <Modal title="Remove favourite" onClose={() => setFavToDelete(null)}>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Remove <span className="font-semibold text-gray-900">"{favToDelete.label}"</span> from your favourites?
-              This won't affect any transactions you've already logged.
+              Remove <span className="font-semibold text-gray-900">"{favToDelete.label}"</span>?
+              {favToDelete.recur_unit
+                ? ' Its upcoming (future-dated) transactions will be deleted; already-logged ones are kept.'
+                : " This won't affect any transactions you've already logged."}
             </p>
             <div className="flex gap-3">
               <button onClick={() => setFavToDelete(null)} className="btn-secondary flex-1">Cancel</button>
@@ -1633,54 +1790,80 @@ export default function Transactions() {
       )}
 
       {favNameOpen && (
-        <Modal title="Save as favourite" onClose={() => setFavNameOpen(false)}>
+        <Modal title={editingFavId ? 'Edit recurring' : 'Save as favourite'} onClose={() => { setFavNameOpen(false); setEditingFavId(null) }}>
           <div className="space-y-4">
             <div>
-              <label className="label">Favourite name</label>
+              <label className="label">Name</label>
               <input
                 autoFocus
                 value={favNameInput}
                 onChange={e => setFavNameInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') submitFavourite() }}
                 placeholder="e.g. Netflix"
                 className="input"
               />
-              <p className="text-xs text-gray-500 mt-1">Saves the card, category, vendor, payment method and amount for quick reuse.</p>
+              {!editingFavId && <p className="text-xs text-gray-500 mt-1">Saves the card, category, vendor and payment method for quick reuse.</p>}
             </div>
 
             {/* Recurring schedule */}
-            <div className="bg-gray-50 rounded-lg p-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={favRecur}
-                  onChange={e => setFavRecur(e.target.checked)}
-                  className="accent-indigo-600"
-                />
-                <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                  <Repeat size={13} className="text-indigo-500" /> Repeat monthly
-                </span>
-              </label>
-              {favRecur && (
-                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-gray-500">On day</span>
-                  <input
-                    type="number" min={1} max={28}
-                    value={favRecurDay}
-                    onChange={e => setFavRecurDay(e.target.value)}
-                    className="input text-sm py-1 w-16"
-                  />
-                  <span className="text-xs text-gray-500">of each month (1–28)</span>
-                  <span className="text-xs text-indigo-600 w-full">
-                    You'll get a reminder on the Dashboard to confirm each charge — nothing is logged automatically.
+            <div className="bg-gray-50 rounded-lg p-3 space-y-3">
+              {editingFavId ? (
+                <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                  <Repeat size={13} className="text-indigo-500" /> Recurring charge
+                </p>
+              ) : (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={favRecur} onChange={e => setFavRecur(e.target.checked)} className="accent-indigo-600" />
+                  <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                    <Repeat size={13} className="text-indigo-500" /> Repeat — auto-create future transactions
                   </span>
-                </div>
+                </label>
+              )}
+
+              {favRecur && (
+                <>
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="text-xs text-gray-500">Amount S$</span>
+                    <input type="number" step="0.01" value={favAmount} onChange={e => setFavAmount(e.target.value)} className="input text-sm py-1 w-24" />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="text-xs text-gray-500">Every</span>
+                    <input type="number" min={1} value={recurInterval} onChange={e => setRecurInterval(e.target.value)} className="input text-sm py-1 w-16" />
+                    <select value={recurUnit} onChange={e => setRecurUnit(e.target.value as RecurUnit)} className="input text-sm py-1 w-auto">
+                      {RECUR_UNITS.map(u => <option key={u} value={u}>{u}{(parseInt(recurInterval) || 1) > 1 ? 's' : ''}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="text-xs text-gray-500 shrink-0">Starting</span>
+                    <DatePicker value={recurStart} onChange={setRecurStart} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-gray-500">Ends</span>
+                    <div className="flex items-center gap-3 flex-wrap text-sm">
+                      <label className="flex items-center gap-1"><input type="radio" checked={recurEndMode === 'never'} onChange={() => setRecurEndMode('never')} className="accent-indigo-600" /> Never</label>
+                      <label className="flex items-center gap-1"><input type="radio" checked={recurEndMode === 'date'} onChange={() => setRecurEndMode('date')} className="accent-indigo-600" /> On date</label>
+                      <label className="flex items-center gap-1"><input type="radio" checked={recurEndMode === 'count'} onChange={() => setRecurEndMode('count')} className="accent-indigo-600" /> After</label>
+                    </div>
+                    {recurEndMode === 'date' && <DatePicker value={recurEndDate} onChange={setRecurEndDate} min={recurStart} />}
+                    {recurEndMode === 'count' && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <input type="number" min={1} value={recurCount} onChange={e => setRecurCount(e.target.value)} className="input text-sm py-1 w-16" />
+                        <span className="text-xs text-gray-500">occurrences</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-indigo-600">
+                    Upcoming transactions are created now (up to ~12 months) and count toward your caps for planning.
+                  </p>
+                </>
               )}
             </div>
 
+            {error && <p className="text-xs text-red-500">{error}</p>}
             <div className="flex gap-3">
-              <button onClick={() => setFavNameOpen(false)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={submitFavourite} className="btn-primary flex-1">{favRecur ? 'Save recurring' : 'Save favourite'}</button>
+              <button onClick={() => { setFavNameOpen(false); setEditingFavId(null) }} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={submitFavourite} className="btn-primary flex-1">
+                {editingFavId ? 'Save changes' : favRecur ? 'Create recurring' : 'Save favourite'}
+              </button>
             </div>
           </div>
         </Modal>

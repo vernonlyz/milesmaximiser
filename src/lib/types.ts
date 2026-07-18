@@ -110,6 +110,7 @@ export interface Transaction {
   cashback_earned: number | null  // computed at save for cashback cards; null for miles/debit
   personal_amount: number | null  // user's own share when paying for a group; null = full amount
   reconciled: boolean             // checked off against the user's bank statement
+  recurring_id: string | null     // set when generated from a recurring rule
   created_at: string
 }
 
@@ -263,9 +264,15 @@ export interface TransactionFavourite {
   payment_channel: 'contactless' | 'online' | 'chip' | null
   amount: number | null
   description: string | null
-  recurrence: 'monthly' | null     // null = plain template; 'monthly' = recurring charge
-  recur_day: number | null         // day of month (1-28) for monthly recurrence
-  next_due_date: string | null     // next occurrence date (YYYY-MM-DD)
+  recurrence: 'monthly' | null     // legacy flag (superseded by recur_unit)
+  recur_day: number | null         // legacy day-of-month
+  next_due_date: string | null     // legacy next-due (due→confirm model)
+  // Recurring rule: repeat every recur_interval × recur_unit from start_date.
+  recur_unit: 'day' | 'week' | 'month' | 'year' | null  // null = plain (non-recurring) template
+  recur_interval: number           // every N units (default 1)
+  start_date: string | null        // first occurrence (YYYY-MM-DD)
+  end_date: string | null          // optional last date
+  max_occurrences: number | null   // optional cap on total occurrences
   created_at: string
 }
 

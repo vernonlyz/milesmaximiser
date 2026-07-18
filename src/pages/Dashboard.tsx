@@ -32,23 +32,6 @@ export default function Dashboard() {
   function toggleWallet() { setWalletCollapsed(c => { localStorage.setItem('dashWalletCollapsed', c ? '0' : '1'); return !c }) }
   function toggleRecent() { setRecentCollapsed(c => { localStorage.setItem('dashRecentCollapsed', c ? '0' : '1'); return !c }) }
 
-  // Recurring favourites due to log (next_due within the next 7 days, or overdue)
-  const [dueRecurring, setDueRecurring] = useState<TransactionFavourite[]>([])
-  useEffect(() => {
-    let cancelled = false
-    supabase.from('transaction_favourites').select('*').eq('recurrence', 'monthly')
-      .then(({ data }) => {
-        if (cancelled) return
-        const horizon = new Date(); horizon.setDate(horizon.getDate() + 7)
-        const horizonStr = horizon.toLocaleDateString('en-CA')
-        const due = ((data as TransactionFavourite[]) ?? [])
-          .filter(f => f.next_due_date && f.next_due_date <= horizonStr)
-          .sort((a, b) => (a.next_due_date ?? '').localeCompare(b.next_due_date ?? ''))
-        setDueRecurring(due)
-      })
-    return () => { cancelled = true }
-  }, [])
-
   // allCards is always non-empty after a successful library load.
   // If it is empty, data has not yet arrived for this user — do not redirect.
   const dataLoaded = allCards.length > 0
@@ -275,31 +258,6 @@ export default function Dashboard() {
     return days <= 1 ? 'tomorrow' : `in ${days} days`
   }
 
-  // Recurring due-date label and actions
-  function dueLabel(dateStr: string) {
-    const days = Math.round(
-      (new Date(dateStr + 'T00:00:00').getTime() - new Date(todayStr + 'T00:00:00').getTime()) / 86400000
-    )
-    if (days < 0) return `overdue ${-days}d`
-    if (days === 0) return 'due today'
-    if (days === 1) return 'tomorrow'
-    return `in ${days} days`
-  }
-
-  function confirmRecurring(f: TransactionFavourite) {
-    navigate('/transactions', { state: { favourite: f, dueDate: f.next_due_date, recurringFavId: f.id } })
-  }
-
-  async function skipRecurring(f: TransactionFavourite) {
-    if (!f.next_due_date) return
-    const [y, m, dd] = f.next_due_date.split('-').map(Number)
-    const next = new Date(y, m, dd) // m is 1-based → index m = next month
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const nextStr = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`
-    await supabase.from('transaction_favourites').update({ next_due_date: nextStr }).eq('id', f.id)
-    setDueRecurring(prev => prev.filter(x => x.id !== f.id))
-  }
-
   function txnRow(t: Transaction) {
     const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
     const cat = categories.find(c => c.id === t.category_id)
@@ -452,49 +410,6 @@ export default function Dashboard() {
                     <span className="text-gray-500 tabular-nums">
                       {formatSGD(m.totalSpent)} / {formatSGD(m.minSpend)}
                     </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Recurring charges due to log */}
-      {dueRecurring.length > 0 && (
-        <div className="card p-5 border-indigo-200">
-          <h2 className="font-semibold text-gray-800 mb-0.5 flex items-center gap-1.5">
-            <Repeat size={15} className="text-indigo-500" /> Recurring — due to log
-          </h2>
-          <p className="text-xs text-gray-500 mb-3">Confirm to log each charge (amount editable), or skip if it didn't happen.</p>
-          <div className="space-y-2">
-            {dueRecurring.map(f => {
-              const card = cards.find(c => c.id === f.card_id) ?? allCards.find(c => c.id === f.card_id)
-              const cat = categories.find(c => c.id === f.category_id)
-              return (
-                <div key={f.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                  <span className="text-lg leading-none">{cat?.icon ?? '🔁'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{f.label}</p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {f.next_due_date} · {dueLabel(f.next_due_date!)}
-                      {f.amount != null ? ` · S$${f.amount.toFixed(2)}` : ' · amount varies'}
-                      {card ? ` · ${card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => skipRecurring(f)}
-                      className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5"
-                    >
-                      Skip
-                    </button>
-                    <button
-                      onClick={() => confirmRecurring(f)}
-                      className="text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                      Confirm
-                    </button>
                   </div>
                 </div>
               )
