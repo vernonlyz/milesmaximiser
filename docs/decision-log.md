@@ -682,3 +682,13 @@ Captures key architectural choices made during development — what was decided,
 - A `scheduled` status column — lets every total/cap/balance query opt in/out, but broad blast radius. Chose plain rows keyed by `date > today` = upcoming instead.
 
 **Trade-offs:** upcoming miles are estimates (computed at generation, not recomputed), and future rows also appear in month spend totals / future Miles Earned. Accepted as the cost of cap-planning realism. The due→confirm model and its Dashboard card were retired.
+
+---
+
+## 2026-07-19 — Recurring creation is a standalone flow, not part of logging
+
+**Decision:** Create/edit recurring charges in a **self-contained editor** (its own card / category / amount / vendor / channel + schedule), reached from Recurring → "+ New". Removed recurring from the "Save as favourite" path inside the log-transaction modal (that modal is now one-off templates only).
+
+**Why:** The old flow nested recurring inside the log modal ("Save as favourite" → Repeat), so after "Create recurring" the log modal stayed open — leaving the user to click "Save Transaction" (which logged a **duplicate** one-off) or "Cancel". Decoupling makes "Create recurring" a single, obvious action that finishes and closes, and makes creating consistent with editing (both use the same standalone editor).
+
+**Trade-off:** No more one-step "log this and also make it recurring" shortcut — recurring is created separately. Accepted for clarity and to eliminate the duplicate.

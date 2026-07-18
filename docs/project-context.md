@@ -268,8 +268,9 @@ The app is a functional MVP. All core features are implemented:
 | Vitest engine test suite — 18 tests over recommendations.ts (`npm test`); test files excluded from prod build | Complete |
 | Error boundaries — ErrorBoundary around Layout Outlet (keyed by route) + app root; catches render crashes + lazy-chunk load failures | Complete |
 | README + .env.example — onboarding docs and documented env vars | Complete |
-| Recurring rules → real future transactions (every N units, end date/count); Transactions Upcoming section w/ range presets | Complete |
+| Recurring rules → real future transactions (every N units, end date/count); standalone create/edit editor; Transactions Upcoming section w/ range presets | Complete |
 | Dashboard collapsible Upcoming (preview + View-all → Transactions) | Complete |
+| Dashboard wallet card → Transactions filtered to that card (current month) | Complete |
 | New categories: Insurance / Subscription / Health; vendor recategorisation | Complete |
 | EXPERIMENTAL (admin-gated) Points tab — reward-points balance per program | Experimental |
 | EXPERIMENTAL (admin-gated) Reconcile tab — base/bonus credit reconciliation, cap ceilings, aggregate rounding, statement cycles | Experimental |

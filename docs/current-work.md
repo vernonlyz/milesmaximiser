@@ -110,7 +110,9 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-07-17  Recurring rework — rules generate real future transactions (every N days/weeks/months/years, end date/count); Transactions Upcoming section (migration 042)
 2026-07-18  Add Insurance / Subscription / Health categories (migration 043); recategorise vendors (subscriptions, health, insurers)
 2026-07-19  Upcoming range presets (default next 1 month); show full month inline when a month is filtered
-2026-07-19  Dashboard: collapsible Upcoming (default expanded), next-5 preview + View-all→Transactions (opens all upcoming)
+2026-07-19  Dashboard: collapsible Upcoming (default expanded), next-5 preview + View-all→Transactions (opens all upcoming)  [tag: v7.6-recurring-reconcile]
+2026-07-19  Recurring: standalone create/edit editor (own fields), decoupled from logging — no duplicate; "+ New" in Recurring manager
+2026-07-19  Dashboard: click a wallet card → Transactions filtered to it (current month)
 ```
 
 ---
@@ -219,6 +221,8 @@ The Miles section (`MilesTabs`) has two extra tabs — **Points** and **Reconcil
 Recurring charges are now **rules** (on `transaction_favourites`: `recur_unit`/`recur_interval`/`start_date`/`end_date`/`max_occurrences`; migration 042) that **materialise real future transactions** (`transactions.recurring_id`), so they count toward caps for planning. Repeat every N days/weeks/months/years, ending never / on a date / after N occurrences. On save (and a rolling ~12-month top-up on load) occurrences are created with miles computed per date; editing a rule regenerates future occurrences; deleting removes future ones (past kept). The **due→confirm** model and its Dashboard card were retired; the Recurring manager is now a rule editor.
 - **Transactions Upcoming section** — collapsible, future-dated, with range presets (default next 1 month; 1M/3M/6M/All) + count/total. Selecting a specific month shows that whole month inline (past + future) and hides the separate Upcoming section.
 - **Dashboard Upcoming** — collapsible (default expanded), next-5 preview + "View all N upcoming →" that opens Transactions with the month filter cleared, Upcoming expanded, range = All.
+- **Standalone recurring editor** — creating a recurring charge is a self-contained modal (own card/category/amount/vendor/channel + schedule fields), reached via Recurring → "+ New" (or the empty-state CTA); "Create recurring" saves + generates + closes (no log modal, no duplicate). "Save as favourite" is plain one-off templates only. Editing uses the same editor.
+- **Wallet card drill-down** — clicking a card's name row in the Dashboard My Wallet routes to Transactions filtered to that card (keeping the current-month filter), via nav state `filterCardId`.
 
 ### Categories & vendors
 - **New categories** (migration 043 + seed): Insurance 🛡️ (013), Subscription 📺 (014), Health 🩺 (015) — base rate only.
