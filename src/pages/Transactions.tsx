@@ -148,6 +148,7 @@ export default function Transactions() {
       openAdd()
       window.history.replaceState({}, '')
     } else if (st?.showUpcoming === 'all') {
+      setFilterMonthNum('')   // clear the current-month filter so Upcoming isn't hidden
       setUpcomingRange('all')
       setUpcomingCollapsed(false)
       window.history.replaceState({}, '')
