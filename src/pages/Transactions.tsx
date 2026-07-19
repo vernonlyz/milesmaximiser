@@ -80,15 +80,11 @@ export default function Transactions() {
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null)
   const [favNameOpen, setFavNameOpen] = useState(false)
   const [favNameInput, setFavNameInput] = useState('')
-  // Standalone recurring-rule editor (create/edit) — self-contained, its own fields.
+  // Standalone recurring-rule editor (create/edit) — reuses the shared transaction
+  // form state (form/vendorName/mcc/paymentChannel) so its fields match logging.
   const [recurEditorOpen, setRecurEditorOpen] = useState(false)
   const [editingFavId, setEditingFavId] = useState<string | null>(null)
   const [recName, setRecName] = useState('')
-  const [recCard, setRecCard] = useState('')
-  const [recCategory, setRecCategory] = useState('')
-  const [recVendor, setRecVendor] = useState('')
-  const [recChannel, setRecChannel] = useState<'contactless' | 'online' | 'chip' | null>(null)
-  const [recAmount, setRecAmount] = useState('')
   const [recurUnit, setRecurUnit] = useState<RecurUnit>('month')
   const [recurInterval, setRecurInterval] = useState('1')
   const [recurStart, setRecurStart] = useState('')
@@ -505,28 +501,38 @@ export default function Transactions() {
     setFavNameOpen(true)
   }
 
-  // Standalone recurring editor — new blank rule.
+  // Reset the shared transaction-form fields (used by both logging and the recurring editor).
+  function resetFormFields() {
+    setForm(EMPTY_FORM)
+    setVendorName(''); setSelectedVendor(null)
+    setMcc(''); setMccEditing(false); setMccInputVal('')
+    setPaymentChannel(null)
+    setMpdOverrideActive(false); setManualMpd(''); setOverrideNote('')
+  }
+
+  // Standalone recurring editor — new blank rule (uses the shared form fields).
   function openNewRecurring() {
     setRecurringOpen(false)
     setEditingFavId(null)
-    setRecName(''); setRecCard(cards[0]?.id ?? ''); setRecCategory(''); setRecVendor(''); setRecChannel(null)
-    setRecAmount('')
+    resetFormFields()
+    setForm(f => ({ ...EMPTY_FORM, card_id: cards[0]?.id ?? '' }))
+    setRecName('')
     setRecurUnit('month'); setRecurInterval('1'); setRecurStart(todayStr)
     setRecurEndMode('never'); setRecurEndDate(''); setRecurCount('12')
     setError(null)
     setRecurEditorOpen(true)
   }
 
-  // Standalone recurring editor — edit an existing rule.
+  // Standalone recurring editor — edit an existing rule (prefills the shared form).
   function openEditRule(f: TransactionFavourite) {
     setRecurringOpen(false)
     setEditingFavId(f.id)
+    resetFormFields()
+    setForm({ ...EMPTY_FORM, card_id: f.card_id ?? '', category_id: f.category_id ?? '', amount: f.amount != null ? String(f.amount) : '' })
+    setVendorName(f.vendor_name ?? ''); setSelectedVendor(null)
+    setMcc(f.mcc ?? '')
+    setPaymentChannel(f.payment_channel)
     setRecName(f.label)
-    setRecCard(f.card_id ?? '')
-    setRecCategory(f.category_id ?? '')
-    setRecVendor(f.vendor_name ?? '')
-    setRecChannel(f.payment_channel)
-    setRecAmount(f.amount != null ? String(f.amount) : '')
     setRecurUnit((f.recur_unit as RecurUnit) ?? 'month')
     setRecurInterval(String(f.recur_interval || 1))
     setRecurStart(f.start_date ?? todayStr)
@@ -599,15 +605,15 @@ export default function Transactions() {
 
   // Create or edit a recurring rule from the standalone editor; (re)generate occurrences.
   async function submitRecurring() {
-    const amt = parseFloat(recAmount)
-    if (!recCard || !recCategory || isNaN(amt) || amt <= 0) {
+    const amt = parseFloat(form.amount)
+    if (!form.card_id || !form.category_id || isNaN(amt) || amt <= 0) {
       setError('Card, category, and a valid amount are required.'); return
     }
-    const label = recName.trim() || recVendor.trim() || categories.find(c => c.id === recCategory)?.name || 'Recurring'
+    const label = recName.trim() || vendorName.trim() || categories.find(c => c.id === form.category_id)?.name || 'Recurring'
     const fields = {
-      label, card_id: recCard, category_id: recCategory,
-      vendor_name: recVendor.trim() || null, mcc: null as string | null,
-      payment_channel: recChannel, amount: amt, description: null as string | null,
+      label, card_id: form.card_id, category_id: form.category_id,
+      vendor_name: vendorName.trim() || null, mcc: mcc.trim() || null,
+      payment_channel: paymentChannel, amount: amt, description: form.description || null,
       recur_unit: recurUnit, recur_interval: Math.max(1, parseInt(recurInterval) || 1),
       start_date: recurStart || todayStr,
       end_date: recurEndMode === 'date' ? (recurEndDate || null) : null,
@@ -1801,6 +1807,7 @@ export default function Transactions() {
               {recurringFavs.map(f => {
                 const card = cards.find(c => c.id === f.card_id) ?? allCards.find(c => c.id === f.card_id)
                 const cat = categories.find(c => c.id === f.category_id)
+                const nextCharge = futureOccurrences(f, todayStr, addUnit(todayStr, 'year', 1))[0]
                 return (
                   <div key={f.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
                     <span className="text-lg leading-none">{cat?.icon ?? '🔁'}</span>
@@ -1808,6 +1815,7 @@ export default function Transactions() {
                       <p className="text-sm font-medium text-gray-800 truncate">{f.label}</p>
                       <p className="text-xs text-gray-500">
                         {recurLabel(f)}
+                        {nextCharge && <> · next {fmtDate(nextCharge)}</>}
                         {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
                         {f.amount != null ? ` · S$${f.amount.toFixed(2)}` : ''}
                       </p>
@@ -1889,17 +1897,28 @@ export default function Transactions() {
               <label className="label">Name</label>
               <input autoFocus value={recName} onChange={e => setRecName(e.target.value)} placeholder="e.g. Netflix" className="input" />
             </div>
+            <div>
+              <label className="label">Vendor <span className="text-gray-500 font-normal text-xs">(optional)</span></label>
+              <VendorInput
+                vendorName={vendorName}
+                isVendorSelected={selectedVendor !== null}
+                vendors={vendorCatalogue}
+                onNameChange={name => { setVendorName(name); setSelectedVendor(null) }}
+                onSelect={handleVendorSelect}
+                onClear={handleVendorClear}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Card</label>
-                <select value={recCard} onChange={e => setRecCard(e.target.value)} className="input">
+                <select value={form.card_id} onChange={e => setField('card_id', e.target.value)} className="input">
                   <option value="">Select…</option>
                   {cards.map(c => <option key={c.id} value={c.id}>{c.card_type === 'debit' ? c.name : `${c.bank} ${c.name}`}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Category</label>
-                <select value={recCategory} onChange={e => setRecCategory(e.target.value)} className="input">
+                <select value={form.category_id} onChange={e => setField('category_id', e.target.value)} className="input">
                   <option value="">Select…</option>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
                 </select>
@@ -1907,22 +1926,23 @@ export default function Transactions() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Amount S$</label>
-                <input type="number" step="0.01" value={recAmount} onChange={e => setRecAmount(e.target.value)} className="input" />
+                <label className="label">MCC <span className="text-gray-500 font-normal text-xs">(optional)</span></label>
+                <input value={mcc} onChange={e => setMcc(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 5814" inputMode="numeric" className="input" />
+                {mccDescription && <p className="text-xs text-gray-500 mt-0.5 truncate">{mccDescription}</p>}
               </div>
               <div>
-                <label className="label">Payment method</label>
-                <select value={recChannel ?? ''} onChange={e => setRecChannel((e.target.value || null) as typeof recChannel)} className="input">
-                  <option value="">—</option>
-                  <option value="contactless">Contactless</option>
-                  <option value="online">Online</option>
-                  <option value="chip">Chip</option>
-                </select>
+                <label className="label">Amount (S$)</label>
+                <input type="number" step="0.01" value={form.amount} onChange={e => setField('amount', e.target.value)} className="input" />
               </div>
             </div>
             <div>
-              <label className="label">Vendor (optional)</label>
-              <input value={recVendor} onChange={e => setRecVendor(e.target.value)} placeholder="e.g. Netflix" className="input" />
+              <label className="label">Payment method</label>
+              <select value={paymentChannel ?? ''} onChange={e => setPaymentChannel((e.target.value || null) as typeof paymentChannel)} className="input">
+                <option value="">—</option>
+                <option value="contactless">Contactless</option>
+                <option value="online">Online</option>
+                <option value="chip">Chip</option>
+              </select>
             </div>
 
             {/* Schedule */}
