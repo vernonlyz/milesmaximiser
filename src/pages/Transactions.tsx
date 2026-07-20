@@ -528,7 +528,7 @@ export default function Transactions() {
     setRecurringOpen(false)
     setEditingFavId(f.id)
     resetFormFields()
-    setForm({ ...EMPTY_FORM, card_id: f.card_id ?? '', category_id: f.category_id ?? '', amount: f.amount != null ? String(f.amount) : '' })
+    setForm({ ...EMPTY_FORM, card_id: f.card_id ?? '', category_id: f.category_id ?? '', amount: f.amount != null ? String(f.amount) : '', description: f.description ?? '' })
     setVendorName(f.vendor_name ?? ''); setSelectedVendor(null)
     setMcc(f.mcc ?? '')
     setPaymentChannel(f.payment_channel)
@@ -1003,7 +1003,8 @@ export default function Transactions() {
                 return (
                   <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                     <div className="min-w-0 flex-1">
-                      <p className="text-gray-800 truncate">{t.vendor_name || cat?.name || 'Transaction'}</p>
+                      <p className="text-gray-800 truncate">{t.vendor_name || t.description || cat?.name || 'Transaction'}</p>
+                      {t.vendor_name && t.description && <p className="text-xs text-gray-500 truncate">{t.description}</p>}
                       <p className="text-xs text-gray-400">
                         {fmtDate(t.transaction_date)}
                         {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
@@ -1943,6 +1944,10 @@ export default function Transactions() {
                 <option value="online">Online</option>
                 <option value="chip">Chip</option>
               </select>
+            </div>
+            <div>
+              <label className="label">Notes <span className="text-gray-500 font-normal text-xs">(optional)</span></label>
+              <input value={form.description} onChange={e => setField('description', e.target.value)} placeholder="e.g. Family plan" className="input" />
             </div>
 
             {/* Schedule */}
