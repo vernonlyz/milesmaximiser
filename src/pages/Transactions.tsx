@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat, CheckCircle2, Circle, Receipt, TrendingUp, Percent } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -746,6 +746,11 @@ export default function Transactions() {
   const totalMiles = pastFiltered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = pastFiltered.reduce((s, t) => s + t.amount, 0)
   const totalCashback = pastFiltered.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
+  const periodLabel = rangeActive
+    ? `${dateFrom ? fmtDate(dateFrom) : 'start'} → ${dateTo ? fmtDate(dateTo) : 'now'}`
+    : filterMonthNum
+      ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(filterMonthNum) - 1]} ${filterYear}`
+      : `${filterYear} · all months`
 
   // Reconciliation summary over the base set (whole statement)
   const reconCount   = baseFiltered.filter(isReconciled).length
@@ -930,12 +935,6 @@ export default function Transactions() {
           )}
         </div>
 
-        <div className="ml-auto flex gap-3 items-center text-sm text-gray-500 shrink-0">
-          <span>{pastFiltered.length} txns</span>
-          <span className="font-medium text-gray-700">S${totalSpent.toFixed(2)}</span>
-          {totalMiles > 0 && <span className="text-indigo-600 font-medium">+{Math.round(totalMiles).toLocaleString()} mi</span>}
-          {totalCashback > 0 && <span className="text-emerald-600 font-medium">S${totalCashback.toFixed(2)} cb</span>}
-        </div>
       </div>
 
       {/* Date range (overrides year/month when set) */}
@@ -950,6 +949,36 @@ export default function Transactions() {
             <span className="text-xs text-indigo-500">· overriding year/month</span>
           </>
         )}
+      </div>
+
+      {/* Totals — reflect the active filters (incl. future-dated within the period) */}
+      <div>
+        <p className="text-xs text-gray-500 mb-2">{periodLabel} · {pastFiltered.length} transaction{pastFiltered.length === 1 ? '' : 's'}</p>
+        <div className={`grid gap-3 ${totalCashback > 0 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
+          <div className="card p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center shrink-0"><Receipt size={18} className="text-sky-600" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Spent</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">S${totalSpent.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+          </div>
+          <div className="card p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0"><TrendingUp size={18} className="text-indigo-600" /></div>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Miles</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">+{Math.round(totalMiles).toLocaleString()}</p>
+            </div>
+          </div>
+          {totalCashback > 0 && (
+            <div className="card p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><Percent size={18} className="text-emerald-600" /></div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Cashback</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">S${totalCashback.toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Reconciliation bar */}
