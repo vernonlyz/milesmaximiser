@@ -666,6 +666,9 @@ export default function Transactions() {
   function fmtDate(s: string) {
     return new Date(s + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
   }
+  function fmtMonthYear(mk: string) {
+    return new Date(mk + '-01T00:00:00').toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
+  }
 
   // Delete a rule and its upcoming (future-dated) occurrences; past ones are kept.
   async function deleteRuleAndFuture(favId: string) {
@@ -743,6 +746,25 @@ export default function Transactions() {
     return upcomingForCard.filter(t => t.transaction_date <= end)
   }, [upcomingForCard, upcomingRange, todayStr])
   const upcomingTotal = upcomingShown.reduce((s, t) => s + t.amount, 0)
+  // Mix: collapse recurring occurrences into one line per rule; group one-offs by month.
+  const upcomingRecurGroups = useMemo(() => {
+    const m = new Map<string, { fav: TransactionFavourite | undefined; txns: Transaction[] }>()
+    for (const t of upcomingShown) {
+      if (!t.recurring_id) continue
+      const g = m.get(t.recurring_id) ?? { fav: favourites.find(f => f.id === t.recurring_id), txns: [] }
+      g.txns.push(t); m.set(t.recurring_id, g)
+    }
+    return [...m.values()].sort((a, z) => (a.txns[0]?.transaction_date ?? '').localeCompare(z.txns[0]?.transaction_date ?? ''))
+  }, [upcomingShown, favourites])
+  const upcomingOneOffMonths = useMemo(() => {
+    const m = new Map<string, Transaction[]>()
+    for (const t of upcomingShown) {
+      if (t.recurring_id) continue
+      const mk = t.transaction_date.slice(0, 7)
+      const arr = m.get(mk) ?? []; arr.push(t); m.set(mk, arr)
+    }
+    return [...m.entries()].sort((a, z) => a[0].localeCompare(z[0]))
+  }, [upcomingShown])
   const totalMiles = pastFiltered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = pastFiltered.reduce((s, t) => s + t.amount, 0)
   const totalCashback = pastFiltered.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
@@ -1066,29 +1088,67 @@ export default function Transactions() {
                   Nothing in this range — {upcomingForCard.length} further out. Try a wider range.
                 </p>
               ) : (
-              <div className="divide-y divide-gray-50 border-t border-gray-50">
-              {upcomingShown.map(t => {
-                const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
-                const cat = categories.find(c => c.id === t.category_id)
-                return (
-                  <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-gray-800 truncate">{t.vendor_name || t.description || cat?.name || 'Transaction'}</p>
-                      {t.vendor_name && t.description && <p className="text-xs text-gray-500 truncate">{t.description}</p>}
-                      <p className="text-xs text-gray-400">
-                        {fmtDate(t.transaction_date)}
-                        {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
-                        {t.recurring_id && <span className="text-indigo-400"> · recurring</span>}
-                      </p>
+                <div>
+                  {/* Recurring — one line per rule */}
+                  {upcomingRecurGroups.length > 0 && (
+                    <div className="divide-y divide-gray-50 border-t border-gray-50">
+                      <p className="px-4 pt-2.5 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Recurring</p>
+                      {upcomingRecurGroups.map(g => {
+                        const t0 = g.txns[0]
+                        const cat = categories.find(c => c.id === t0.category_id)
+                        return (
+                          <div key={g.fav?.id ?? t0.recurring_id!} className="group flex items-center gap-3 px-4 py-2.5 text-sm">
+                            <span className="text-lg leading-none shrink-0">{cat?.icon ?? '🔁'}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-gray-800 truncate flex items-center gap-1.5">
+                                {g.fav?.label || t0.vendor_name || 'Recurring'}
+                                <Repeat size={11} className="text-indigo-400 shrink-0" />
+                              </p>
+                              <p className="text-xs text-gray-400 truncate">
+                                {g.fav ? recurLabel(g.fav) : 'recurring'} · next {fmtDate(t0.transaction_date)} · {g.txns.length} in range
+                              </p>
+                            </div>
+                            <span className="text-gray-700 shrink-0">S${t0.amount.toFixed(2)}</span>
+                            <span className="text-indigo-600 shrink-0 w-14 text-right">{t0.miles_earned != null ? `+${Math.round(t0.miles_earned).toLocaleString()}` : '—'}</span>
+                            {g.fav && (
+                              <button onClick={() => openEditRule(g.fav!)} title="Edit rule"
+                                className="text-gray-300 hover:text-indigo-500 p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"><Pencil size={13} /></button>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
-                    <span className="text-gray-700 shrink-0">S${t.amount.toFixed(2)}</span>
-                    <span className="text-indigo-600 shrink-0 w-16 text-right">{t.miles_earned != null ? `+${Math.round(t.miles_earned).toLocaleString()}` : '—'}</span>
-                    <button onClick={() => openEdit(t)} className="text-gray-300 hover:text-indigo-500 p-1" title="Edit"><Pencil size={13} /></button>
-                    <button onClick={() => setTxToDelete(t)} className="text-gray-300 hover:text-red-500 p-1" title="Delete"><Trash2 size={13} /></button>
-                  </div>
-                )
-              })}
-              </div>
+                  )}
+
+                  {/* One-off future items, grouped by month */}
+                  {upcomingOneOffMonths.map(([mk, txns]) => (
+                    <div key={mk} className="divide-y divide-gray-50 border-t border-gray-50">
+                      <p className="px-4 pt-2.5 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{fmtMonthYear(mk)}</p>
+                      {txns.map(t => {
+                        const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
+                        const cat = categories.find(c => c.id === t.category_id)
+                        return (
+                          <div key={t.id} className="group flex items-center gap-3 px-4 py-2 text-sm">
+                            <span className="text-lg leading-none shrink-0">{cat?.icon ?? '💳'}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-gray-800 truncate">{t.vendor_name || t.description || cat?.name || 'Transaction'}</p>
+                              <p className="text-xs text-gray-400 truncate">
+                                {fmtDate(t.transaction_date)}
+                                {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
+                              </p>
+                            </div>
+                            <span className="text-gray-700 shrink-0">S${t.amount.toFixed(2)}</span>
+                            <span className="text-indigo-600 shrink-0 w-14 text-right">{t.miles_earned != null ? `+${Math.round(t.miles_earned).toLocaleString()}` : '—'}</span>
+                            <div className="flex items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => openEdit(t)} className="text-gray-300 hover:text-indigo-500 p-1" title="Edit"><Pencil size={13} /></button>
+                              <button onClick={() => setTxToDelete(t)} className="text-gray-300 hover:text-red-500 p-1" title="Delete"><Trash2 size={13} /></button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
