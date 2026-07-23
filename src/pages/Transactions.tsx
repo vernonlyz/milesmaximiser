@@ -127,6 +127,10 @@ export default function Transactions() {
   const [filterCat,  setFilterCat]  = useState('')
   const [filterCard, setFilterCard] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  // Optional date range (overrides year/month when set); can be open-ended.
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo,   setDateTo]   = useState('')
+  const [rangePool, setRangePool] = useState<Transaction[]>([])
 
   // Reconciliation
   const [reconcileFilter, setReconcileFilter] = useState<'all' | 'unreconciled' | 'reconciled'>('all')
@@ -182,6 +186,23 @@ export default function Transactions() {
     return () => { cancelled = true }
   }, [filterYear])
 
+  // When a date range is set, fetch that window from Supabase (can span years / include future).
+  const rangeActive = !!(dateFrom || dateTo)
+  useEffect(() => {
+    if (!rangeActive || !user) { setRangePool([]); return }
+    let cancelled = false
+    setLoadingYear(true)
+    let q = supabase.from('transactions')
+      .select('id, transaction_date, amount, personal_amount, miles_earned, cashback_earned, effective_mpd, computed_mpd, manual_mpd, override_note, mcc, category_id, card_id, vendor_name, description, payment_channel, reconciled, recurring_id')
+      .eq('user_id', user.id)
+    if (dateFrom) q = q.gte('transaction_date', dateFrom)
+    if (dateTo)   q = q.lte('transaction_date', dateTo)
+    q.order('transaction_date', { ascending: false }).then(({ data }) => {
+      if (!cancelled) { setRangePool((data as Transaction[]) ?? []); setLoadingYear(false) }
+    })
+    return () => { cancelled = true }
+  }, [rangeActive, dateFrom, dateTo, user?.id])
+
   function toggleSort(col: SortCol) {
     if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortBy(col); setSortDir('desc') }
@@ -206,7 +227,7 @@ export default function Transactions() {
         t.description ?? '',
       ]
     })
-    const exportPeriod = filterMonthNum ? `${filterYear}-${filterMonthNum}` : filterYear
+    const exportPeriod = rangeActive ? `${dateFrom || 'start'}_to_${dateTo || 'end'}` : filterMonthNum ? `${filterYear}-${filterMonthNum}` : filterYear
     exportCsv(`transactions_${exportPeriod}.csv`, headers, rows)
   }
 
@@ -665,22 +686,24 @@ export default function Transactions() {
     toast('Removed')
   }
 
-  // Active transaction pool — current year from AppContext, previous years from Supabase
-  const txPool = filterYear === nowYear ? transactions : prevYearTxns
+  // Active transaction pool — date range (from Supabase) when set, else year (AppContext / prev-year fetch).
+  const txPool = rangeActive ? rangePool : (filterYear === nowYear ? transactions : prevYearTxns)
 
-  // Base set for the card/month being reconciled (excludes the reconcile-status
-  // filter, so the reconciliation panel always reflects the whole statement).
+  // Base set (excludes the reconcile-status filter so the reconciliation panel reflects the whole set).
   const baseFiltered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    const monthPrefix = filterMonthNum ? `${filterYear}-${filterMonthNum}` : null
+    const monthPrefix = !rangeActive && filterMonthNum ? `${filterYear}-${filterMonthNum}` : null
     return txPool.filter(t => {
-      if (monthPrefix && !t.transaction_date.startsWith(monthPrefix)) return false
+      if (rangeActive) {
+        if (dateFrom && t.transaction_date < dateFrom) return false
+        if (dateTo   && t.transaction_date > dateTo)   return false
+      } else if (monthPrefix && !t.transaction_date.startsWith(monthPrefix)) return false
       if (filterCat  && t.category_id !== filterCat)  return false
       if (filterCard && t.card_id     !== filterCard)  return false
       if (q && !t.vendor_name?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false
       return true
     })
-  }, [txPool, filterYear, filterMonthNum, filterCat, filterCard, searchQuery])
+  }, [txPool, rangeActive, dateFrom, dateTo, filterYear, filterMonthNum, filterCat, filterCard, searchQuery])
 
   // Displayed list: apply the reconcile-status filter and sort.
   const filtered = useMemo(() => {
@@ -701,11 +724,12 @@ export default function Transactions() {
   }, [baseFiltered, reconcileFilter, reconOverrides, sortBy, sortDir])
 
   // Split future-dated (upcoming) from the main list so it isn't cluttered — but
-  // when a specific month is selected, show the whole month inline (past + future).
-  const monthFilterActive = !!filterMonthNum
+  // when a specific period (month or date range) is selected, show the whole
+  // window inline (past + future) so the totals include future-dated rows in it.
+  const periodFilterActive = !!filterMonthNum || rangeActive
   const pastFiltered = useMemo(
-    () => (monthFilterActive ? filtered : filtered.filter(t => t.transaction_date <= todayStr)),
-    [filtered, todayStr, monthFilterActive]
+    () => (periodFilterActive ? filtered : filtered.filter(t => t.transaction_date <= todayStr)),
+    [filtered, todayStr, periodFilterActive]
   )
   const upcomingForCard = useMemo(
     () => (filterCard ? upcoming.filter(t => t.card_id === filterCard) : upcoming),
@@ -721,6 +745,7 @@ export default function Transactions() {
   const upcomingTotal = upcomingShown.reduce((s, t) => s + t.amount, 0)
   const totalMiles = pastFiltered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = pastFiltered.reduce((s, t) => s + t.amount, 0)
+  const totalCashback = pastFiltered.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
 
   // Reconciliation summary over the base set (whole statement)
   const reconCount   = baseFiltered.filter(isReconciled).length
@@ -905,10 +930,26 @@ export default function Transactions() {
           )}
         </div>
 
-        <div className="ml-auto flex gap-4 items-center text-sm text-gray-500 shrink-0">
-          <span>S${totalSpent.toFixed(2)} spent</span>
-          <span className="text-indigo-600 font-medium">+{Math.round(totalMiles).toLocaleString()} miles</span>
+        <div className="ml-auto flex gap-3 items-center text-sm text-gray-500 shrink-0">
+          <span>{pastFiltered.length} txns</span>
+          <span className="font-medium text-gray-700">S${totalSpent.toFixed(2)}</span>
+          {totalMiles > 0 && <span className="text-indigo-600 font-medium">+{Math.round(totalMiles).toLocaleString()} mi</span>}
+          {totalCashback > 0 && <span className="text-emerald-600 font-medium">S${totalCashback.toFixed(2)} cb</span>}
         </div>
+      </div>
+
+      {/* Date range (overrides year/month when set) */}
+      <div className="card px-4 py-2.5 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-xs text-gray-500">Date range</span>
+        <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="From" clearable max={dateTo || undefined} />
+        <span className="text-gray-400">→</span>
+        <DatePicker value={dateTo} onChange={setDateTo} placeholder="To" clearable min={dateFrom || undefined} />
+        {rangeActive && (
+          <>
+            <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-xs text-gray-500 hover:text-gray-700 underline">Clear range</button>
+            <span className="text-xs text-indigo-500">· overriding year/month</span>
+          </>
+        )}
       </div>
 
       {/* Reconciliation bar */}
@@ -965,7 +1006,7 @@ export default function Transactions() {
 
       {/* Upcoming (future-dated) — collapsible so the log isn't cluttered.
           Hidden when a month is selected, since that month shows future inline. */}
-      {!monthFilterActive && upcomingForCard.length > 0 && (
+      {!periodFilterActive && upcomingForCard.length > 0 && (
         <div className="card overflow-hidden">
           <button
             onClick={() => setUpcomingCollapsed(v => { const n = !v; localStorage.setItem('txnUpcomingCollapsed', n ? '1' : '0'); return n })}
