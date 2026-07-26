@@ -1097,22 +1097,22 @@ export default function Transactions() {
                         const t0 = g.txns[0]
                         const cat = categories.find(c => c.id === t0.category_id)
                         return (
-                          <div key={g.fav?.id ?? t0.recurring_id!} className="group flex items-center gap-3 px-4 py-2.5 text-sm">
+                          <div key={g.fav?.id ?? t0.recurring_id!} className="group flex items-center gap-2 px-4 py-2.5 text-sm">
                             <span className="text-lg leading-none shrink-0">{cat?.icon ?? '🔁'}</span>
                             <div className="min-w-0 flex-1">
                               <p className="text-gray-800 truncate flex items-center gap-1.5">
                                 {g.fav?.label || t0.vendor_name || 'Recurring'}
                                 <Repeat size={11} className="text-indigo-400 shrink-0" />
                               </p>
-                              <p className="text-xs text-gray-400 truncate">
-                                {g.fav ? recurLabel(g.fav) : 'recurring'} · next {fmtDate(t0.transaction_date)} · {g.txns.length} in range
-                              </p>
+                              <p className="text-xs text-gray-400 truncate">next {fmtDate(t0.transaction_date)} · ×{g.txns.length}</p>
                             </div>
-                            <span className="text-gray-700 shrink-0">S${t0.amount.toFixed(2)}</span>
-                            <span className="text-indigo-600 shrink-0 w-14 text-right">{t0.miles_earned != null ? `+${Math.round(t0.miles_earned).toLocaleString()}` : '—'}</span>
+                            <div className="text-right shrink-0 leading-tight">
+                              <p className="text-gray-700">S${t0.amount.toFixed(2)}</p>
+                              {t0.miles_earned != null && <p className="text-xs text-indigo-600">+{Math.round(t0.miles_earned).toLocaleString()}</p>}
+                            </div>
                             {g.fav && (
                               <button onClick={() => openEditRule(g.fav!)} title="Edit rule"
-                                className="text-gray-300 hover:text-indigo-500 p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"><Pencil size={13} /></button>
+                                className="text-gray-300 hover:text-indigo-500 p-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"><Pencil size={13} /></button>
                             )}
                           </div>
                         )
@@ -1128,7 +1128,7 @@ export default function Transactions() {
                         const card = cards.find(c => c.id === t.card_id) ?? allCards.find(c => c.id === t.card_id)
                         const cat = categories.find(c => c.id === t.category_id)
                         return (
-                          <div key={t.id} className="group flex items-center gap-3 px-4 py-2 text-sm">
+                          <div key={t.id} className="group flex items-center gap-2 px-4 py-2 text-sm">
                             <span className="text-lg leading-none shrink-0">{cat?.icon ?? '💳'}</span>
                             <div className="min-w-0 flex-1">
                               <p className="text-gray-800 truncate">{t.vendor_name || t.description || cat?.name || 'Transaction'}</p>
@@ -1137,9 +1137,11 @@ export default function Transactions() {
                                 {card && <> · {card.card_type === 'debit' ? card.name : `${card.bank} ${card.name}`}</>}
                               </p>
                             </div>
-                            <span className="text-gray-700 shrink-0">S${t.amount.toFixed(2)}</span>
-                            <span className="text-indigo-600 shrink-0 w-14 text-right">{t.miles_earned != null ? `+${Math.round(t.miles_earned).toLocaleString()}` : '—'}</span>
-                            <div className="flex items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            <div className="text-right shrink-0 leading-tight">
+                              <p className="text-gray-700">S${t.amount.toFixed(2)}</p>
+                              {t.miles_earned != null && <p className="text-xs text-indigo-600">+{Math.round(t.miles_earned).toLocaleString()}</p>}
+                            </div>
+                            <div className="flex items-center shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => openEdit(t)} className="text-gray-300 hover:text-indigo-500 p-1" title="Edit"><Pencil size={13} /></button>
                               <button onClick={() => setTxToDelete(t)} className="text-gray-300 hover:text-red-500 p-1" title="Delete"><Trash2 size={13} /></button>
                             </div>
