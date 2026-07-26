@@ -977,26 +977,26 @@ export default function Transactions() {
       <div>
         <p className="text-xs text-gray-500 mb-2">{periodLabel} · {pastFiltered.length} transaction{pastFiltered.length === 1 ? '' : 's'}</p>
         <div className={`grid gap-3 ${totalCashback > 0 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
-          <div className="card p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center shrink-0"><Receipt size={18} className="text-sky-600" /></div>
+          <div className="card p-4 flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-sky-50 flex items-center justify-center shrink-0"><Receipt size={18} className="text-sky-600" /></div>
             <div className="min-w-0">
               <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Spent</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">S${totalSpent.toLocaleString('en-SG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight truncate">S${Math.round(totalSpent).toLocaleString('en-SG')}</p>
             </div>
           </div>
-          <div className="card p-4 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0"><TrendingUp size={18} className="text-indigo-600" /></div>
+          <div className="card p-4 flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0"><TrendingUp size={18} className="text-indigo-600" /></div>
             <div className="min-w-0">
               <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Miles</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">+{Math.round(totalMiles).toLocaleString()}</p>
+              <p className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight truncate">+{Math.round(totalMiles).toLocaleString()}</p>
             </div>
           </div>
           {totalCashback > 0 && (
-            <div className="card p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><Percent size={18} className="text-emerald-600" /></div>
+            <div className="card p-4 flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0"><Percent size={18} className="text-emerald-600" /></div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Cashback</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight truncate">S${totalCashback.toFixed(2)}</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight truncate">S${totalCashback.toFixed(2)}</p>
               </div>
             </div>
           )}
