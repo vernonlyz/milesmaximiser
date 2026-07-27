@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
-import { Category, CreditCard, CardRate, SpendingCap, Transaction, SelectableCategory, CategoryOverride, MccEntry, Vendor, CashbackRate, CardBoost } from '../lib/types'
+import { Category, CreditCard, CardRate, SpendingCap, Transaction, SelectableCategory, CategoryOverride, MccEntry, Vendor, CashbackRate, CardBoost, CardMccEligibility } from '../lib/types'
 import { isoDate } from '../lib/utils'
 import { resolveBoost } from '../lib/recommendations'
 
@@ -17,6 +17,7 @@ interface AppContextValue {
   overrides: CategoryOverride[]    // user's active bonus-category choices
   transactions: Transaction[]
   mccCatalogue: MccEntry[]         // admin-seeded MCC reference data
+  cardMccEligibility: CardMccEligibility[]  // bonus-eligible MCC ranges per card
   vendorCatalogue: Vendor[]        // admin-seeded known SG vendors
   cashbackRates: CashbackRate[]    // per-category cashback rate overrides
   loading: boolean
@@ -49,13 +50,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [overrides, setOverrides]                     = useState<CategoryOverride[]>([])
   const [transactions, setTransactions]               = useState<Transaction[]>([])
   const [mccCatalogue, setMccCatalogue]               = useState<MccEntry[]>([])
+  const [cardMccEligibility, setCardMccEligibility]   = useState<CardMccEligibility[]>([])
   const [vendorCatalogue, setVendorCatalogue]         = useState<Vendor[]>([])
   const [cashbackRates, setCashbackRates]             = useState<CashbackRate[]>([])
   const [loading, setLoading]                         = useState(true)
   const [error, setError]                             = useState<string | null>(null)
 
   const loadLibrary = useCallback(async () => {
-    const [catRes, cardRes, rateRes, capRes, selectableRes, mccRes, vendorRes, cbRateRes] = await Promise.all([
+    const [catRes, cardRes, rateRes, capRes, selectableRes, mccRes, vendorRes, cbRateRes, mccEligRes] = await Promise.all([
       supabase.from('categories').select('*').order('name'),
       supabase.from('card_library').select('*').order('bank').order('name'),
       supabase.from('library_rates').select('*'),
@@ -64,6 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       supabase.from('mcc_catalogue').select('*').order('code'),
       supabase.from('vendor_catalogue').select('*').eq('active', true).order('name'),
       supabase.from('library_cashback_rates').select('*'),
+      supabase.from('card_mcc_eligibility').select('*'),
     ])
     if (catRes.error)       throw catRes.error
     if (cardRes.error)      throw cardRes.error
@@ -81,6 +84,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMccCatalogue(mccRes.data ?? [])
     setVendorCatalogue(vendorRes.data ?? [])
     setCashbackRates(cbRateRes.data ?? [])
+    setCardMccEligibility((mccEligRes.data as CardMccEligibility[]) ?? [])  // may be empty if migration 044 not yet run
   }, [])
 
   const loadSelections = useCallback(async () => {
@@ -251,7 +255,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       categories, allCards, cards, selectedCardIds, statementDays,
       rates, caps, selectableCategories, overrides,
-      transactions, mccCatalogue, vendorCatalogue, cashbackRates,
+      transactions, mccCatalogue, cardMccEligibility, vendorCatalogue, cashbackRates,
       loading, error,
       refresh, refreshTransactions,
       addCardSelection, removeCardSelection, saveOverride, saveStatementDay, boosts, setRateBoost, updateBoost, deleteBoost,

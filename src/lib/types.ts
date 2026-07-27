@@ -121,6 +121,16 @@ export interface MccEntry {
   default_category_id: string | null
 }
 
+// Bonus-eligible MCC range for a card (mcc_start = mcc_end for single codes).
+export interface CardMccEligibility {
+  id: string
+  card_id: string
+  category_label: string | null
+  mcc_start: string
+  mcc_end: string
+  note: string | null
+}
+
 // Admin-seeded known vendor with default MCC and category
 export interface Vendor {
   id: string
