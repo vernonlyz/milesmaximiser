@@ -77,25 +77,25 @@ export default function Recommend() {
             onSelect={handleVendorSelect}
             onClear={handleVendorClear}
           />
-          {/* MCC chip — informational only in the recommender */}
-          {mcc && (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <span className="font-mono text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                {mcc}
-              </span>
-              <span className="text-xs text-gray-500">
-                {mccDescription ?? 'Unknown MCC'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setMcc('')}
-                className="text-gray-300 hover:text-gray-500 transition-colors ml-0.5"
-                title="Dismiss"
-              >
-                <X size={11} />
-              </button>
-            </div>
-          )}
+        </div>
+
+        {/* MCC — editable; auto-filled by the vendor, or type one to check eligibility */}
+        <div>
+          <label className="label">MCC <span className="text-gray-500 font-normal text-xs">(optional — type to check eligibility)</span></label>
+          <div className="relative">
+            <input
+              value={mcc}
+              onChange={e => setMcc(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="e.g. 5814"
+              inputMode="numeric"
+              className="input pr-7"
+            />
+            {mcc && (
+              <button type="button" onClick={() => setMcc('')} title="Clear"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"><X size={12} /></button>
+            )}
+          </div>
+          {mcc.length === 4 && <p className="text-xs text-gray-500 mt-0.5">{mccDescription ?? 'Unknown MCC'}</p>}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
