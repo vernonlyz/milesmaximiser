@@ -112,7 +112,12 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-07-19  Upcoming range presets (default next 1 month); show full month inline when a month is filtered
 2026-07-19  Dashboard: collapsible Upcoming (default expanded), next-5 preview + View-all→Transactions (opens all upcoming)  [tag: v7.6-recurring-reconcile]
 2026-07-19  Recurring: standalone create/edit editor (own fields), decoupled from logging — no duplicate; "+ New" in Recurring manager
-2026-07-19  Dashboard: click a wallet card → Transactions filtered to it (current month)
+2026-07-19  Dashboard: click a wallet card → Transactions filtered to it (current month)  [tag: v7.7-recurring-ux]
+2026-07-20  Recurring: show next charge date on rules; editor mirrors the log form (VendorInput autofill, MCC); notes support
+2026-07-23  Transactions: optional From/To date-range filter (overrides year/month; fetched from Supabase); totals include future-dated within period
+2026-07-24  Transactions: prominent totals as stat tiles (Spent/Miles/Cashback); whole-dollar values; mobile truncation fixes
+2026-07-24  Transactions Upcoming: declutter — recurring collapsed to one line per rule, one-offs grouped by month, hover actions; mobile layout fixes
+2026-07-27  My Cards: bonus-eligible MCC viewer (migration 044); Recommend: MCC eligibility hint (level 1) + editable MCC input
 ```
 
 ---
@@ -224,6 +229,17 @@ Recurring charges are now **rules** (on `transaction_favourites`: `recur_unit`/`
 - **Standalone recurring editor** — creating a recurring charge is a self-contained modal (own card/category/amount/vendor/channel + schedule fields), reached via Recurring → "+ New" (or the empty-state CTA); "Create recurring" saves + generates + closes (no log modal, no duplicate). "Save as favourite" is plain one-off templates only. Editing uses the same editor.
 - **Wallet card drill-down** — clicking a card's name row in the Dashboard My Wallet routes to Transactions filtered to that card (keeping the current-month filter), via nav state `filterCardId`.
 
+### Transactions: date-range, totals, Upcoming polish
+- **Date-range filter** — optional From/To pickers (open-ended allowed) that override the year/month filters when set; the window is fetched from Supabase so it can span months/years and include future-dated rows. Category/card/search/reconcile filters combine on top. (Kept year+month too, to preserve the Upcoming section the Dashboard links into.)
+- **Totals as stat tiles** — Spent / Miles / Cashback (cashback tile only if any) above a "period · N transactions" caption, reflecting the active filters/range (incl. future-dated within the period). Whole-dollar values + responsive font so 5–6 figure amounts don't truncate on mobile.
+- **Upcoming panel redesign (the "mix")** — recurring occurrences collapse to **one line per rule** (icon · name 🔁 · next date · ×N-in-range · amount · miles; Edit opens the rule); one-off future items **group under month subheaders**; Edit/Delete reveal on hover (desktop) / stay on mobile. Amount+miles stacked into one narrow column and meta shortened to fix mobile truncation.
+- **Recurring editor mirrors the log form** — reuses the shared transaction-form state + VendorInput (autofill category + MCC), Category, MCC, Amount, Card, Payment method, Notes. Rules list shows the **next charge date**; notes flow onto occurrences and into the Upcoming rows.
+
+### Bonus-eligible MCCs (My Cards + Recommend)
+- **`card_mcc_eligibility`** (migration 044) — bonus-eligible MCC ranges per card (shared read-only reference; `mcc_start = mcc_end` for single codes). Seeded for **UOB Lady's Solitaire** from UOB's list, grouped by the card's bonus categories (incl. Travel ranges 3000–3299 / 3500–3999); adds 6 missing MCC descriptions.
+- **My Cards → Details** — a "Bonus-eligible MCCs" section: an **MCC checker** (type a code → eligible/not + category) plus the eligible list grouped by category, noting unlisted MCCs earn base.
+- **Recommend — MCC hint (level 1)** — the MCC field is editable (auto-filled by the vendor, or typed); each card with eligibility data shows "✓ MCC eligible · <category>" / "⚠ not in bonus list — likely base rate". Informational only (no ranking change); silent for cards without data.
+
 ### Categories & vendors
 - **New categories** (migration 043 + seed): Insurance 🛡️ (013), Subscription 📺 (014), Health 🩺 (015) — base rate only.
 - **Vendor recategorisation** (`vendor_seed.sql`): streaming + Investing Note → Subscription; medical + Guardian/Watsons → Health; added SG insurers (AIA, Great Eastern, Prudential, Income, Singlife, FWD, Manulife, AXA, MSIG) under Insurance.
@@ -256,6 +272,7 @@ The core recommendation, tracking, expense, trends, and utility features are now
    - Migrations 035–041 (EXPERIMENTAL Points/Reconcile/boost): `035_points_tracking`, `036_credit_reconciliation`, `037_transaction_point_recon`, `038_bonus_rounding`, `039_rate_boost`, `040_rate_boost_dated`, `041_no_bonus_split`
    - Migration 042: `042_recurring_rules.sql` (recur fields on transaction_favourites; transactions.recurring_id) — required for the new recurring model
    - Migration 043: `043_add_categories.sql` (Insurance / Subscription / Health); then re-run `vendor_seed.sql` for recategorisation
+   - Migration 044: `044_card_mcc_eligibility.sql` (card_mcc_eligibility + Lady's Solitaire seed; adds 6 MCC descriptions)
 2. **Dashboard "expiring miles" alert** — Surface the Miles Balance 6-month expiry warning on the home screen. (The cap "almost full" nudge is now done in CapUsageBar; surfacing expiring miles on the Dashboard remains.)
 3. **Annual fee-waiver tracker** — Most SG cards waive the fee at a yearly spend threshold; track spend-to-waiver per card. Needs new library data (fee + threshold per card).
 4. **Per-page Supabase error states** — `ErrorBoundary` covers render/chunk crashes; Cards/Recommend/Transactions still show silent empty states on query failure.

@@ -66,6 +66,7 @@ Supabase (Postgres + Auth + RLS)
     ├─ user_settings                  — Per-user singleton: cumulative miles_goal + miles_goal_label (migrations 031–032)
     ├─ categories                     — Shared lookup table (ids 001–015; +Insurance/Subscription/Health, migration 043)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
+    ├─ card_mcc_eligibility           — Bonus-eligible MCC ranges per card (shared read-only; migration 044)
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
@@ -156,6 +157,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | supabase/migrations/035–041 | EXPERIMENTAL Points/Reconcile/rate-boost: reward programs & points ledgers (035), credit rules + credit_reconciliations (036), transaction_point_recon (037), bonus_rounding (038), rate boost + effective-dating (039–040), no_bonus_split (041) |
 | [supabase/migrations/042_recurring_rules.sql](../supabase/migrations/042_recurring_rules.sql) | Recurring rules (recur fields on transaction_favourites; transactions.recurring_id) — real future transactions |
 | [supabase/migrations/043_add_categories.sql](../supabase/migrations/043_add_categories.sql) | Adds Insurance / Subscription / Health categories |
+| [supabase/migrations/044_card_mcc_eligibility.sql](../supabase/migrations/044_card_mcc_eligibility.sql) | Bonus-eligible MCC ranges per card + Lady's Solitaire seed (adds 6 MCC descriptions) |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 23-card SG library seed — 19 miles cards, 3 cashback cards, 1 debit card (run after all migrations) |
 | [supabase/vendor_seed.sql](../supabase/vendor_seed.sql) | Vendor → default category/MCC (re-run after 043 for subscription/health/insurer recategorisation) |
 
@@ -271,6 +273,10 @@ The app is a functional MVP. All core features are implemented:
 | Recurring rules → real future transactions (every N units, end date/count); standalone create/edit editor; Transactions Upcoming section w/ range presets | Complete |
 | Dashboard collapsible Upcoming (preview + View-all → Transactions) | Complete |
 | Dashboard wallet card → Transactions filtered to that card (current month) | Complete |
+| Transactions: From/To date-range filter; totals as stat tiles (incl. future in period) | Complete |
+| Transactions Upcoming: recurring collapsed per rule + one-offs grouped by month; mobile fixes | Complete |
+| Recurring editor mirrors the log form (VendorInput/MCC/notes); rules show next charge date | Complete |
+| Bonus-eligible MCC viewer (My Cards Details) + Recommend MCC hint (level 1) — Lady's Solitaire | Complete |
 | New categories: Insurance / Subscription / Health; vendor recategorisation | Complete |
 | EXPERIMENTAL (admin-gated) Points tab — reward-points balance per program | Experimental |
 | EXPERIMENTAL (admin-gated) Reconcile tab — base/bonus credit reconciliation, cap ceilings, aggregate rounding, statement cycles | Experimental |
@@ -336,7 +342,7 @@ The app is a functional MVP. All core features are implemented:
 - **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
 - **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
-- **Manual migrations** — Migrations 027–043 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`).
+- **Manual migrations** — Migrations 027–044 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`); 044 = bonus-eligible MCCs per card.
 - **Experimental Miles tabs** — The **Points** (`/points`) and **Reconcile** (`/reconcile`) tabs are admin-gated in `MilesTabs.tsx` (`user.email === ADMIN_EMAIL`) and not shown to other users. Their seeded reward-program rates and card crediting rules are indicative — verify against real statements. Drop the gate to expose.
 - **Recurring generates real rows** — Recurring rules pre-create real future transactions (miles computed at generation, not recomputed later), so they count toward caps and also appear in month spend totals / future Miles Earned. Intentional (for cap planning); the estimates can drift if later spend fills a cap first.
 - **Dates are local (SGT)** — All date-boundary math uses `isoDate()` (local `YYYY-MM-DD`, never `toISOString()`) and string comparisons. New date logic must follow this — mixing `new Date('YYYY-MM-DD')` (UTC) with local Date bounds previously dropped end-of-month transactions in SGT.

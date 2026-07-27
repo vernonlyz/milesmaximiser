@@ -692,3 +692,15 @@ Captures key architectural choices made during development — what was decided,
 **Why:** The old flow nested recurring inside the log modal ("Save as favourite" → Repeat), so after "Create recurring" the log modal stayed open — leaving the user to click "Save Transaction" (which logged a **duplicate** one-off) or "Cancel". Decoupling makes "Create recurring" a single, obvious action that finishes and closes, and makes creating consistent with editing (both use the same standalone editor).
 
 **Trade-off:** No more one-step "log this and also make it recurring" shortcut — recurring is created separately. Accepted for clarity and to eliminate the duplicate.
+
+---
+
+## 2026-07-27 — Bonus-eligible MCCs as reference data; recommend hint is informational (level 1)
+
+**Decision:** Model each card's bonus-eligible MCCs as **shared read-only reference data** (`card_mcc_eligibility`, stored as ranges) — the bank's published list, not derived — and surface it two ways: an **MCC checker + grouped list** in My Cards → Details, and an **informational badge** on the Recommend page (✓/⚠) when an MCC is present. The recommendation **ranking/miles are unchanged** (level 1).
+
+**Why:** The engine decides bonus by category; MCC-level eligibility is the bank's precise definition and must be accurate, so it's seeded from the published list rather than inferred. Shipping it as an informational hint first is low-risk and immediately useful at the point of deciding, without entangling the engine.
+
+**Deferred (level 2):** threading MCC eligibility into `calcMiles`/`recommendCards` so an ineligible MCC drops a card to base rate (changing ranking + logged miles). The nuance there: for a selectable card (Solitaire) the MCC must belong to a category the user actually **chose**, so the fix must map the bank's category labels to the user's selected app categories — deferred until wanted.
+
+**Trade-off:** until level 2, the ranked MPD can still show the bonus for an MCC that wouldn't qualify; the badge flags this so the user isn't misled.
