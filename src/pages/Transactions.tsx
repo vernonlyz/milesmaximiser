@@ -67,7 +67,7 @@ const EMPTY_FORM: TransactionFormData = {
 type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 
 export default function Transactions() {
-  const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cashbackRates, refreshTransactions } = useApp()
+  const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cashbackRates, cardMccEligibility, refreshTransactions } = useApp()
   const { user } = useAuth()
   const toast = useToast()
   const location = useLocation()
@@ -843,6 +843,15 @@ export default function Transactions() {
   // MCC display helper
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
 
+  // Approximate MCC bonus-eligibility for the selected card (when an MCC is keyed in).
+  const mccEligStatus = useMemo((): { state: 'eligible' | 'ineligible' | 'nodata'; label?: string | null } | null => {
+    if (mcc.length !== 4 || !form.card_id) return null
+    const rows = cardMccEligibility.filter(e => e.card_id === form.card_id)
+    if (rows.length === 0) return { state: 'nodata' }
+    const m = rows.find(r => mcc >= r.mcc_start && mcc <= r.mcc_end)
+    return m ? { state: 'eligible', label: m.category_label } : { state: 'ineligible' }
+  }, [mcc, form.card_id, cardMccEligibility])
+
   const mccSuggestions = useMemo(() => {
     if (!mccEditing || /^\d*$/.test(mccInputVal) || mccInputVal.length < 2) return []
     const q = mccInputVal.toLowerCase()
@@ -1599,6 +1608,13 @@ export default function Transactions() {
                 + Add MCC
               </button>
             )}
+            {mccEligStatus && (
+              <p className={`text-xs mt-1 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' ? 'text-amber-600' : 'text-gray-500'}`}>
+                {mccEligStatus.state === 'eligible' && <>✓ Eligible for bonus{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}*</>}
+                {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for bonus*</>}
+                {mccEligStatus.state === 'nodata' && <>No eligibility data for this card yet*</>}
+              </p>
+            )}
           </div>
 
           <div>
@@ -1906,6 +1922,12 @@ export default function Transactions() {
             >
               <Star size={12} /> Save as favourite for quick reuse
             </button>
+          )}
+
+          {mccEligStatus && (
+            <p className="text-[11px] text-gray-400 pt-1">
+              * MCC matching is approximate — please do your own due diligence and verify with your bank if needed.
+            </p>
           )}
 
           <div className="flex gap-3 pt-2">
