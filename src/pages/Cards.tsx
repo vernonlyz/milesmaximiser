@@ -544,7 +544,7 @@ export default function Cards() {
                         if (elig.length === 0) return null
                         const groups = Array.from(
                           elig.reduce((m: Map<string, CardMccEligibility[]>, e) => {
-                            const k = e.category_label ?? 'Other'
+                            const k = e.category_label ?? ''
                             m.set(k, [...(m.get(k) ?? []), e]); return m
                           }, new Map<string, CardMccEligibility[]>()).entries()
                         ).sort((a, z) => a[0].localeCompare(z[0]))
@@ -563,12 +563,12 @@ export default function Cards() {
                                   <input value={mccCheck} onChange={e => setMccCheck(e.target.value.replace(/\D/g, '').slice(0, 4))}
                                     placeholder="Check an MCC (e.g. 5814)" inputMode="numeric" className="input text-sm" />
                                   {check.length === 4 && (matched
-                                    ? <p className="text-xs text-emerald-600 mt-1">✓ Eligible · {matched.category_label}{matched.note ? ` (${matched.note})` : ''}{descFor(check) ? ` — ${descFor(check)}` : ''}</p>
+                                    ? <p className="text-xs text-emerald-600 mt-1">✓ Eligible{matched.category_label ? ` · ${matched.category_label}` : ''}{matched.note ? ` (${matched.note})` : ''}{descFor(check) ? ` — ${descFor(check)}` : ''}</p>
                                     : <p className="text-xs text-gray-500 mt-1">✗ Not eligible — earns base rate{descFor(check) ? ` · ${descFor(check)}` : ''}</p>)}
                                 </div>
                                 {groups.map(([label, rows]) => (
                                   <div key={label}>
-                                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+                                    {label && <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{label}</p>}
                                     <div className="flex flex-wrap gap-1 mt-0.5">
                                       {rows.map(r => (
                                         <span key={r.id} title={r.mcc_start === r.mcc_end ? (descFor(r.mcc_start) ?? '') : (r.note ?? '')}
