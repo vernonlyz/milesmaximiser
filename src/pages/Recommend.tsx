@@ -6,7 +6,8 @@ import PartialBonusNote from '../components/PartialBonusNote'
 import VendorInput from '../components/VendorInput'
 import { recommendCards } from '../lib/recommendations'
 import { formatSGD } from '../lib/utils'
-import { CardRecommendation, Vendor } from '../lib/types'
+import { CardRecommendation, Vendor, CreditCard } from '../lib/types'
+import { resolveMccEligibility, MccEligibility } from '../lib/mcc'
 
 export default function Recommend() {
   const { cards, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cardMccEligibility } = useApp()
@@ -30,14 +31,11 @@ export default function Recommend() {
   const cat = categories.find(c => c.id === categoryId)
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
 
-  // Level-1 MCC eligibility hint per card (silent for cards without eligibility data).
-  type MccElig = { eligible: boolean; label: string | null } | null
-  const mccEligFor = (cardId: string): MccElig => {
+  // Level-1 MCC eligibility hint per card (silent for cards without an eligibility model).
+  const mccEligFor = (card: CreditCard): MccEligibility | null => {
     if (mcc.length !== 4) return null
-    const rows = cardMccEligibility.filter(e => e.card_id === cardId)
-    if (rows.length === 0) return null
-    const m = rows.find(r => mcc >= r.mcc_start && mcc <= r.mcc_end)
-    return m ? { eligible: true, label: m.category_label } : { eligible: false, label: null }
+    const r = resolveMccEligibility(card, mcc, cardMccEligibility)
+    return r.state === 'nodata' ? null : r
   }
 
   function handleVendorSelect(vendor: Vendor) {
@@ -163,7 +161,7 @@ export default function Recommend() {
             </h2>
 
             {recs.map((rec, i) => (
-              <RecCard key={rec.card.id} rec={rec} rank={i + 1} amount={amount} mccElig={mccEligFor(rec.card.id)} />
+              <RecCard key={rec.card.id} rec={rec} rank={i + 1} amount={amount} mccElig={mccEligFor(rec.card)} />
             ))}
           </div>
         ) : (
@@ -181,7 +179,7 @@ export default function Recommend() {
   )
 }
 
-function RecCard({ rec, rank, amount, mccElig }: { rec: CardRecommendation; rank: number; amount: number; mccElig: { eligible: boolean; label: string | null } | null }) {
+function RecCard({ rec, rank, amount, mccElig }: { rec: CardRecommendation; rank: number; amount: number; mccElig: MccEligibility | null }) {
   const isBest = rank === 1
 
   return (
@@ -213,10 +211,10 @@ function RecCard({ rec, rank, amount, mccElig }: { rec: CardRecommendation; rank
             <StatusBadge status={rec.status} />
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{rec.reason}</p>
-          {mccElig && (
-            mccElig.eligible
+          {mccElig && mccElig.state !== 'nodata' && (
+            mccElig.state === 'eligible'
               ? <p className="text-xs text-emerald-600 mt-0.5">✓ MCC eligible for bonus{mccElig.label ? ` · ${mccElig.label}` : ''}</p>
-              : <p className="text-xs text-amber-600 mt-0.5">⚠ MCC not in bonus list — likely base rate</p>
+              : <p className="text-xs text-amber-600 mt-0.5">⚠ MCC not eligible for bonus — likely base rate</p>
           )}
         </div>
 

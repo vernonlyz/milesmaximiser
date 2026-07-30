@@ -11,6 +11,7 @@ import DatePicker from '../components/DatePicker'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
+import { resolveMccEligibility } from '../lib/mcc'
 import { isoDate, exportCsv, getPeriodEnd } from '../lib/utils'
 import { TransactionFormData, CardRecommendation, Transaction, Vendor, TransactionFavourite } from '../lib/types'
 
@@ -844,13 +845,12 @@ export default function Transactions() {
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined
 
   // Approximate MCC bonus-eligibility for the selected card (when an MCC is keyed in).
-  const mccEligStatus = useMemo((): { state: 'eligible' | 'ineligible' | 'nodata'; label?: string | null } | null => {
+  const mccEligStatus = useMemo(() => {
     if (mcc.length !== 4 || !form.card_id) return null
-    const rows = cardMccEligibility.filter(e => e.card_id === form.card_id)
-    if (rows.length === 0) return { state: 'nodata' }
-    const m = rows.find(r => mcc >= r.mcc_start && mcc <= r.mcc_end)
-    return m ? { state: 'eligible', label: m.category_label } : { state: 'ineligible' }
-  }, [mcc, form.card_id, cardMccEligibility])
+    const card = cards.find(c => c.id === form.card_id) ?? allCards.find(c => c.id === form.card_id)
+    if (!card) return null
+    return resolveMccEligibility(card, mcc, cardMccEligibility)
+  }, [mcc, form.card_id, cards, allCards, cardMccEligibility])
 
   const mccSuggestions = useMemo(() => {
     if (!mccEditing || /^\d*$/.test(mccInputVal) || mccInputVal.length < 2) return []

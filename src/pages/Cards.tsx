@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } from '../lib/recommendations'
 import { capPeriodLabel, isoDate } from '../lib/utils'
 import { CreditCard, SpendingCap, CardBoost, CardMccEligibility } from '../lib/types'
+import { resolveMccEligibility } from '../lib/mcc'
 import Modal from '../components/Modal'
 import DatePicker from '../components/DatePicker'
 
@@ -540,8 +541,10 @@ export default function Cards() {
 
                       {/* Bonus-eligible MCCs */}
                       {(() => {
+                        if (!card.mcc_mode) return null
+                        const isBlacklist = card.mcc_mode === 'blacklist'
+                        const title = isBlacklist ? 'Excluded MCCs' : 'Bonus-eligible MCCs'
                         const elig = cardMccEligibility.filter(e => e.card_id === card.id)
-                        if (elig.length === 0) return null
                         const groups = Array.from(
                           elig.reduce((m: Map<string, CardMccEligibility[]>, e) => {
                             const k = e.category_label ?? ''
@@ -549,21 +552,21 @@ export default function Cards() {
                           }, new Map<string, CardMccEligibility[]>()).entries()
                         ).sort((a, z) => a[0].localeCompare(z[0]))
                         const check = mccCheck.trim()
-                        const matched = check.length === 4 ? elig.find(e => check >= e.mcc_start && check <= e.mcc_end) : undefined
+                        const res = check.length === 4 ? resolveMccEligibility(card, check, cardMccEligibility) : null
                         const descFor = (code: string) => mccCatalogue.find(m => m.code === code)?.description
                         return (
                           <div className="mt-3">
                             <button onClick={() => { setMccEligOpen(o => (o === card.id ? null : card.id)); setMccCheck('') }}
                               className="text-xs text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1">
-                              <Info size={12} /> Bonus-eligible MCCs
+                              <Info size={12} /> {title}
                             </button>
                             {mccEligOpen === card.id && (
                               <div className="mt-2 space-y-2">
                                 <div>
                                   <input value={mccCheck} onChange={e => setMccCheck(e.target.value.replace(/\D/g, '').slice(0, 4))}
                                     placeholder="Check an MCC (e.g. 5814)" inputMode="numeric" className="input text-sm" />
-                                  {check.length === 4 && (matched
-                                    ? <p className="text-xs text-emerald-600 mt-1">✓ Eligible{matched.category_label ? ` · ${matched.category_label}` : ''}{matched.note ? ` (${matched.note})` : ''}{descFor(check) ? ` — ${descFor(check)}` : ''}</p>
+                                  {res && (res.state === 'eligible'
+                                    ? <p className="text-xs text-emerald-600 mt-1">✓ Eligible{res.label ? ` · ${res.label}` : ''}{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` — ${descFor(check)}` : ''}</p>
                                     : <p className="text-xs text-gray-500 mt-1">✗ Not eligible — earns base rate{descFor(check) ? ` · ${descFor(check)}` : ''}</p>)}
                                 </div>
                                 {groups.map(([label, rows]) => (
@@ -579,7 +582,7 @@ export default function Cards() {
                                     </div>
                                   </div>
                                 ))}
-                                <p className="text-[11px] text-gray-400">MCCs not listed earn the base rate. Indicative — verify with the bank.</p>
+                                <p className="text-[11px] text-gray-400">{isBlacklist ? 'All MCCs earn the bonus except these.' : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.</p>
                               </div>
                             )}
                           </div>
