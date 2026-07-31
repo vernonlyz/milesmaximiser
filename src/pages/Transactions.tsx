@@ -2063,46 +2063,59 @@ export default function Transactions() {
                 onClear={handleVendorClear}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Card</label>
-                <select value={form.card_id} onChange={e => setField('card_id', e.target.value)} className="input">
-                  <option value="">Select…</option>
-                  {cards.map(c => <option key={c.id} value={c.id}>{c.card_type === 'debit' ? c.name : `${c.bank} ${c.name}`}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Category</label>
-                <select value={form.category_id} onChange={e => setField('category_id', e.target.value)} className="input">
-                  <option value="">Select…</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">MCC <span className="text-gray-500 font-normal text-xs">(optional)</span></label>
-                <input value={mcc} onChange={e => setMcc(e.target.value.replace(/\D/g, ''))} placeholder="e.g. 5814" inputMode="numeric" className="input" />
-                {mccDescription && <p className="text-xs text-gray-500 mt-0.5 truncate">{mccDescription}</p>}
-              </div>
-              <div>
-                <label className="label">Amount (S$)</label>
-                <input type="number" step="0.01" value={form.amount} onChange={e => setField('amount', e.target.value)} className="input" />
-              </div>
-            </div>
-            <div>
-              <label className="label">Payment method</label>
-              <select value={paymentChannel ?? ''} onChange={e => setPaymentChannel((e.target.value || null) as typeof paymentChannel)} className="input">
-                <option value="">—</option>
-                <option value="contactless">Contactless</option>
-                <option value="online">Online</option>
-                <option value="chip">Chip</option>
-              </select>
-            </div>
             <div>
               <label className="label">Notes <span className="text-gray-500 font-normal text-xs">(optional)</span></label>
               <input value={form.description} onChange={e => setField('description', e.target.value)} placeholder="e.g. Family plan" className="input" />
             </div>
+            <div>
+              <label className="label">Category</label>
+              <select value={form.category_id} onChange={e => setField('category_id', e.target.value)} className="input">
+                <option value="">Select category…</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">MCC <span className="text-gray-500 font-normal text-xs">(optional)</span></label>
+              <input value={mcc} onChange={e => setMcc(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="e.g. 5814" inputMode="numeric" className="input" />
+              {mccDescription && <p className="text-xs text-gray-500 mt-0.5">{mccDescription}</p>}
+              {mccEligStatus && (
+                <p className={`text-xs mt-0.5 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' ? 'text-amber-600' : 'text-gray-500'}`}>
+                  {mccEligStatus.state === 'eligible' && <>✓ Eligible for bonus{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}*</>}
+                  {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for bonus*</>}
+                  {mccEligStatus.state === 'nodata' && <>No eligibility data for this card yet*</>}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="label">Amount (S$)</label>
+              <input type="number" step="0.01" value={form.amount} onChange={e => setField('amount', e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="label">Card Used</label>
+              <div className="relative">
+                <select value={form.card_id} onChange={e => setField('card_id', e.target.value)} className="input appearance-none pr-8">
+                  <option value="">Select card…</option>
+                  {cards.map(c => <option key={c.id} value={c.id}>{c.bank} {c.name}</option>)}
+                  {allCards.filter(c => c.card_type === 'debit' && !selectedCardIds.has(c.id)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              </div>
+            </div>
+            <div>
+              <label className="label">Payment method</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['chip', 'contactless', 'online'] as const).map(mode => (
+                  <button key={mode} type="button"
+                    onClick={() => setPaymentChannel(paymentChannel === mode ? null : mode)}
+                    className={`py-1.5 text-xs rounded-lg border transition-colors ${paymentChannel === mode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200 hover:border-indigo-300'}`}>
+                    {mode === 'chip' ? 'Chip / Swipe' : mode === 'contactless' ? 'Tap to pay' : 'Online'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {mccEligStatus && (
+              <p className="text-[11px] text-gray-400">* MCC matching is approximate — verify with your bank if needed.</p>
+            )}
 
             {/* Schedule */}
             <div className="bg-gray-50 rounded-lg p-3 space-y-3">
