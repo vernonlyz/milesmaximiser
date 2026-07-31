@@ -118,6 +118,15 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-07-24  Transactions: prominent totals as stat tiles (Spent/Miles/Cashback); whole-dollar values; mobile truncation fixes
 2026-07-24  Transactions Upcoming: declutter — recurring collapsed to one line per rule, one-offs grouped by month, hover actions; mobile layout fixes
 2026-07-27  My Cards: bonus-eligible MCC viewer (migration 044); Recommend: MCC eligibility hint (level 1) + editable MCC input
+2026-07-27  MCC eligibility in log form — ✓/⚠/no-data* hint + footnote when an MCC is keyed in
+2026-07-28  HSBC Revolution: flat whitelist + 16 MCC descriptions (migration 045); shared resolveMccEligibility helper (src/lib/mcc.ts)
+2026-07-28  MCC whitelist/blacklist model — card_library.mcc_mode (migration 046); Revolution + Lady's Solitaire set whitelist
+2026-07-28  HSBC Revolution rate boost → 8 mpd with an Everyday Global Account (migration 047; reuses effective-dated boost machinery)
+2026-07-29  Citi Rewards blacklist + excluded MCC ranges (migration 048); DBS Woman's World blacklist — 44 excluded singles (migration 049)
+2026-07-30  Recurring editor: add Cash/Debit; mirror the log form (single-column, same field sequence)
+2026-07-30  Transactions: fix stat-tile totals truncation for large numbers; Upcoming mobile truncation fixes
+2026-07-31  Add MariBank Mari Credit Card — 1.5% cashback (migration 050 + library_seed.sql)
+2026-07-31  Fix vendor_seed.sql duplicate ('Foodgle') that broke ON CONFLICT DO UPDATE
 ```
 
 ---
@@ -243,6 +252,22 @@ Recurring charges are now **rules** (on `transaction_favourites`: `recur_unit`/`
 ### Categories & vendors
 - **New categories** (migration 043 + seed): Insurance 🛡️ (013), Subscription 📺 (014), Health 🩺 (015) — base rate only.
 - **Vendor recategorisation** (`vendor_seed.sql`): streaming + Investing Note → Subscription; medical + Guardian/Watsons → Health; added SG insurers (AIA, Great Eastern, Prudential, Income, Singlife, FWD, Manulife, AXA, MSIG) under Insurance.
+- **vendor_seed duplicate fix** — a duplicate `'Foodgle'` row in the VALUES list made `ON CONFLICT (name) DO UPDATE` fail (`ON CONFLICT DO UPDATE command cannot affect row a second time`). Removed the duplicate so every `name` is unique.
+
+### MCC whitelist/blacklist model
+- **`card_library.mcc_mode`** (migration 046) — `'whitelist'` (only the listed MCCs earn the bonus) or `'blacklist'` (everything earns except the listed MCCs); `null` = no MCC data. `card_mcc_eligibility` rows are the list either way.
+- **Shared helper `src/lib/mcc.ts`** — `resolveMccEligibility(card, mcc, rows)` → `{state: 'eligible'|'ineligible'|'nodata', label, note}`; returns `nodata` when `mcc_mode` is null; used by My Cards Details, Recommend, and the log form.
+- **Seeded** — HSBC Revolution flat whitelist (migration 045, +16 MCC descriptions); Citi Rewards blacklist with excluded ranges (migration 048, +4); DBS Woman's World blacklist as 44 exact singles (migration 049, +32); UOB Lady's Solitaire remains whitelist (044/046).
+- **Log-form MCC hint** — when an MCC is keyed into the Add/Edit transaction form, the field shows eligible/not-eligible/no-data with an asterisk and a footnote at the bottom (informational, level 1 — no ranking/miles change).
+
+### HSBC Revolution rate boost (8 mpd)
+- Like UOB Lady's Solitaire, HSBC Revolution earns a boosted rate (bonus categories → 8 mpd) when paired with an **HSBC Everyday Global Account**. Modelled by setting `boost_mpd = 8` + `boost_label` (migration 047) and reusing the existing effective-dated `user_card_boosts` machinery + `applyRateBoosts` (Revolution's bonus is category rates, so they lift 4 → 8). Toggle + history editor in Cards → Details.
+
+### Recurring editor: Cash/Debit + mirror the log form
+- The standalone recurring editor now offers **Cash/Debit** as a card option and its fields **mirror the log-transaction form** — single-column, same sequence (Name → Vendor → Notes → Category → MCC → Amount → Card Used → Payment method → Schedule), VendorInput autofill, MCC eligibility hint, 3-button payment toggle. Fixes earlier field inconsistency and truncation.
+
+### MariBank card
+- Added **MariBank Mari Credit Card** (card `…024`, Mastercard, `card_type='cashback'`, `cashback_rate=0.015`, uncapped/no-min) via migration 050 and `library_seed.sql`. Library is now **24 cards** (4 cashback). No engine change — cashback cards flow through the existing `cashback_rate` path.
 
 ---
 
@@ -272,7 +297,11 @@ The core recommendation, tracking, expense, trends, and utility features are now
    - Migrations 035–041 (EXPERIMENTAL Points/Reconcile/boost): `035_points_tracking`, `036_credit_reconciliation`, `037_transaction_point_recon`, `038_bonus_rounding`, `039_rate_boost`, `040_rate_boost_dated`, `041_no_bonus_split`
    - Migration 042: `042_recurring_rules.sql` (recur fields on transaction_favourites; transactions.recurring_id) — required for the new recurring model
    - Migration 043: `043_add_categories.sql` (Insurance / Subscription / Health); then re-run `vendor_seed.sql` for recategorisation
-   - Migration 044: `044_card_mcc_eligibility.sql` (card_mcc_eligibility + Lady's Solitaire seed; adds 6 MCC descriptions)
+   - Migration 044: `044_card_mcc_eligibility.sql` (card_mcc_eligibility + Lady's Solitaire whitelist seed; adds 6 MCC descriptions)
+   - Migrations 045–046: `045_hsbc_revolution_mcc.sql` (Revolution whitelist), `046_mcc_mode.sql` (card_library.mcc_mode whitelist/blacklist)
+   - Migration 047: `047_revolution_boost.sql` (HSBC Revolution → 8 mpd with an Everyday Global Account)
+   - Migrations 048–049: `048_citi_rewards_blacklist.sql`, `049_dbs_womens_blacklist.sql` (blacklist MCCs)
+   - Migration 050: `050_maribank_card.sql` (MariBank Mari Credit Card — or re-run `library_seed.sql` on a fresh DB)
 2. **Dashboard "expiring miles" alert** — Surface the Miles Balance 6-month expiry warning on the home screen. (The cap "almost full" nudge is now done in CapUsageBar; surfacing expiring miles on the Dashboard remains.)
 3. **Annual fee-waiver tracker** — Most SG cards waive the fee at a yearly spend threshold; track spend-to-waiver per card. Needs new library data (fee + threshold per card).
 4. **Per-page Supabase error states** — `ErrorBoundary` covers render/chunk crashes; Cards/Recommend/Transactions still show silent empty states on query failure.

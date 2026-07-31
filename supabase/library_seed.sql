@@ -67,7 +67,9 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000022', 'Absolute Cashback',        'UOB',               'Amex',       0,    '#00427E', NULL,
      ARRAY['1.7% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.017),
   ('00000000-0000-0000-0001-000000000023', 'Citi Cash Back+',          'Citibank',          'Mastercard', 0,    '#D42B28', NULL,
-     ARRAY['1.6% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.016)
+     ARRAY['1.6% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.016),
+  ('00000000-0000-0000-0001-000000000024', 'Mari Credit Card',         'MariBank',          'Mastercard', 0,    '#00B3A4', NULL,
+     ARRAY['1.5% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.015)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────

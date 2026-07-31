@@ -704,3 +704,30 @@ Captures key architectural choices made during development — what was decided,
 **Deferred (level 2):** threading MCC eligibility into `calcMiles`/`recommendCards` so an ineligible MCC drops a card to base rate (changing ranking + logged miles). The nuance there: for a selectable card (Solitaire) the MCC must belong to a category the user actually **chose**, so the fix must map the bank's category labels to the user's selected app categories — deferred until wanted.
 
 **Trade-off:** until level 2, the ranked MPD can still show the bonus for an MCC that wouldn't qualify; the badge flags this so the user isn't misled.
+
+---
+
+## 2026-07-28 — MCC eligibility: whitelist vs blacklist via a per-card mcc_mode
+
+**Decision:** Add `card_library.mcc_mode` (`'whitelist'` | `'blacklist'` | `null`) and interpret the same `card_mcc_eligibility` rows accordingly: **whitelist** = only the listed MCCs earn the bonus; **blacklist** = every MCC earns the bonus *except* those listed; `null` = no MCC data (silent). A shared helper `resolveMccEligibility(card, mcc, rows)` returns `{state: 'eligible'|'ineligible'|'nodata', label, note}`, used by My Cards, Recommend, and the log form.
+
+**Background:** The first cut (migration 044) assumed every card publishes an *inclusion* list. Real SG cards split both ways — HSBC Revolution and UOB Lady's Solitaire publish an eligible list (whitelist), while Citi Rewards and DBS Woman's World publish an *exclusion* list (blacklist: broad bonus with named carve-outs like cash/quasi-cash, insurance, government, education, utilities).
+
+**Alternatives considered:**
+- Store every eligible MCC for blacklist cards (invert the exclusion list into an inclusion list) — the eligible set is effectively "all MCCs minus a few", so it would be a huge, unstable seed and wrong whenever a new MCC appears.
+- A second table for exclusions — duplicates the range schema; one `mcc_mode` flag reinterpreting the existing rows is far simpler.
+- Per-row `eligible boolean` — allows mixed lists per card, but no SG card needs that; a card-level mode is simpler and matches how banks actually publish.
+
+**Why:** One flag flips the interpretation of the existing ranges, so both models share the same table, seed shape, and helper. Blacklist cards only need their handful of carve-outs seeded (as exact singles so unlisted codes aren't wrongly excluded), which is small and stable. Centralising the logic in `src/lib/mcc.ts` keeps all three call sites consistent.
+
+**Trade-off:** Still informational (level 1) — the engine ranking/miles are unchanged; the hint can differ from the ranked MPD until level 2 threads eligibility into `calcMiles`.
+
+---
+
+## 2026-07-28 — HSBC Revolution 8 mpd boost reuses the rate-boost machinery
+
+**Decision:** Model HSBC Revolution's "8 mpd on bonus categories with an Everyday Global Account" by setting `boost_mpd = 8` + `boost_label` (migration 047) and reusing the existing effective-dated `user_card_boosts` log + `applyRateBoosts`, exactly like UOB Lady's Solitaire's Lady's Savings boost.
+
+**Why:** Revolution's bonus is already stored as category rates, so `applyRateBoosts` (which lifts category rates whose mpd exceeds base up to `boost_mpd`) raises them 4 → 8 with no new engine code. The toggle, effective-dating, per-transaction-window resolution, and history editor all come for free. Adding a bespoke boolean would duplicate machinery that already handles the on/off-over-time case correctly.
+
+**Trade-off:** None beyond the shared machinery's existing one (already-logged transactions keep their stored miles when boost history changes).
