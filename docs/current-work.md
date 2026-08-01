@@ -128,6 +128,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-07-31  Add MariBank Mari Credit Card — 1.5% cashback (migration 050 + library_seed.sql)
 2026-07-31  Fix vendor_seed.sql duplicate ('Foodgle') that broke ON CONFLICT DO UPDATE
 2026-07-31  MCC whitelist for UOB Lady's Card (mirrors Solitaire) + UOB KrisFlyer Visa (migration 051; sourced from T&Cs)
+2026-08-01  Consolidate all MCC eligibility (mcc_mode + card_mcc_eligibility) into library_seed.sql; extra MCC descriptions into mcc_seed.sql — fresh installs now get MCC data from seeds
 ```
 
 ---
@@ -260,6 +261,7 @@ Recurring charges are now **rules** (on `transaction_favourites`: `recur_unit`/`
 - **Shared helper `src/lib/mcc.ts`** — `resolveMccEligibility(card, mcc, rows)` → `{state: 'eligible'|'ineligible'|'nodata', label, note}`; returns `nodata` when `mcc_mode` is null; used by My Cards Details, Recommend, and the log form.
 - **Seeded** — HSBC Revolution flat whitelist (migration 045, +16 MCC descriptions); Citi Rewards blacklist with excluded ranges (migration 048, +4); DBS Woman's World blacklist as 44 exact singles (migration 049, +32); UOB Lady's Solitaire whitelist (044/046); **UOB Lady's Card** whitelist mirroring Solitaire + **UOB KrisFlyer Visa** whitelist (dining/transport/online-shopping MCCs) (migration 051).
 - **Deferred (couldn't source exact MCCs) — Maybank Horizon & UOB Visa Signature.** Both banks publish their lists only inside binary PDFs / images that couldn't be extracted; only Horizon's air-ticket codes (4511, 3000–3350) were in readable text. Per the "never guess" rule these were skipped rather than shipped with partial/invented codes. Revisit if a readable source (or the raw T&C text) becomes available.
+- **Seed consolidation** — `mcc_mode` and all `card_mcc_eligibility` rows are now also seeded in `library_seed.sql` (mode set by card id; rows replaced per card, idempotent), and the extra MCC descriptions live in `mcc_seed.sql`. Fixes a fresh-install gap: the data migrations set `mcc_mode` by card name, so on a clean DB they ran before `library_seed` inserted the cards and no-op'd, leaving `mcc_mode` NULL (feature silently off). The seeds are now the canonical source for MCC data; the migrations remain for existing DBs.
 - **Log-form MCC hint** — when an MCC is keyed into the Add/Edit transaction form, the field shows eligible/not-eligible/no-data with an asterisk and a footnote at the bottom (informational, level 1 — no ranking/miles change).
 
 ### HSBC Revolution rate boost (8 mpd)
