@@ -39,6 +39,7 @@ export default function Reconcile() {
   const [txnRecon, setTxnRecon] = useState<TxnRecon[]>([])
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [filterBank, setFilterBank] = useState<string>('all')
   const [filterCard, setFilterCard] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'unreconciled' | 'mismatch'>('all')
@@ -262,18 +263,23 @@ export default function Reconcile() {
   const mismatches = allLumps.filter(lumpMismatch).length
 
   // Filter options + filtered block list
-  const cardOptions = Array.from(new Map(blocks.map(b => [b.card.id, `${b.card.bank} ${b.card.name}`])))
+  const bankOptions = Array.from(new Set(blocks.map(b => b.card.bank))).sort()
+  const cardOptions = Array.from(new Map(
+    blocks.filter(b => filterBank === 'all' || b.card.bank === filterBank)
+          .map(b => [b.card.id, `${b.card.bank} ${b.card.name}`])
+  ))
   const monthOptions = Array.from(new Map(blocks.map(b => [b.cycleStart, b.label]))).sort((a, z) => z[0].localeCompare(a[0]))
   const blockUnreconciled = (b: typeof blocks[number]) =>
     b.lines.some(l => !baseDone.has(l.txn.id)) || b.lumps.some(l => !bonusReconFor(l)?.reconciled)
   const visibleBlocks = blocks.filter(b =>
+    (filterBank === 'all' || b.card.bank === filterBank) &&
     (filterCard === 'all' || b.card.id === filterCard) &&
     (filterMonth === 'all' || b.cycleStart === filterMonth) &&
     (filterStatus === 'all'
       || (filterStatus === 'unreconciled' && blockUnreconciled(b))
       || (filterStatus === 'mismatch' && b.lumps.some(lumpMismatch)))
   )
-  const filtersActive = filterCard !== 'all' || filterMonth !== 'all' || filterStatus !== 'all'
+  const filtersActive = filterBank !== 'all' || filterCard !== 'all' || filterMonth !== 'all' || filterStatus !== 'all'
 
   const unitCol = (pt: number | null, mi: number, unit: string | null) =>
     pt != null ? <>{fmtNum(pt)} <span className="text-gray-400">{unit}</span></> : <>{fmtNum(mi)} <span className="text-gray-400">mi</span></>
@@ -313,6 +319,10 @@ export default function Reconcile() {
 
           {/* Filters */}
           <div className="flex flex-wrap items-center gap-2">
+            <select value={filterBank} onChange={e => { setFilterBank(e.target.value); setFilterCard('all') }} className="input text-sm w-auto">
+              <option value="all">All banks</option>
+              {bankOptions.map(bank => <option key={bank} value={bank}>{bank}</option>)}
+            </select>
             <select value={filterCard} onChange={e => setFilterCard(e.target.value)} className="input text-sm w-auto">
               <option value="all">All cards</option>
               {cardOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
@@ -330,7 +340,7 @@ export default function Reconcile() {
               ))}
             </div>
             {filtersActive && (
-              <button onClick={() => { setFilterCard('all'); setFilterMonth('all'); setFilterStatus('all') }}
+              <button onClick={() => { setFilterBank('all'); setFilterCard('all'); setFilterMonth('all'); setFilterStatus('all') }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline">Clear</button>
             )}
           </div>
