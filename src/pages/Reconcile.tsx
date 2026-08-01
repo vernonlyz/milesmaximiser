@@ -7,6 +7,7 @@ import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } fr
 import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, resolveBoost } from '../lib/recommendations'
 import { getPeriodStart, getPeriodEnd, isoDate } from '../lib/utils'
 import MilesTabs from '../components/MilesTabs'
+import DatePicker from '../components/DatePicker'
 
 interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
 interface TxnRecon { transaction_id: string; base_reconciled: boolean }
@@ -42,6 +43,8 @@ export default function Reconcile() {
   const [filterBank, setFilterBank] = useState<string>('all')
   const [filterCard, setFilterCard] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'unreconciled' | 'mismatch'>('all')
 
   async function load() {
@@ -240,10 +243,19 @@ export default function Reconcile() {
 
   async function saveBonusActual(l: BonusLump, raw: string) {
     const val = raw.trim() === '' ? null : Number(raw)
-    const patch = l.expectedPt != null ? { actual_points: val } : { actual_miles: val }
+    // Editing the actual value re-arms mismatch flagging — any prior acceptance
+    // applied to the old value.
+    const patch: Record<string, number | boolean | null> = l.expectedPt != null ? { actual_points: val } : { actual_miles: val }
+    patch.mismatch_resolved = false
     const existing = bonusReconFor(l)
     if (existing) await supabase.from('credit_reconciliations').update(patch).eq('id', existing.id)
     else await supabase.from('credit_reconciliations').insert({ user_id: user!.id, card_id: l.card.id, kind: l.kind, cycle_month: l.cycleMonth, category_id: l.categoryId, ...patch })
+    await refetchBonus()
+  }
+  async function toggleMismatchResolved(l: BonusLump) {
+    const existing = bonusReconFor(l)
+    if (existing) await supabase.from('credit_reconciliations').update({ mismatch_resolved: !existing.mismatch_resolved }).eq('id', existing.id)
+    else await supabase.from('credit_reconciliations').insert({ user_id: user!.id, card_id: l.card.id, kind: l.kind, cycle_month: l.cycleMonth, category_id: l.categoryId, mismatch_resolved: true })
     await refetchBonus()
   }
   async function toggleBonus(l: BonusLump) {
@@ -259,7 +271,7 @@ export default function Reconcile() {
   const totalBaseMi = blocks.reduce((s, b) => s + b.lines.reduce((ss, l) => ss + l.baseMi, 0), 0)
   const allLumps = blocks.flatMap(b => b.lumps)
   const bonusReconciled = allLumps.filter(l => bonusReconFor(l)?.reconciled).length
-  const lumpMismatch = (l: BonusLump) => { const a = bonusActual(l); const e = l.expectedPt ?? l.expectedMi; return a != null && Math.round(a) !== Math.round(e) }
+  const lumpMismatch = (l: BonusLump) => { const a = bonusActual(l); const e = l.expectedPt ?? l.expectedMi; return a != null && Math.round(a) !== Math.round(e) && !bonusReconFor(l)?.mismatch_resolved }
   const mismatches = allLumps.filter(lumpMismatch).length
 
   // Filter options + filtered block list
@@ -267,19 +279,24 @@ export default function Reconcile() {
   const cardOptions = Array.from(new Map(
     blocks.filter(b => filterBank === 'all' || b.card.bank === filterBank)
           .map(b => [b.card.id, `${b.card.bank} ${b.card.name}`])
-  ))
+  )).sort((a, z) => a[1].localeCompare(z[1]))
   const monthOptions = Array.from(new Map(blocks.map(b => [b.cycleStart, b.label]))).sort((a, z) => z[0].localeCompare(a[0]))
+  // A custom From/To range (either end optional) overrides the month dropdown and
+  // matches any cycle overlapping the window.
+  const rangeActive = !!(dateFrom || dateTo)
   const blockUnreconciled = (b: typeof blocks[number]) =>
     b.lines.some(l => !baseDone.has(l.txn.id)) || b.lumps.some(l => !bonusReconFor(l)?.reconciled)
   const visibleBlocks = blocks.filter(b =>
     (filterBank === 'all' || b.card.bank === filterBank) &&
     (filterCard === 'all' || b.card.id === filterCard) &&
-    (filterMonth === 'all' || b.cycleStart === filterMonth) &&
+    (rangeActive
+      ? ((!dateFrom || b.cycleEnd >= dateFrom) && (!dateTo || b.cycleStart <= dateTo))
+      : (filterMonth === 'all' || b.cycleStart === filterMonth)) &&
     (filterStatus === 'all'
       || (filterStatus === 'unreconciled' && blockUnreconciled(b))
       || (filterStatus === 'mismatch' && b.lumps.some(lumpMismatch)))
   )
-  const filtersActive = filterBank !== 'all' || filterCard !== 'all' || filterMonth !== 'all' || filterStatus !== 'all'
+  const filtersActive = filterBank !== 'all' || filterCard !== 'all' || filterMonth !== 'all' || filterStatus !== 'all' || rangeActive
 
   const unitCol = (pt: number | null, mi: number, unit: string | null) =>
     pt != null ? <>{fmtNum(pt)} <span className="text-gray-400">{unit}</span></> : <>{fmtNum(mi)} <span className="text-gray-400">mi</span></>
@@ -327,10 +344,17 @@ export default function Reconcile() {
               <option value="all">All cards</option>
               {cardOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             </select>
-            <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="input text-sm w-auto">
+            <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} disabled={rangeActive}
+              title={rangeActive ? 'Cleared — a custom date range is active' : undefined}
+              className="input text-sm w-auto disabled:opacity-50">
               <option value="all">All months</option>
               {monthOptions.map(([start, lbl]) => <option key={start} value={start}>{lbl}</option>)}
             </select>
+            <div className="flex items-center gap-1">
+              <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="From" clearable max={dateTo || undefined} />
+              <span className="text-gray-400 text-xs">–</span>
+              <DatePicker value={dateTo} onChange={setDateTo} placeholder="To" clearable min={dateFrom || undefined} />
+            </div>
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
               {(['all', 'unreconciled', 'mismatch'] as const).map(s => (
                 <button key={s} onClick={() => setFilterStatus(s)}
@@ -340,7 +364,7 @@ export default function Reconcile() {
               ))}
             </div>
             {filtersActive && (
-              <button onClick={() => { setFilterBank('all'); setFilterCard('all'); setFilterMonth('all'); setFilterStatus('all') }}
+              <button onClick={() => { setFilterBank('all'); setFilterCard('all'); setFilterMonth('all'); setFilterStatus('all'); setDateFrom(''); setDateTo('') }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline">Clear</button>
             )}
           </div>
@@ -398,7 +422,9 @@ export default function Reconcile() {
                     const r = bonusReconFor(l)
                     const exp = l.expectedPt ?? l.expectedMi
                     const act = bonusActual(l)
-                    const mismatch = act != null && Math.round(act) !== Math.round(exp)
+                    const rawMismatch = act != null && Math.round(act) !== Math.round(exp)
+                    const resolved = !!r?.mismatch_resolved
+                    const mismatch = rawMismatch && !resolved
                     const dk = l.key
                     const dv = drafts[dk] ?? (act != null ? String(act) : '')
                     return (
@@ -430,6 +456,13 @@ export default function Reconcile() {
                             onBlur={e => { saveBonusActual(l, e.target.value); setDrafts(d => { const { [dk]: _, ...rest } = d; return rest }) }}
                             className={`input text-sm w-24 text-right ${mismatch ? 'border-red-300 text-red-600' : ''}`} />
                         </div>
+                        {rawMismatch && (
+                          <button onClick={() => toggleMismatchResolved(l)}
+                            title={resolved ? 'Difference accepted — click to flag again' : 'Accept this difference (stop flagging as a mismatch)'}
+                            className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${resolved ? 'border-gray-200 text-gray-400 hover:text-gray-600' : 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>
+                            {resolved ? 'Accepted · undo' : 'Accept difference'}
+                          </button>
+                        )}
                         <button onClick={() => toggleBonus(l)} title={r?.reconciled ? 'Bonus reconciled' : 'Mark bonus reconciled'}
                           className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${r?.reconciled ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-300 hover:text-gray-400'}`}>
                           <Check size={15} />

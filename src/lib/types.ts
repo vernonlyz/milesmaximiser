@@ -258,6 +258,7 @@ export interface CreditReconciliation {
   actual_points: number | null
   actual_miles: number | null
   reconciled: boolean
+  mismatch_resolved: boolean  // user accepted the expected/actual difference
   note: string | null
   created_at: string
 }

@@ -129,6 +129,8 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-07-31  Fix vendor_seed.sql duplicate ('Foodgle') that broke ON CONFLICT DO UPDATE
 2026-07-31  MCC whitelist for UOB Lady's Card (mirrors Solitaire) + UOB KrisFlyer Visa (migration 051; sourced from T&Cs)
 2026-08-01  Consolidate all MCC eligibility (mcc_mode + card_mcc_eligibility) into library_seed.sql; extra MCC descriptions into mcc_seed.sql — fresh installs now get MCC data from seeds
+2026-08-01  Reconcile: bank filter (v7.12)
+2026-08-01  Reconcile: accept-mismatch to clear the flag (migration 052); alphabetical card filter; month dropdown + custom From/To date range
 ```
 
 ---
