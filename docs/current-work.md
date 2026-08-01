@@ -127,6 +127,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-07-30  Transactions: fix stat-tile totals truncation for large numbers; Upcoming mobile truncation fixes
 2026-07-31  Add MariBank Mari Credit Card — 1.5% cashback (migration 050 + library_seed.sql)
 2026-07-31  Fix vendor_seed.sql duplicate ('Foodgle') that broke ON CONFLICT DO UPDATE
+2026-07-31  MCC whitelist for UOB Lady's Card (mirrors Solitaire) + UOB KrisFlyer Visa (migration 051; sourced from T&Cs)
 ```
 
 ---
@@ -257,7 +258,8 @@ Recurring charges are now **rules** (on `transaction_favourites`: `recur_unit`/`
 ### MCC whitelist/blacklist model
 - **`card_library.mcc_mode`** (migration 046) — `'whitelist'` (only the listed MCCs earn the bonus) or `'blacklist'` (everything earns except the listed MCCs); `null` = no MCC data. `card_mcc_eligibility` rows are the list either way.
 - **Shared helper `src/lib/mcc.ts`** — `resolveMccEligibility(card, mcc, rows)` → `{state: 'eligible'|'ineligible'|'nodata', label, note}`; returns `nodata` when `mcc_mode` is null; used by My Cards Details, Recommend, and the log form.
-- **Seeded** — HSBC Revolution flat whitelist (migration 045, +16 MCC descriptions); Citi Rewards blacklist with excluded ranges (migration 048, +4); DBS Woman's World blacklist as 44 exact singles (migration 049, +32); UOB Lady's Solitaire remains whitelist (044/046).
+- **Seeded** — HSBC Revolution flat whitelist (migration 045, +16 MCC descriptions); Citi Rewards blacklist with excluded ranges (migration 048, +4); DBS Woman's World blacklist as 44 exact singles (migration 049, +32); UOB Lady's Solitaire whitelist (044/046); **UOB Lady's Card** whitelist mirroring Solitaire + **UOB KrisFlyer Visa** whitelist (dining/transport/online-shopping MCCs) (migration 051).
+- **Deferred (couldn't source exact MCCs) — Maybank Horizon & UOB Visa Signature.** Both banks publish their lists only inside binary PDFs / images that couldn't be extracted; only Horizon's air-ticket codes (4511, 3000–3350) were in readable text. Per the "never guess" rule these were skipped rather than shipped with partial/invented codes. Revisit if a readable source (or the raw T&C text) becomes available.
 - **Log-form MCC hint** — when an MCC is keyed into the Add/Edit transaction form, the field shows eligible/not-eligible/no-data with an asterisk and a footnote at the bottom (informational, level 1 — no ranking/miles change).
 
 ### HSBC Revolution rate boost (8 mpd)

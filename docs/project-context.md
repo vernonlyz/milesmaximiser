@@ -66,7 +66,7 @@ Supabase (Postgres + Auth + RLS)
     ├─ user_settings                  — Per-user singleton: cumulative miles_goal + miles_goal_label (migrations 031–032)
     ├─ categories                     — Shared lookup table (ids 001–015; +Insurance/Subscription/Health, migration 043)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
-    ├─ card_mcc_eligibility           — MCC ranges per card interpreted by card_library.mcc_mode: whitelist = these earn bonus, blacklist = these are excluded (shared read-only; migrations 044/045/048/049)
+    ├─ card_mcc_eligibility           — MCC ranges per card interpreted by card_library.mcc_mode: whitelist = these earn bonus, blacklist = these are excluded (shared read-only; migrations 044/045/048/049/051)
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
@@ -164,6 +164,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [supabase/migrations/048_citi_rewards_blacklist.sql](../supabase/migrations/048_citi_rewards_blacklist.sql) | Citi Rewards blacklist + excluded MCC ranges (+4 MCC descriptions) |
 | [supabase/migrations/049_dbs_womens_blacklist.sql](../supabase/migrations/049_dbs_womens_blacklist.sql) | DBS Woman's World blacklist — 44 excluded MCCs as singles (+32 MCC descriptions) |
 | [supabase/migrations/050_maribank_card.sql](../supabase/migrations/050_maribank_card.sql) | Adds MariBank Mari Credit Card (card 024) — 1.5% cashback |
+| [supabase/migrations/051_ladys_krisflyer_mcc.sql](../supabase/migrations/051_ladys_krisflyer_mcc.sql) | Whitelist MCCs for UOB Lady's Card (mirrors Solitaire) + UOB KrisFlyer Visa (dining/transport/online shopping) |
 | [src/lib/mcc.ts](../src/lib/mcc.ts) | `resolveMccEligibility(card, mcc, rows)` → {state: eligible\|ineligible\|nodata, label, note}; whitelist/blacklist aware; shared by Cards, Recommend, Transactions |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 24-card SG library seed — 19 miles cards, 4 cashback cards, 1 debit card (run after all migrations) |
 | [supabase/vendor_seed.sql](../supabase/vendor_seed.sql) | Vendor → default category/MCC (re-run after 043 for subscription/health/insurer recategorisation) |
@@ -286,6 +287,7 @@ The app is a functional MVP. All core features are implemented:
 | Bonus-eligible MCC viewer (My Cards Details) + Recommend MCC hint (level 1) — Lady's Solitaire | Complete |
 | MCC whitelist/blacklist model (card_library.mcc_mode; shared resolveMccEligibility helper) | Complete |
 | MCC eligibility seeded — HSBC Revolution (whitelist), Citi Rewards + DBS Woman's World (blacklist) | Complete |
+| MCC eligibility seeded — UOB Lady's Card + UOB KrisFlyer Visa (whitelist) | Complete |
 | Log-transaction form MCC eligibility hint — ✓/⚠/no-data* asterisk + footnote | Complete |
 | HSBC Revolution rate boost → 8 mpd with an Everyday Global Account (effective-dated, engine-threaded) | Complete |
 | Recurring editor — Cash/Debit support + fields mirror the log form (single-column, same sequence) | Complete |
@@ -356,7 +358,7 @@ The app is a functional MVP. All core features are implemented:
 - **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
 - **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
-- **Manual migrations** — Migrations 027–050 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`); 044–046/048/049 = MCC eligibility (per-card ranges + `mcc_mode` whitelist/blacklist); 047 = HSBC Revolution boost; 050 = MariBank card (or re-run `library_seed.sql` on a fresh DB).
+- **Manual migrations** — Migrations 027–051 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`); 044–046/048/049/051 = MCC eligibility (per-card ranges + `mcc_mode` whitelist/blacklist); 047 = HSBC Revolution boost; 050 = MariBank card (or re-run `library_seed.sql` on a fresh DB). NOTE: `mcc_mode` and `card_mcc_eligibility` are seeded via migrations only — they are NOT in `library_seed.sql`, so a fresh install lacks MCC data until migrations 044–051 are run.
 - **Experimental Miles tabs** — The **Points** (`/points`) and **Reconcile** (`/reconcile`) tabs are admin-gated in `MilesTabs.tsx` (`user.email === ADMIN_EMAIL`) and not shown to other users. Their seeded reward-program rates and card crediting rules are indicative — verify against real statements. Drop the gate to expose.
 - **Recurring generates real rows** — Recurring rules pre-create real future transactions (miles computed at generation, not recomputed later), so they count toward caps and also appear in month spend totals / future Miles Earned. Intentional (for cap planning); the estimates can drift if later spend fills a cap first.
 - **Dates are local (SGT)** — All date-boundary math uses `isoDate()` (local `YYYY-MM-DD`, never `toISOString()`) and string comparisons. New date logic must follow this — mixing `new Date('YYYY-MM-DD')` (UTC) with local Date bounds previously dropped end-of-month transactions in SGT.
