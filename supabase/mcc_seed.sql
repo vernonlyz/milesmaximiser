@@ -194,5 +194,7 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
   ('8999', 'Professional Services - Not Elsewhere Classified',     '00000000-0000-0000-0000-000000000010'),
   ('9211', 'Court Costs, Alimony and Child Support',               '00000000-0000-0000-0000-000000000010'),
   ('9223', 'Bail and Bond Payments',                              '00000000-0000-0000-0000-000000000010'),
-  ('9405', 'Intra-Government Purchases',                           '00000000-0000-0000-0000-000000000010')
+  ('9405', 'Intra-Government Purchases',                           '00000000-0000-0000-0000-000000000010'),
+  ('7841', 'Video Tape / DVD Rental Stores',                       '00000000-0000-0000-0000-000000000007'),
+  ('7998', 'Aquariums, Dolphinariums, Zoos',                       '00000000-0000-0000-0000-000000000007')
 ON CONFLICT (code) DO NOTHING;

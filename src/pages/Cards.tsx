@@ -42,6 +42,7 @@ export default function Cards() {
   // Bonus-eligible MCC viewer (Details modal)
   const [mccEligOpen, setMccEligOpen] = useState<string | null>(null)
   const [mccCheck, setMccCheck] = useState('')
+  const [mccCheckChannel, setMccCheckChannel] = useState<'online' | 'contactless'>('online')
 
   // Inline statement-day editing state — keyed by card id
   const [editingStatementDay, setEditingStatementDay] = useState<string | null>(null)
@@ -543,17 +544,31 @@ export default function Cards() {
                       {(() => {
                         if (!card.mcc_mode) return null
                         const isBlacklist = card.mcc_mode === 'blacklist'
-                        const title = isBlacklist ? 'Excluded MCCs' : 'Bonus-eligible MCCs'
+                        const isHybrid = card.mcc_mode === 'hybrid'
+                        const title = isHybrid ? 'MCC eligibility' : isBlacklist ? 'Excluded MCCs' : 'Bonus-eligible MCCs'
                         const elig = cardMccEligibility.filter(e => e.card_id === card.id)
-                        const groups = Array.from(
-                          elig.reduce((m: Map<string, CardMccEligibility[]>, e) => {
+                        const descFor = (code: string) => mccCatalogue.find(m => m.code === code)?.description
+                        // Group a row set by category label (blank last).
+                        const groupsOf = (rows: CardMccEligibility[]) => Array.from(
+                          rows.reduce((m: Map<string, CardMccEligibility[]>, e) => {
                             const k = e.category_label ?? ''
                             m.set(k, [...(m.get(k) ?? []), e]); return m
                           }, new Map<string, CardMccEligibility[]>()).entries()
                         ).sort((a, z) => a[0].localeCompare(z[0]))
+                        const chip = (r: CardMccEligibility) => (
+                          <span key={r.id} title={r.mcc_start === r.mcc_end ? (descFor(r.mcc_start) ?? r.note ?? '') : (r.note ?? '')}
+                            className="text-[11px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                            {r.mcc_start === r.mcc_end ? r.mcc_start : `${r.mcc_start}–${r.mcc_end}`}{r.note ? ` ${r.note}` : ''}
+                          </span>
+                        )
+                        const section = (rows: CardMccEligibility[]) => groupsOf(rows).map(([label, rs]) => (
+                          <div key={label}>
+                            {label && <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{label}</p>}
+                            <div className="flex flex-wrap gap-1 mt-0.5">{rs.map(chip)}</div>
+                          </div>
+                        ))
                         const check = mccCheck.trim()
-                        const res = check.length === 4 ? resolveMccEligibility(card, check, cardMccEligibility) : null
-                        const descFor = (code: string) => mccCatalogue.find(m => m.code === code)?.description
+                        const res = check.length === 4 ? resolveMccEligibility(card, check, cardMccEligibility, isHybrid ? mccCheckChannel : undefined) : null
                         return (
                           <div className="mt-3">
                             <button onClick={() => { setMccEligOpen(o => (o === card.id ? null : card.id)); setMccCheck('') }}
@@ -562,27 +577,37 @@ export default function Cards() {
                             </button>
                             {mccEligOpen === card.id && (
                               <div className="mt-2 space-y-2">
+                                {isHybrid && (
+                                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs w-max">
+                                    {(['online', 'contactless'] as const).map(ch => (
+                                      <button key={ch} onClick={() => setMccCheckChannel(ch)}
+                                        className={`px-2.5 py-1 capitalize ${mccCheckChannel === ch ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                                        {ch === 'online' ? 'Online' : 'Tap to pay'}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                                 <div>
                                   <input value={mccCheck} onChange={e => setMccCheck(e.target.value.replace(/\D/g, '').slice(0, 4))}
                                     placeholder="Check an MCC (e.g. 5814)" inputMode="numeric" className="input text-sm" />
                                   {res && (res.state === 'eligible'
                                     ? <p className="text-xs text-emerald-600 mt-1">✓ Eligible{res.label ? ` · ${res.label}` : ''}{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` — ${descFor(check)}` : ''}</p>
-                                    : <p className="text-xs text-gray-500 mt-1">✗ Not eligible — earns base rate{descFor(check) ? ` · ${descFor(check)}` : ''}</p>)}
+                                    : <p className="text-xs text-gray-500 mt-1">✗ Not eligible — earns base rate{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` · ${descFor(check)}` : ''}</p>)}
                                 </div>
-                                {groups.map(([label, rows]) => (
-                                  <div key={label}>
-                                    {label && <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{label}</p>}
-                                    <div className="flex flex-wrap gap-1 mt-0.5">
-                                      {rows.map(r => (
-                                        <span key={r.id} title={r.mcc_start === r.mcc_end ? (descFor(r.mcc_start) ?? '') : (r.note ?? '')}
-                                          className="text-[11px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                                          {r.mcc_start === r.mcc_end ? r.mcc_start : `${r.mcc_start}–${r.mcc_end}`}{r.note ? ` ${r.note}` : ''}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                                <p className="text-[11px] text-gray-400">{isBlacklist ? 'All MCCs earn the bonus except these.' : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.</p>
+                                {isHybrid ? (
+                                  <>
+                                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Online bonus MCCs</p>
+                                    {section(elig.filter(e => e.payment_channel === 'online'))}
+                                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Excluded (all channels)</p>
+                                    {section(elig.filter(e => e.payment_channel == null))}
+                                    <p className="text-[11px] text-gray-400">Contactless (tap / mobile wallet) earns on all MCCs except the excluded list; online earns only on the listed MCCs; chip/swipe earns base. Indicative — verify with the bank.</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    {section(elig)}
+                                    <p className="text-[11px] text-gray-400">{isBlacklist ? 'All MCCs earn the bonus except these.' : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.</p>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>

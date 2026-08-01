@@ -131,6 +131,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-01  Consolidate all MCC eligibility (mcc_mode + card_mcc_eligibility) into library_seed.sql; extra MCC descriptions into mcc_seed.sql — fresh installs now get MCC data from seeds
 2026-08-01  Reconcile: bank filter (v7.12)
 2026-08-01  Reconcile: accept-mismatch to clear the flag (migration 052); alphabetical card filter; month dropdown + custom From/To date range
+2026-08-01  Channel-aware MCC eligibility: 'hybrid' mode + card_mcc_eligibility.payment_channel (migration 053); UOB Preferred Platinum (online whitelist / contactless all / shared exclusions); channel toggle in Cards checker; channel threaded through log form + Recommend
 ```
 
 ---

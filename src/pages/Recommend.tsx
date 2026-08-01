@@ -34,7 +34,7 @@ export default function Recommend() {
   // Level-1 MCC eligibility hint per card (silent for cards without an eligibility model).
   const mccEligFor = (card: CreditCard): MccEligibility | null => {
     if (mcc.length !== 4) return null
-    const r = resolveMccEligibility(card, mcc, cardMccEligibility)
+    const r = resolveMccEligibility(card, mcc, cardMccEligibility, paymentChannel)
     return r.state === 'nodata' ? null : r
   }
 
@@ -213,8 +213,8 @@ function RecCard({ rec, rank, amount, mccElig }: { rec: CardRecommendation; rank
           <p className="text-xs text-gray-500 mt-0.5">{rec.reason}</p>
           {mccElig && mccElig.state !== 'nodata' && (
             mccElig.state === 'eligible'
-              ? <p className="text-xs text-emerald-600 mt-0.5">✓ MCC eligible for bonus{mccElig.label ? ` · ${mccElig.label}` : ''}</p>
-              : <p className="text-xs text-amber-600 mt-0.5">⚠ MCC not eligible for bonus — likely base rate</p>
+              ? <p className="text-xs text-emerald-600 mt-0.5">✓ MCC eligible for bonus{mccElig.label ? ` · ${mccElig.label}` : ''}{mccElig.note ? ` — ${mccElig.note}` : ''}</p>
+              : <p className="text-xs text-amber-600 mt-0.5">⚠ MCC not eligible for bonus{mccElig.note ? ` — ${mccElig.note}` : ' — likely base rate'}</p>
           )}
         </div>
 

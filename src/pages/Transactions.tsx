@@ -849,8 +849,8 @@ export default function Transactions() {
     if (mcc.length !== 4 || !form.card_id) return null
     const card = cards.find(c => c.id === form.card_id) ?? allCards.find(c => c.id === form.card_id)
     if (!card) return null
-    return resolveMccEligibility(card, mcc, cardMccEligibility)
-  }, [mcc, form.card_id, cards, allCards, cardMccEligibility])
+    return resolveMccEligibility(card, mcc, cardMccEligibility, paymentChannel)
+  }, [mcc, form.card_id, cards, allCards, cardMccEligibility, paymentChannel])
 
   const mccSuggestions = useMemo(() => {
     if (!mccEditing || /^\d*$/.test(mccInputVal) || mccInputVal.length < 2) return []
@@ -1610,8 +1610,8 @@ export default function Transactions() {
             )}
             {mccEligStatus && (
               <p className={`text-xs mt-1 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' ? 'text-amber-600' : 'text-gray-500'}`}>
-                {mccEligStatus.state === 'eligible' && <>✓ Eligible for bonus{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}*</>}
-                {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for bonus*</>}
+                {mccEligStatus.state === 'eligible' && <>✓ Eligible for bonus{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
+                {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for bonus{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
                 {mccEligStatus.state === 'nodata' && <>No eligibility data for this card yet*</>}
               </p>
             )}
@@ -2080,8 +2080,8 @@ export default function Transactions() {
               {mccDescription && <p className="text-xs text-gray-500 mt-0.5">{mccDescription}</p>}
               {mccEligStatus && (
                 <p className={`text-xs mt-0.5 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' ? 'text-amber-600' : 'text-gray-500'}`}>
-                  {mccEligStatus.state === 'eligible' && <>✓ Eligible for bonus{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}*</>}
-                  {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for bonus*</>}
+                  {mccEligStatus.state === 'eligible' && <>✓ Eligible for bonus{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
+                  {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for bonus{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
                   {mccEligStatus.state === 'nodata' && <>No eligibility data for this card yet*</>}
                 </p>
               )}

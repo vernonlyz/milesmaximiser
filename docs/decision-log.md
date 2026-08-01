@@ -731,3 +731,20 @@ Captures key architectural choices made during development — what was decided,
 **Why:** Revolution's bonus is already stored as category rates, so `applyRateBoosts` (which lifts category rates whose mpd exceeds base up to `boost_mpd`) raises them 4 → 8 with no new engine code. The toggle, effective-dating, per-transaction-window resolution, and history editor all come for free. Adding a bespoke boolean would duplicate machinery that already handles the on/off-over-time case correctly.
 
 **Trade-off:** None beyond the shared machinery's existing one (already-logged transactions keep their stored miles when boost history changes).
+
+---
+
+## 2026-08-01 — Channel-aware MCC eligibility via a `hybrid` mode + per-row `payment_channel`
+
+**Decision:** Extend the MCC eligibility model so a verdict can depend on the payment channel. Add `payment_channel` (`'online'` | `'contactless'` | NULL=all) to `card_mcc_eligibility` and a third `mcc_mode`, **`hybrid`**, interpreted as: contactless earns on **all** MCCs; online earns only on the listed `'online'` MCCs; **NULL-channel rows are exclusions on both channels**; chip/swipe earns base. `resolveMccEligibility(card, mcc, rows, channel?)` gained an optional channel; whitelist/blacklist rows also honour a row's `payment_channel` (existing rows are NULL → unchanged). Threaded the channel through the log form (`paymentChannel`), Recommend (`paymentChannel`), and a new channel toggle in the Cards MCC checker.
+
+**Background:** UOB Preferred Platinum Visa is genuinely channel-dependent — its bonus is an online-only whitelist **plus** all-MCC contactless, with a shared exclusion list. The prior single-mode, channel-agnostic model (whitelist OR blacklist for the whole card) could not represent it without being wrong for one channel.
+
+**Alternatives considered:**
+- Model as plain **blacklist** (exclusions only) — accurate for contactless, over-optimistic online (a non-excluded, non-whitelisted MCC would show eligible though online earns base).
+- Model as plain **whitelist** (online list) — accurate online, under-reports contactless (non-listed MCCs show ineligible though contactless earns).
+- Per-card-per-channel **mode columns** on `card_library` — more schema, and still card-shaped rather than data-driven.
+
+**Why:** One nullable row column + one new mode keeps all existing whitelist/blacklist cards working untouched (their rows are channel-NULL) while capturing the hybrid card exactly. It's data-driven and reusable (UOB Visa Signature's contactless-all-plus-exclusions is expressible as blacklist; a future hybrid card just needs rows). Channel is known at the two decision points that matter (log form, Recommend); the Cards checker adds a channel toggle; unknown/null channel falls back to a sensible "contactless earns; online only if listed" note.
+
+**Trade-off:** Still informational (level 1) — the engine ranking/miles are unchanged; the hint can differ from the ranked MPD until level 2 threads eligibility into `calcMiles`. `hybrid`'s convention (NULL rows = exclusions, `'online'` rows = whitelist, contactless = allow-all) is specific to the online-whitelist + contactless-all shape; a card needing contactless-specific inclusions would need another convention.
