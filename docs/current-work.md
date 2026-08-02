@@ -150,6 +150,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-02  Fix header overflow from Cash button — flex-wrap on Transactions + Dashboard header rows.
 2026-08-02  Recommend: standalone MCC eligibility check — enter an MCC alone (no category/amount) to see ✓/◐/✗ across all wallet cards (channel-aware).
 2026-08-02  Log-form live recommendation widget: compact per-card MCC glyph (✓/◐/✗ MCC, tooltip) shown when an MCC is entered.
+2026-08-02  MccInfo component — ⓘ popover with the ✓/◐/✗ legend + "estimated, do your own due diligence" disclaimer; wired into the log-form rec widget and both Recommend headers (no persistent clutter).
 ```
 
 ---

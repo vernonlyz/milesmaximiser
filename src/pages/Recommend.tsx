@@ -8,6 +8,7 @@ import { recommendCards } from '../lib/recommendations'
 import { formatSGD } from '../lib/utils'
 import { CardRecommendation, Vendor, CreditCard } from '../lib/types'
 import { resolveMccEligibility, MccEligibility } from '../lib/mcc'
+import MccInfo from '../components/MccInfo'
 
 export default function Recommend() {
   const { cards, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cardMccEligibility } = useApp()
@@ -167,8 +168,9 @@ export default function Recommend() {
       <div>
         {categoryId && amount > 0 ? (
           <div className="space-y-3">
-            <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">
-              Best cards for {cat?.icon} {cat?.name} · {formatSGD(amount)}
+            <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide flex items-center gap-1">
+              <span className="flex-1">Best cards for {cat?.icon} {cat?.name} · {formatSGD(amount)}</span>
+              {mcc.length === 4 && <MccInfo />}
             </h2>
 
             {recs.map((rec, i) => (
@@ -177,8 +179,9 @@ export default function Recommend() {
           </div>
         ) : mcc.length === 4 ? (
           <div className="space-y-3">
-            <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">
-              MCC {mcc} eligibility{mccDescription ? ` · ${mccDescription}` : ''}
+            <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide flex items-center gap-1">
+              <span className="flex-1">MCC {mcc} eligibility{mccDescription ? ` · ${mccDescription}` : ''}</span>
+              <MccInfo />
             </h2>
             {mccCheck.length > 0 ? (
               <div className="card divide-y divide-gray-100">

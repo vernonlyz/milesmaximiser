@@ -12,6 +12,7 @@ import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
 import { resolveMccEligibility } from '../lib/mcc'
+import MccInfo from '../components/MccInfo'
 import { isoDate, exportCsv, getPeriodEnd } from '../lib/utils'
 import { TransactionFormData, CardRecommendation, Transaction, Vendor, TransactionFavourite } from '../lib/types'
 
@@ -1753,6 +1754,7 @@ export default function Transactions() {
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1.5">
               <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
                 <Sparkles size={12} /> Recommendation
+                {mcc.length === 4 && <MccInfo className="ml-auto" />}
               </p>
               {recs.slice(0, 3).map((rec, i) => (
                 <button
