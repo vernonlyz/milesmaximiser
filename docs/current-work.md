@@ -132,6 +132,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-01  Reconcile: bank filter (v7.12)
 2026-08-01  Reconcile: accept-mismatch to clear the flag (migration 052); alphabetical card filter; month dropdown + custom From/To date range
 2026-08-01  Channel-aware MCC eligibility: 'hybrid' mode + card_mcc_eligibility.payment_channel (migration 053); UOB Preferred Platinum (online whitelist / contactless all / shared exclusions); channel toggle in Cards checker; channel threaded through log form + Recommend
+2026-08-02  UOB Visa Signature hybrid MCC (migration 054) — same exclusions, no online whitelist (contactless-only bonus; petrol eligible); resolver + Cards handle a no-online-rows hybrid card
 ```
 
 ---

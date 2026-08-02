@@ -594,15 +594,26 @@ export default function Cards() {
                                     ? <p className="text-xs text-emerald-600 mt-1">✓ Eligible{res.label ? ` · ${res.label}` : ''}{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` — ${descFor(check)}` : ''}</p>
                                     : <p className="text-xs text-gray-500 mt-1">✗ Not eligible — earns base rate{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` · ${descFor(check)}` : ''}</p>)}
                                 </div>
-                                {isHybrid ? (
-                                  <>
-                                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Online bonus MCCs</p>
-                                    {section(elig.filter(e => e.payment_channel === 'online'))}
-                                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Excluded (all channels)</p>
-                                    {section(elig.filter(e => e.payment_channel == null))}
-                                    <p className="text-[11px] text-gray-400">Contactless (tap / mobile wallet) earns on all MCCs except the excluded list; online earns only on the listed MCCs; chip/swipe earns base. Indicative — verify with the bank.</p>
-                                  </>
-                                ) : (
+                                {isHybrid ? (() => {
+                                  const onlineRows = elig.filter(e => e.payment_channel === 'online')
+                                  const exclRows = elig.filter(e => e.payment_channel == null)
+                                  return (
+                                    <>
+                                      {onlineRows.length > 0 && (
+                                        <>
+                                          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Online bonus MCCs</p>
+                                          {section(onlineRows)}
+                                        </>
+                                      )}
+                                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Excluded (all channels)</p>
+                                      {section(exclRows)}
+                                      <p className="text-[11px] text-gray-400">
+                                        Contactless (tap / mobile wallet) earns on all MCCs except the excluded list;{' '}
+                                        {onlineRows.length > 0 ? 'online earns only on the listed MCCs' : 'online earns base'}; chip/swipe earns base. Indicative — verify with the bank.
+                                      </p>
+                                    </>
+                                  )
+                                })() : (
                                   <>
                                     {section(elig)}
                                     <p className="text-[11px] text-gray-400">{isBlacklist ? 'All MCCs earn the bonus except these.' : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.</p>

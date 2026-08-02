@@ -24,12 +24,13 @@ export function resolveMccEligibility(
     // Exclusions (all channels) always win.
     const excluded = cardRows.find(r => r.payment_channel == null && inRange(r, mcc))
     if (excluded) return { state: 'ineligible', note: excluded.note ?? 'excluded on this card' }
+    const hasOnlineRows = cardRows.some(r => r.payment_channel === 'online')
     const onlineHit = cardRows.find(r => r.payment_channel === 'online' && inRange(r, mcc))
     if (channel === 'contactless') return { state: 'eligible', label: 'Contactless', note: 'contactless earns on all MCCs' }
     if (channel === 'online') return onlineHit
       ? { state: 'eligible', label: onlineHit.category_label, note: onlineHit.note }
-      : { state: 'ineligible', note: 'not in the online bonus list' }
-    if (channel === 'chip') return { state: 'ineligible', note: 'chip/swipe earns base — tap or pay online' }
+      : { state: 'ineligible', note: hasOnlineRows ? 'not in the online bonus list' : 'online earns base — bonus is contactless only' }
+    if (channel === 'chip') return { state: 'ineligible', note: 'chip/swipe earns base — tap to pay' }
     // Channel unspecified: contactless always earns; online only if listed.
     return onlineHit
       ? { state: 'eligible', label: onlineHit.category_label, note: 'online & contactless' }
