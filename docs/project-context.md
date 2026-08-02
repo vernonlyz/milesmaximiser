@@ -66,7 +66,7 @@ Supabase (Postgres + Auth + RLS)
     ├─ user_settings                  — Per-user singleton: cumulative miles_goal + miles_goal_label (migrations 031–032)
     ├─ categories                     — Shared lookup table (ids 001–015; +Insurance/Subscription/Health, migration 043)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
-    ├─ card_mcc_eligibility           — MCC ranges per card interpreted by card_library.mcc_mode: whitelist = these earn bonus, blacklist = these are excluded, hybrid = channel-dependent (per-row payment_channel; migration 053); shared read-only (migrations 044/045/048/049/051/053/054/055/056/057/058/059)
+    ├─ card_mcc_eligibility           — MCC ranges per card interpreted by card_library.mcc_mode: whitelist = these earn bonus, blacklist = these are excluded, hybrid = channel-dependent (per-row payment_channel; migration 053); shared read-only (migrations 044/045/048/049/051/053/054/055/056/057/058/059/060)
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
     └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
 
@@ -173,6 +173,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [supabase/migrations/057_sc_journey_mcc.sql](../supabase/migrations/057_sc_journey_mcc.sql) | SC Journey whitelist, ONLINE-scoped (payment_channel='online') — transport / online grocery-food / online delivery |
 | [supabase/migrations/058_citi_premiermiles_blacklist.sql](../supabase/migrations/058_citi_premiermiles_blacklist.sql) | Citi PremierMiles blacklist — excluded MCCs (finance, insurance, government, quasi-cash, etc.) |
 | [supabase/migrations/059_uob_prvi_blacklist.sql](../supabase/migrations/059_uob_prvi_blacklist.sql) | UOB PRVI Miles trio (Visa/Amex/Mastercard) blacklist — shared excluded MCCs (CROSS JOIN) |
+| [supabase/migrations/060_dbs_altitude_blacklist.sql](../supabase/migrations/060_dbs_altitude_blacklist.sql) | DBS Altitude blacklist — excluded MCCs (finance, insurance, rent, government, education, etc.) |
 | [src/lib/mcc.ts](../src/lib/mcc.ts) | `resolveMccEligibility(card, mcc, rows, channel?)` → {state: eligible\|ineligible\|nodata, label, note}; whitelist/blacklist/hybrid + channel aware; shared by Cards, Recommend, Transactions |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 24-card SG library seed — 19 miles cards, 4 cashback cards, 1 debit card; also sets `mcc_mode` + all `card_mcc_eligibility` rows (consolidated from migrations 044–051) so fresh installs get MCC data (run after all migrations) |
 | [supabase/mcc_seed.sql](../supabase/mcc_seed.sql) | MCC catalogue (code → description → default category); includes the extra codes referenced by `card_mcc_eligibility` |
@@ -299,7 +300,7 @@ The app is a functional MVP. All core features are implemented:
 | MCC eligibility seeded — UOB Lady's Card + UOB KrisFlyer Visa + Maybank XL Rewards + Maybank Horizon (whitelist) | Complete |
 | Channel-aware MCC eligibility (`hybrid` mode + per-row payment_channel) — UOB Preferred Platinum + UOB Visa Signature; channel toggle in Cards checker | Complete |
 | Online-scoped whitelist (channel-aware whitelist rows) — SC Journey (3 mpd online only) | Complete |
-| MCC eligibility seeded — Citi PremierMiles + UOB PRVI Miles trio (blacklist) | Complete |
+| MCC eligibility seeded — Citi PremierMiles + UOB PRVI Miles trio + DBS Altitude (blacklist) | Complete |
 | Log-transaction form MCC eligibility hint — ✓/⚠/no-data* asterisk + footnote | Complete |
 | HSBC Revolution rate boost → 8 mpd with an Everyday Global Account (effective-dated, engine-threaded) | Complete |
 | Recurring editor — Cash/Debit support + fields mirror the log form (single-column, same sequence) | Complete |
@@ -371,7 +372,7 @@ The app is a functional MVP. All core features are implemented:
 - **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
 - **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
-- **Manual migrations** — Migrations 027–059 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`); 044–046/048/049/051 = MCC eligibility (per-card ranges + `mcc_mode` whitelist/blacklist); 047 = HSBC Revolution boost; 050 = MariBank card. NOTE: MCC eligibility is now consolidated into the seeds too — `library_seed.sql` sets `mcc_mode` + all `card_mcc_eligibility` rows and `mcc_seed.sql` carries the referenced MCC descriptions — so a fresh install has full MCC data from the seeds alone (the data migrations set `mcc_mode` by name and no-op if run before the cards exist).
+- **Manual migrations** — Migrations 027–060 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`); 044–046/048/049/051 = MCC eligibility (per-card ranges + `mcc_mode` whitelist/blacklist); 047 = HSBC Revolution boost; 050 = MariBank card. NOTE: MCC eligibility is now consolidated into the seeds too — `library_seed.sql` sets `mcc_mode` + all `card_mcc_eligibility` rows and `mcc_seed.sql` carries the referenced MCC descriptions — so a fresh install has full MCC data from the seeds alone (the data migrations set `mcc_mode` by name and no-op if run before the cards exist).
 - **Experimental Miles tabs** — The **Points** (`/points`) and **Reconcile** (`/reconcile`) tabs are admin-gated in `MilesTabs.tsx` (`user.email === ADMIN_EMAIL`) and not shown to other users. Their seeded reward-program rates and card crediting rules are indicative — verify against real statements. Drop the gate to expose.
 - **Recurring generates real rows** — Recurring rules pre-create real future transactions (miles computed at generation, not recomputed later), so they count toward caps and also appear in month spend totals / future Miles Earned. Intentional (for cap planning); the estimates can drift if later spend fills a cap first.
 - **Dates are local (SGT)** — All date-boundary math uses `isoDate()` (local `YYYY-MM-DD`, never `toISOString()`) and string comparisons. New date logic must follow this — mixing `new Date('YYYY-MM-DD')` (UTC) with local Date bounds previously dropped end-of-month transactions in SGT.
