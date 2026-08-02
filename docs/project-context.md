@@ -251,6 +251,7 @@ The app is a functional MVP. All core features are implemented:
 | Transactions list: "yours: S$X" indigo label when personal_amount set and differs from amount | Complete |
 | Group-split info popup (ⓘ) in transaction form explaining the feature | Complete |
 | Log Transaction button on Dashboard — one tap to open the add-transaction modal from the home page | Complete |
+| One-click Cash shortcut — "Cash"/"Log Cash" opens the log form with Cash/Debit preselected (Transactions + Dashboard) | Complete |
 | Transactions: Export CSV — filtered view, plain-text categories, Personal Share always populated | Complete |
 | Expenses: Export Excel (.xlsx) — 5-sheet workbook with Definitions, Summary, By Category, By Card, Transactions | Complete |
 | Expenses Excel: Card Spend and My Spend columns side-by-side on every sheet (no pre-toggle needed) | Complete |

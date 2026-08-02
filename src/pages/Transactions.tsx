@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat, CheckCircle2, Circle, Receipt, TrendingUp, Percent } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat, CheckCircle2, Circle, Receipt, TrendingUp, Percent, Wallet } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -149,8 +149,11 @@ export default function Transactions() {
 
   // Handle navigation intents: open the add modal, reveal all upcoming, or filter to a card.
   useEffect(() => {
-    const st = location.state as { openModal?: boolean; showUpcoming?: 'all'; filterCardId?: string } | null
-    if (st?.openModal) {
+    const st = location.state as { openModal?: boolean; presetCash?: boolean; showUpcoming?: 'all'; filterCardId?: string } | null
+    if (st?.presetCash) {
+      openAdd(allCards.find(c => c.card_type === 'debit')?.id)
+      window.history.replaceState({}, '')
+    } else if (st?.openModal) {
       openAdd()
       window.history.replaceState({}, '')
     } else if (st?.showUpcoming === 'all') {
@@ -303,10 +306,12 @@ export default function Transactions() {
     setError(null)
   }
 
-  function openAdd() {
+  function openAdd(presetCardId?: string) {
     resetModal()
+    if (presetCardId) setForm(f => ({ ...f, card_id: presetCardId }))
     setShowModal(true)
   }
+  const cashCardId = allCards.find(c => c.card_type === 'debit')?.id
 
   function openEdit(t: Transaction) {
     setForm({
@@ -883,7 +888,13 @@ export default function Transactions() {
               <span className="hidden sm:inline">Export CSV</span>
             </button>
           )}
-          <button onClick={openAdd} className="btn-primary">
+          {cashCardId && (
+            <button onClick={() => openAdd(cashCardId)} className="btn-secondary" title="Log a cash / debit transaction">
+              <Wallet size={15} />
+              <span className="hidden sm:inline">Cash</span>
+            </button>
+          )}
+          <button onClick={() => openAdd()} className="btn-primary">
             <Plus size={16} />
             <span className="hidden sm:inline">Log Transaction</span>
           </button>
@@ -1176,7 +1187,7 @@ export default function Transactions() {
           <div className="py-12 text-center">
             <p className="text-gray-500 text-sm">No transactions found.</p>
             <button
-              onClick={openAdd}
+              onClick={() => openAdd()}
               className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700"
             >
               <Plus size={15} /> Log a transaction

@@ -146,6 +146,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-02  Reduced-rate MCC state (migration 065) — `reduced` flag on card_mcc_eligibility + 'reduced' state in resolver; UOB Absolute Cashback categories (charity/education/healthcare/utilities/professional/government) earn 0.3%; amber "reduced rate" hint in Cards + log form.
 2026-08-02  Citi Cash Back+ blacklist MCC (migration 066) — mirrors Citi PremierMiles exclusion list via SELECT.
 2026-08-02  MariBank blacklist MCC (migration 067) — indicative MCCs for excluded categories (no published table). Every card with an earn/no-earn distinction is now modelled; only truly flat cards (Cash/Debit) remain untagged.
+2026-08-02  One-click Cash shortcut — "Cash" button (Transactions) + "Log Cash" (Dashboard) open the log form with Cash/Debit preselected (openAdd(presetCardId); nav state presetCash).
 ```
 
 ---

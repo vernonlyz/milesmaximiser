@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock, Repeat, ChevronDown, ChevronRight } from 'lucide-react'
+import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock, Repeat, ChevronDown, ChevronRight, Wallet } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
@@ -334,6 +334,13 @@ export default function Dashboard() {
             className="btn-primary text-xs"
           >
             <Plus size={14} /> Log Transaction
+          </button>
+          <button
+            onClick={() => navigate('/transactions', { state: { presetCash: true } })}
+            className="btn-secondary text-xs"
+            title="Log a cash / debit transaction"
+          >
+            <Wallet size={13} /> Log Cash
           </button>
           <button onClick={refresh} className="hidden sm:inline-flex btn-secondary text-xs">
             <RefreshCw size={13} /> Refresh
