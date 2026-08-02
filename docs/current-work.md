@@ -134,6 +134,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-01  Channel-aware MCC eligibility: 'hybrid' mode + card_mcc_eligibility.payment_channel (migration 053); UOB Preferred Platinum (online whitelist / contactless all / shared exclusions); channel toggle in Cards checker; channel threaded through log form + Recommend
 2026-08-02  UOB Visa Signature hybrid MCC (migration 054) — same exclusions, no online whitelist (contactless-only bonus; petrol eligible); resolver + Cards handle a no-online-rows hybrid card
 2026-08-02  Maybank XL Rewards whitelist MCC (migration 055) — Dine / Shop / Travel / Play; exclusions implicit (not stored — whitelist)
+2026-08-02  Maybank Horizon whitelist MCC (migration 056) — Supermarkets/Dining, Transport/Petrol, Retail, Air/Hotels/Cruise; 8699 = Diamond Sky Fuel Card only; merchant-name exclusions noted as unmodellable
 ```
 
 ---

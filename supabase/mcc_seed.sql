@@ -196,5 +196,10 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
   ('9223', 'Bail and Bond Payments',                              '00000000-0000-0000-0000-000000000010'),
   ('9405', 'Intra-Government Purchases',                           '00000000-0000-0000-0000-000000000010'),
   ('7841', 'Video Tape / DVD Rental Stores',                       '00000000-0000-0000-0000-000000000007'),
-  ('7998', 'Aquariums, Dolphinariums, Zoos',                       '00000000-0000-0000-0000-000000000007')
+  ('7998', 'Aquariums, Dolphinariums, Zoos',                       '00000000-0000-0000-0000-000000000007'),
+  ('4011', 'Railroads / Freight',                                  '00000000-0000-0000-0000-000000000008'),
+  ('4214', 'Motor Freight Carriers and Trucking',                  '00000000-0000-0000-0000-000000000008'),
+  ('4215', 'Courier Services',                                     '00000000-0000-0000-0000-000000000008'),
+  ('5172', 'Petroleum and Petroleum Products',                     '00000000-0000-0000-0000-000000000003'),
+  ('5552', 'Electric Vehicle Charging',                            '00000000-0000-0000-0000-000000000003')
 ON CONFLICT (code) DO NOTHING;
