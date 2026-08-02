@@ -202,5 +202,6 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
   ('4215', 'Courier Services',                                     '00000000-0000-0000-0000-000000000008'),
   ('5172', 'Petroleum and Petroleum Products',                     '00000000-0000-0000-0000-000000000003'),
   ('5552', 'Electric Vehicle Charging',                            '00000000-0000-0000-0000-000000000003'),
-  ('5921', 'Package Stores - Beer, Wine, Liquor',                  '00000000-0000-0000-0000-000000000002')
+  ('5921', 'Package Stores - Beer, Wine, Liquor',                  '00000000-0000-0000-0000-000000000002'),
+  ('7800', 'Government-Owned Lotteries',                           '00000000-0000-0000-0000-000000000010')
 ON CONFLICT (code) DO NOTHING;
