@@ -149,6 +149,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-02  One-click Cash shortcut — "Cash" button (Transactions) + "Log Cash" (Dashboard) open the log form with Cash/Debit preselected (openAdd(presetCardId); nav state presetCash).
 2026-08-02  Fix header overflow from Cash button — flex-wrap on Transactions + Dashboard header rows.
 2026-08-02  Recommend: standalone MCC eligibility check — enter an MCC alone (no category/amount) to see ✓/◐/✗ across all wallet cards (channel-aware).
+2026-08-02  Log-form live recommendation widget: compact per-card MCC glyph (✓/◐/✗ MCC, tooltip) shown when an MCC is entered.
 ```
 
 ---

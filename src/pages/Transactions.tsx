@@ -1773,11 +1773,22 @@ export default function Transactions() {
                     <span className="block leading-snug">
                       {i === 0 && '⭐ '}{rec.card.bank} {rec.card.name}
                     </span>
-                    <span className="flex items-center gap-1.5 mt-0.5">
+                    <span className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <StatusBadge status={rec.status} />
                       <span className={`text-xs font-semibold ${form.card_id === rec.card.id ? 'text-white' : 'text-gray-500'}`}>
                         {rec.bonusMpd.toFixed(2)} mpd
                       </span>
+                      {mcc.length === 4 && (() => {
+                        const e = resolveMccEligibility(rec.card, mcc, cardMccEligibility, paymentChannel)
+                        if (e.state === 'nodata') return null
+                        const sel = form.card_id === rec.card.id
+                        const glyph = e.state === 'eligible' ? '✓ MCC' : e.state === 'reduced' ? '◐ MCC' : '✗ MCC'
+                        const color = sel ? 'text-white/90' : e.state === 'eligible' ? 'text-emerald-600' : 'text-amber-600'
+                        const tip = e.state === 'eligible' ? `MCC eligible for bonus${e.label ? ` · ${e.label}` : ''}${e.note ? ` (${e.note})` : ''}`
+                          : e.state === 'reduced' ? `Reduced rate${e.note ? ` · ${e.note}` : ''}`
+                          : `MCC not eligible for bonus${e.note ? ` (${e.note})` : ''}`
+                        return <span title={tip} className={`text-[11px] font-medium ${color}`}>{glyph}</span>
+                      })()}
                     </span>
                   </span>
                 </button>
