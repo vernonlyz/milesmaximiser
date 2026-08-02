@@ -106,7 +106,8 @@ UPDATE card_library SET mcc_mode = 'blacklist' WHERE id IN (
   '00000000-0000-0000-0001-000000000007',  -- HSBC TravelOne
   '00000000-0000-0000-0001-000000000021',  -- SC Simply Cash (cashback)
   '00000000-0000-0000-0001-000000000022',  -- UOB Absolute Cashback (reduced-rate rows)
-  '00000000-0000-0000-0001-000000000023'   -- Citi Cash Back+ (cashback; same list as PremierMiles)
+  '00000000-0000-0000-0001-000000000023',  -- Citi Cash Back+ (cashback; same list as PremierMiles)
+  '00000000-0000-0000-0001-000000000024'   -- MariBank Mari Credit Card (cashback)
 );
 UPDATE card_library SET mcc_mode = 'hybrid' WHERE id IN (
   '00000000-0000-0000-0001-000000000013',  -- UOB Preferred Platinum (online whitelist + contactless all)
@@ -734,6 +735,23 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
 SELECT '00000000-0000-0000-0001-000000000023', category_label, mcc_start, mcc_end, note, payment_channel, reduced
 FROM card_mcc_eligibility
 WHERE card_id = '00000000-0000-0000-0001-000000000005';
+
+-- ── MariBank Mari Credit Card (...024): blacklist (cashback; indicative MCCs) ──
+DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000024';
+INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note) VALUES
+  ('00000000-0000-0000-0001-000000000024', NULL, '4829', '4829', 'Money transfer'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6010', '6012', 'Cash disbursement / financial'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6050', '6051', 'Quasi cash / crypto'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6300', '6300', 'Insurance'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6381', '6381', 'Insurance premiums'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6399', '6399', 'Insurance services'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6529', '6530', 'Stored value load'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6534', '6534', 'Money transfer'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '6540', '6540', 'Stored value load'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '7800', '7800', 'Government lotteries'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '7995', '7995', 'Gambling'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '8398', '8398', 'Charities'),
+  ('00000000-0000-0000-0001-000000000024', NULL, '9211', '9405', 'Government services (incl. tax)');
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Bonus rates (effective from 2000-01-01 = "since launch")
