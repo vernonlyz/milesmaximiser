@@ -1,7 +1,7 @@
 import { CardMccEligibility, CreditCard } from './types'
 
 export type MccChannel = 'online' | 'contactless' | 'chip' | null
-export type MccEligibility = { state: 'eligible' | 'ineligible' | 'nodata'; label?: string | null; note?: string | null }
+export type MccEligibility = { state: 'eligible' | 'ineligible' | 'reduced' | 'nodata'; label?: string | null; note?: string | null }
 
 const inRange = (r: CardMccEligibility, mcc: string) => mcc >= r.mcc_start && mcc <= r.mcc_end
 
@@ -44,14 +44,16 @@ export function resolveMccEligibility(
   const matched = cardRows.find(r => inRange(r, mcc) && chOk(r))
 
   if (card.mcc_mode === 'blacklist') {
-    return { state: matched ? 'ineligible' : 'eligible', label: matched?.category_label ?? null, note: matched?.note ?? null }
+    // A matched "reduced" row earns a reduced rate rather than nothing.
+    const state = matched ? (matched.reduced ? 'reduced' : 'ineligible') : 'eligible'
+    return { state, label: matched?.category_label ?? null, note: matched?.note ?? null }
   }
 
   // whitelist
   if (matched) {
     let note = matched.note ?? null
     if (matched.payment_channel && channel == null) note = note ? `${note} · ${matched.payment_channel} only` : `${matched.payment_channel} only`
-    return { state: 'eligible', label: matched.category_label ?? null, note }
+    return { state: matched.reduced ? 'reduced' : 'eligible', label: matched.category_label ?? null, note }
   }
   // Listed only for a different channel than the one used → earns base here.
   const otherChannel = channel != null ? cardRows.find(r => inRange(r, mcc) && r.payment_channel && r.payment_channel !== channel) : undefined

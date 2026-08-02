@@ -131,6 +131,7 @@ export interface CardMccEligibility {
   mcc_end: string
   note: string | null
   payment_channel: 'online' | 'contactless' | null  // null = applies to all channels
+  reduced: boolean  // matched row earns a reduced rate (not full, not zero) — e.g. UOB Absolute 0.3%
 }
 
 // Admin-seeded known vendor with default MCC and category

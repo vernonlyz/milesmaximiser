@@ -1613,9 +1613,10 @@ export default function Transactions() {
               </button>
             )}
             {mccEligStatus && (
-              <p className={`text-xs mt-1 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' ? 'text-amber-600' : 'text-gray-500'}`}>
+              <p className={`text-xs mt-1 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' || mccEligStatus.state === 'reduced' ? 'text-amber-600' : 'text-gray-500'}`}>
                 {mccEligStatus.state === 'eligible' && <>✓ Eligible for {mccRewardNoun}{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
                 {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for {mccRewardNoun}{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
+                {mccEligStatus.state === 'reduced' && <>◐ Reduced {mccRewardNoun} rate{mccEligStatus.note ? ` · ${mccEligStatus.note}` : ''}{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}*</>}
                 {mccEligStatus.state === 'nodata' && <>No eligibility data for this card yet*</>}
               </p>
             )}
@@ -2083,10 +2084,11 @@ export default function Transactions() {
               <input value={mcc} onChange={e => setMcc(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="e.g. 5814" inputMode="numeric" className="input" />
               {mccDescription && <p className="text-xs text-gray-500 mt-0.5">{mccDescription}</p>}
               {mccEligStatus && (
-                <p className={`text-xs mt-0.5 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' ? 'text-amber-600' : 'text-gray-500'}`}>
+                <p className={`text-xs mt-0.5 ${mccEligStatus.state === 'eligible' ? 'text-emerald-600' : mccEligStatus.state === 'ineligible' || mccEligStatus.state === 'reduced' ? 'text-amber-600' : 'text-gray-500'}`}>
                   {mccEligStatus.state === 'eligible' && <>✓ Eligible for {mccRewardNoun}{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
                   {mccEligStatus.state === 'ineligible' && <>✗ Not eligible for {mccRewardNoun}{mccEligStatus.note ? ` — ${mccEligStatus.note}` : ''}*</>}
-                  {mccEligStatus.state === 'nodata' && <>No eligibility data for this card yet*</>}
+                  {mccEligStatus.state === 'reduced' && <>◐ Reduced {mccRewardNoun} rate{mccEligStatus.note ? ` · ${mccEligStatus.note}` : ''}{mccEligStatus.label ? ` · ${mccEligStatus.label}` : ''}*</>}
+                {mccEligStatus.state === 'nodata' && <>No eligibility data for this card yet*</>}
                 </p>
               )}
             </div>

@@ -4,6 +4,23 @@ Captures key architectural choices made during development — what was decided,
 
 ---
 
+## 2026-08-02 — Reduced-rate MCC state (`reduced` flag) rather than force-fit blacklist
+
+**Decision:** Add a per-row `reduced BOOLEAN` to `card_mcc_eligibility` and a fourth eligibility state, **`reduced`**, to `resolveMccEligibility`. A matched row with `reduced = true` resolves to `reduced` (earns a lower-than-standard rate) instead of `ineligible` (earns nothing). Surfaced as an amber "◐ Reduced rate" hint in the Cards checker and the log form; the rate/label rides in the row's `note` (e.g. "0.3% cashback").
+
+**Background:** UOB Absolute Cashback has **no 0% MCC blacklist** — its "traditionally excluded" categories (charity, education, government, healthcare, utilities, professional services) still earn a reduced **0.3%** vs the standard 1.7%. The binary eligible/ineligible model couldn't represent "earns less," so tagging it blacklist would have wrongly shown "earns no cashback."
+
+**Alternatives considered:**
+- **Tag blacklist anyway** — simple, but inaccurate (says zero when it's 0.3%); rejected.
+- **Leave untagged** — honest but loses useful signal (these categories *do* earn less); rejected once the user wanted the tier surfaced.
+- **Store the exact reduced rate in a numeric column** — more precise, but the engine doesn't consume MCC eligibility yet (level 1 is informational), so a display label in `note` is enough without a schema-heavy rate model.
+
+**Why:** One nullable boolean extends the existing model without disturbing whitelist/blacklist/hybrid cards (their rows default `reduced = false`). It's reusable for any future tiered card. Kept informational (level 1) — the ranked MPD/logged rewards are unchanged.
+
+**Trade-off:** UOB publishes categories, not exact MCCs, so the seeded ranges are indicative (flagged "verify with the bank"); Grab-wallet top-ups are merchant-specific and omitted. The `reduced` state shows a label, not a computed rate, so it won't feed cashback math until a later level.
+
+---
+
 ## 2026-06-07 — Centralised card library model (migration 004)
 
 **Decision:** Move from per-user card data to a shared `card_library` table with `library_rates` and `library_caps`. Users hold a join table (`user_card_selections`) with no copy of rates or caps.

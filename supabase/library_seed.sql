@@ -104,7 +104,8 @@ UPDATE card_library SET mcc_mode = 'blacklist' WHERE id IN (
   '00000000-0000-0000-0001-000000000019',  -- Amex KrisFlyer Ascend
   '00000000-0000-0000-0001-000000000006',  -- OCBC 90°N
   '00000000-0000-0000-0001-000000000007',  -- HSBC TravelOne
-  '00000000-0000-0000-0001-000000000021'   -- SC Simply Cash (cashback)
+  '00000000-0000-0000-0001-000000000021',  -- SC Simply Cash (cashback)
+  '00000000-0000-0000-0001-000000000022'   -- UOB Absolute Cashback (reduced-rate rows)
 );
 UPDATE card_library SET mcc_mode = 'hybrid' WHERE id IN (
   '00000000-0000-0000-0001-000000000013',  -- UOB Preferred Platinum (online whitelist + contactless all)
@@ -714,6 +715,17 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000021', NULL, '7511', '7511', 'Truck stops'),
   ('00000000-0000-0000-0001-000000000021', NULL, '8062', '8062', 'Hospitals'),
   ('00000000-0000-0000-0001-000000000021', NULL, '8999', '8999', 'Professional services');
+
+-- ── UOB Absolute Cashback (...022): reduced-rate rows (0.3% vs full 1.7%) ─────
+-- No 0% MCC blacklist; these categories earn a reduced 0.3% (state 'reduced').
+DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000022';
+INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note, reduced) VALUES
+  ('00000000-0000-0000-0001-000000000022', 'Charity',                '8398', '8398', '0.3% cashback', true),
+  ('00000000-0000-0000-0001-000000000022', 'Education',              '8211', '8299', '0.3% cashback', true),
+  ('00000000-0000-0000-0001-000000000022', 'Healthcare',             '8011', '8099', '0.3% cashback', true),
+  ('00000000-0000-0000-0001-000000000022', 'Utilities',              '4900', '4900', '0.3% cashback', true),
+  ('00000000-0000-0000-0001-000000000022', 'Professional services',  '8999', '8999', '0.3% cashback', true),
+  ('00000000-0000-0000-0001-000000000022', 'Government services',    '9211', '9405', '0.3% cashback', true);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Bonus rates (effective from 2000-01-01 = "since launch")
