@@ -38,6 +38,17 @@ export default function Recommend() {
     return r.state === 'nodata' ? null : r
   }
 
+  // Standalone MCC check across the wallet — used when an MCC is entered but no
+  // category/amount yet (so the ranked results aren't shown).
+  const mccCheck = useMemo(() => {
+    if (mcc.length !== 4) return []
+    const order = { eligible: 0, reduced: 1, ineligible: 2, nodata: 3 }
+    return cards
+      .filter(c => c.mcc_mode)
+      .map(c => ({ card: c, r: resolveMccEligibility(c, mcc, cardMccEligibility, paymentChannel) }))
+      .sort((a, z) => order[a.r.state] - order[z.r.state] || a.card.name.localeCompare(z.card.name))
+  }, [mcc, cards, cardMccEligibility, paymentChannel])
+
   function handleVendorSelect(vendor: Vendor) {
     setVendorName(vendor.name)
     setSelectedVendor(vendor)
@@ -164,11 +175,35 @@ export default function Recommend() {
               <RecCard key={rec.card.id} rec={rec} rank={i + 1} amount={amount} mccElig={mccEligFor(rec.card)} />
             ))}
           </div>
+        ) : mcc.length === 4 ? (
+          <div className="space-y-3">
+            <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">
+              MCC {mcc} eligibility{mccDescription ? ` · ${mccDescription}` : ''}
+            </h2>
+            {mccCheck.length > 0 ? (
+              <div className="card divide-y divide-gray-100">
+                {mccCheck.map(({ card, r }) => (
+                  <div key={card.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: card.color }} />
+                    <p className="text-sm font-medium text-gray-800 truncate flex-1 min-w-0">{card.bank} {card.name}</p>
+                    <span className={`text-xs font-medium text-right ${r.state === 'eligible' ? 'text-emerald-600' : r.state === 'reduced' ? 'text-amber-600' : 'text-gray-400'}`}>
+                      {r.state === 'eligible' ? <>✓ Eligible{r.label ? ` · ${r.label}` : ''}{r.note ? ` (${r.note})` : ''}</>
+                        : r.state === 'reduced' ? <>◐ Reduced{r.note ? ` · ${r.note}` : ''}</>
+                        : <>✗ Not eligible{r.note ? ` (${r.note})` : ''}</>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="card p-6 text-center text-sm text-gray-500">No cards in your wallet have MCC eligibility data.</div>
+            )}
+            <p className="text-[11px] text-gray-400">Add a category and amount above to also rank cards by miles. MCC matching is indicative — verify with your bank.</p>
+          </div>
         ) : (
           <div className="card p-10 text-center border-dashed border-2 border-gray-200">
             <Sparkles size={32} className="text-indigo-300 mx-auto mb-2" />
             <p className="text-gray-500 text-sm">
-              Select a category and enter an amount to see which card earns the most miles.
+              Select a category and enter an amount to see which card earns the most miles — or enter an MCC to check bonus eligibility across your cards.
             </p>
           </div>
         )}
