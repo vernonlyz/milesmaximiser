@@ -870,9 +870,9 @@ export default function Transactions() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <button onClick={() => setRecurringOpen(true)} className="btn-secondary text-xs">
             <Repeat size={13} />
             <span className="hidden sm:inline">Recurring</span>
@@ -889,8 +889,8 @@ export default function Transactions() {
             </button>
           )}
           {cashCardId && (
-            <button onClick={() => openAdd(cashCardId)} className="btn-secondary" title="Log a cash / debit transaction">
-              <Wallet size={15} />
+            <button onClick={() => openAdd(cashCardId)} className="btn-secondary text-xs" title="Log a cash / debit transaction">
+              <Wallet size={13} />
               <span className="hidden sm:inline">Cash</span>
             </button>
           )}
