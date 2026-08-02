@@ -105,7 +105,8 @@ UPDATE card_library SET mcc_mode = 'blacklist' WHERE id IN (
   '00000000-0000-0000-0001-000000000006',  -- OCBC 90°N
   '00000000-0000-0000-0001-000000000007',  -- HSBC TravelOne
   '00000000-0000-0000-0001-000000000021',  -- SC Simply Cash (cashback)
-  '00000000-0000-0000-0001-000000000022'   -- UOB Absolute Cashback (reduced-rate rows)
+  '00000000-0000-0000-0001-000000000022',  -- UOB Absolute Cashback (reduced-rate rows)
+  '00000000-0000-0000-0001-000000000023'   -- Citi Cash Back+ (cashback; same list as PremierMiles)
 );
 UPDATE card_library SET mcc_mode = 'hybrid' WHERE id IN (
   '00000000-0000-0000-0001-000000000013',  -- UOB Preferred Platinum (online whitelist + contactless all)
@@ -726,6 +727,13 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000022', 'Utilities',              '4900', '4900', '0.3% cashback', true),
   ('00000000-0000-0000-0001-000000000022', 'Professional services',  '8999', '8999', '0.3% cashback', true),
   ('00000000-0000-0000-0001-000000000022', 'Government services',    '9211', '9405', '0.3% cashback', true);
+
+-- ── Citi Cash Back+ (...023): blacklist, same list as Citi PremierMiles (...005) ──
+DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000023';
+INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note, payment_channel, reduced)
+SELECT '00000000-0000-0000-0001-000000000023', category_label, mcc_start, mcc_end, note, payment_channel, reduced
+FROM card_mcc_eligibility
+WHERE card_id = '00000000-0000-0000-0001-000000000005';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Bonus rates (effective from 2000-01-01 = "since launch")

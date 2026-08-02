@@ -144,6 +144,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-02  HSBC TravelOne blacklist MCC (migration 063) — excluded MCCs incl. PSP/MoneySend/online-gambling. Every miles card in the library now has an MCC eligibility model.
 2026-08-02  SC Simply Cash blacklist MCC (migration 064) — first cashback card tagged; excluded MCCs earn no cashback; MCC hint wording made card-type aware (cashback vs bonus) in Cards + log form.
 2026-08-02  Reduced-rate MCC state (migration 065) — `reduced` flag on card_mcc_eligibility + 'reduced' state in resolver; UOB Absolute Cashback categories (charity/education/healthcare/utilities/professional/government) earn 0.3%; amber "reduced rate" hint in Cards + log form.
+2026-08-02  Citi Cash Back+ blacklist MCC (migration 066) — mirrors Citi PremierMiles exclusion list via SELECT. All non-flat cards now have an MCC model.
 ```
 
 ---
