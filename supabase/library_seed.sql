@@ -103,7 +103,8 @@ UPDATE card_library SET mcc_mode = 'blacklist' WHERE id IN (
   '00000000-0000-0000-0001-000000000001',  -- DBS Altitude
   '00000000-0000-0000-0001-000000000019',  -- Amex KrisFlyer Ascend
   '00000000-0000-0000-0001-000000000006',  -- OCBC 90°N
-  '00000000-0000-0000-0001-000000000007'   -- HSBC TravelOne
+  '00000000-0000-0000-0001-000000000007',  -- HSBC TravelOne
+  '00000000-0000-0000-0001-000000000021'   -- SC Simply Cash (cashback)
 );
 UPDATE card_library SET mcc_mode = 'hybrid' WHERE id IN (
   '00000000-0000-0000-0001-000000000013',  -- UOB Preferred Platinum (online whitelist + contactless all)
@@ -697,6 +698,22 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000007', NULL, '9399', '9399', 'Government services'),
   ('00000000-0000-0000-0001-000000000007', NULL, '9402', '9402', 'Postal services'),
   ('00000000-0000-0000-0001-000000000007', NULL, '9405', '9405', 'Government services');
+
+-- ── SC Simply Cash (...021): blacklist (cashback — excluded MCCs earn nothing) ──
+DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000021';
+INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note) VALUES
+  ('00000000-0000-0000-0001-000000000021', NULL, '4900', '4900', 'Utilities'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '5047', '5047', 'Medical / hospital equipment'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '5199', '5199', 'Nondurable goods'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '6012', '6012', 'Financial institutions'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '6050', '6051', 'Quasi cash / crypto'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '6529', '6530', 'Stored value load'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '6534', '6534', 'Money transfer'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '6540', '6540', 'Stored value load'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '7299', '7299', 'Other services'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '7511', '7511', 'Truck stops'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '8062', '8062', 'Hospitals'),
+  ('00000000-0000-0000-0001-000000000021', NULL, '8999', '8999', 'Professional services');
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Bonus rates (effective from 2000-01-01 = "since launch")

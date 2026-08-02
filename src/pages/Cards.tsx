@@ -545,7 +545,8 @@ export default function Cards() {
                         if (!card.mcc_mode) return null
                         const isBlacklist = card.mcc_mode === 'blacklist'
                         const isHybrid = card.mcc_mode === 'hybrid'
-                        const title = isHybrid ? 'MCC eligibility' : isBlacklist ? 'Excluded MCCs' : 'Bonus-eligible MCCs'
+                        const rewardNoun = card.card_type === 'cashback' ? 'cashback' : 'bonus'
+                        const title = isHybrid ? 'MCC eligibility' : isBlacklist ? 'Excluded MCCs' : `${card.card_type === 'cashback' ? 'Cashback' : 'Bonus'}-eligible MCCs`
                         const elig = cardMccEligibility.filter(e => e.card_id === card.id)
                         const descFor = (code: string) => mccCatalogue.find(m => m.code === code)?.description
                         // Group a row set by category label (blank last).
@@ -595,7 +596,7 @@ export default function Cards() {
                                     placeholder="Check an MCC (e.g. 5814)" inputMode="numeric" className="input text-sm" />
                                   {res && (res.state === 'eligible'
                                     ? <p className="text-xs text-emerald-600 mt-1">✓ Eligible{res.label ? ` · ${res.label}` : ''}{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` — ${descFor(check)}` : ''}</p>
-                                    : <p className="text-xs text-gray-500 mt-1">✗ Not eligible — earns base rate{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` · ${descFor(check)}` : ''}</p>)}
+                                    : <p className="text-xs text-gray-500 mt-1">✗ Not eligible — earns {card.card_type === 'cashback' ? 'no cashback' : 'base rate'}{res.note ? ` (${res.note})` : ''}{descFor(check) ? ` · ${descFor(check)}` : ''}</p>)}
                                 </div>
                                 {isHybrid ? (() => {
                                   const onlineRows = elig.filter(e => e.payment_channel === 'online')
@@ -620,9 +621,9 @@ export default function Cards() {
                                   <>
                                     {section(elig)}
                                     <p className="text-[11px] text-gray-400">
-                                      {isBlacklist ? 'All MCCs earn the bonus except these.'
-                                        : hasChannelRows ? `Listed MCCs earn the bonus on ${scopedChannel} transactions only; everything else earns base rate.`
-                                        : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.
+                                      {isBlacklist ? `All MCCs earn ${rewardNoun} except these.`
+                                        : hasChannelRows ? `Listed MCCs earn the ${rewardNoun} on ${scopedChannel} transactions only; everything else earns base rate.`
+                                        : card.card_type === 'cashback' ? 'MCCs not listed earn no cashback.' : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.
                                     </p>
                                   </>
                                 )}
