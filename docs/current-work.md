@@ -140,6 +140,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-02  UOB PRVI Miles trio blacklist MCC (migration 059) — Visa/Amex/Mastercard, shared exclusion list via CROSS JOIN (card_id::uuid cast).
 2026-08-02  DBS Altitude blacklist MCC (migration 060) — excluded MCCs (finance, insurance, rent, government, education, etc.).
 2026-08-02  Amex KrisFlyer Ascend blacklist MCC (migration 061) — only MCC-mappable exclusions (utilities, insurance, stored value); Amex has no MCC table so merchant/txn-type exclusions (SPC, SingPost SAM, cash advance, etc.) omitted; petrol MCC not excluded (only SPC merchant).
+2026-08-02  OCBC 90°N blacklist MCC (migration 062) — excluded MCCs (finance, insurance, rent, stored value, government, education, etc.). Only HSBC TravelOne now untagged.
 ```
 
 ---
