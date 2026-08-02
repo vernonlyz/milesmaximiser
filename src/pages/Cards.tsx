@@ -567,8 +567,11 @@ export default function Cards() {
                             <div className="flex flex-wrap gap-1 mt-0.5">{rs.map(chip)}</div>
                           </div>
                         ))
+                        const hasChannelRows = elig.some(e => e.payment_channel != null)
+                        const showChannelToggle = isHybrid || hasChannelRows
+                        const scopedChannel = elig.find(e => e.payment_channel)?.payment_channel  // e.g. 'online' (SC Journey)
                         const check = mccCheck.trim()
-                        const res = check.length === 4 ? resolveMccEligibility(card, check, cardMccEligibility, isHybrid ? mccCheckChannel : undefined) : null
+                        const res = check.length === 4 ? resolveMccEligibility(card, check, cardMccEligibility, showChannelToggle ? mccCheckChannel : undefined) : null
                         return (
                           <div className="mt-3">
                             <button onClick={() => { setMccEligOpen(o => (o === card.id ? null : card.id)); setMccCheck('') }}
@@ -577,7 +580,7 @@ export default function Cards() {
                             </button>
                             {mccEligOpen === card.id && (
                               <div className="mt-2 space-y-2">
-                                {isHybrid && (
+                                {showChannelToggle && (
                                   <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs w-max">
                                     {(['online', 'contactless'] as const).map(ch => (
                                       <button key={ch} onClick={() => setMccCheckChannel(ch)}
@@ -616,7 +619,11 @@ export default function Cards() {
                                 })() : (
                                   <>
                                     {section(elig)}
-                                    <p className="text-[11px] text-gray-400">{isBlacklist ? 'All MCCs earn the bonus except these.' : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.</p>
+                                    <p className="text-[11px] text-gray-400">
+                                      {isBlacklist ? 'All MCCs earn the bonus except these.'
+                                        : hasChannelRows ? `Listed MCCs earn the bonus on ${scopedChannel} transactions only; everything else earns base rate.`
+                                        : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.
+                                    </p>
                                   </>
                                 )}
                               </div>

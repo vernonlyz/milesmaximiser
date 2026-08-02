@@ -37,8 +37,24 @@ export function resolveMccEligibility(
       : { state: 'eligible', label: 'Contactless', note: 'contactless only — online earns base' }
   }
 
-  const chOk = (r: CardMccEligibility) => r.payment_channel == null || r.payment_channel === channel
+  // whitelist / blacklist — rows may be channel-scoped (payment_channel). An
+  // unspecified channel (null/undefined) matches any row, flagging the channel
+  // requirement in the note so the hint stays informative.
+  const chOk = (r: CardMccEligibility) => channel == null || r.payment_channel == null || r.payment_channel === channel
   const matched = cardRows.find(r => inRange(r, mcc) && chOk(r))
-  const eligible = card.mcc_mode === 'whitelist' ? !!matched : !matched
-  return { state: eligible ? 'eligible' : 'ineligible', label: matched?.category_label ?? null, note: matched?.note ?? null }
+
+  if (card.mcc_mode === 'blacklist') {
+    return { state: matched ? 'ineligible' : 'eligible', label: matched?.category_label ?? null, note: matched?.note ?? null }
+  }
+
+  // whitelist
+  if (matched) {
+    let note = matched.note ?? null
+    if (matched.payment_channel && channel == null) note = note ? `${note} · ${matched.payment_channel} only` : `${matched.payment_channel} only`
+    return { state: 'eligible', label: matched.category_label ?? null, note }
+  }
+  // Listed only for a different channel than the one used → earns base here.
+  const otherChannel = channel != null ? cardRows.find(r => inRange(r, mcc) && r.payment_channel && r.payment_channel !== channel) : undefined
+  if (otherChannel) return { state: 'ineligible', note: `bonus is ${otherChannel.payment_channel} only` }
+  return { state: 'ineligible', label: null, note: null }
 }

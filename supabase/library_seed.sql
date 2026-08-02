@@ -90,7 +90,8 @@ UPDATE card_library SET mcc_mode = 'whitelist' WHERE id IN (
   '00000000-0000-0000-0001-000000000014',  -- UOB KrisFlyer Visa
   '00000000-0000-0000-0001-000000000015',  -- HSBC Revolution
   '00000000-0000-0000-0001-000000000016',  -- Maybank XL Rewards
-  '00000000-0000-0000-0001-000000000008'   -- Maybank Horizon
+  '00000000-0000-0000-0001-000000000008',  -- Maybank Horizon
+  '00000000-0000-0000-0001-000000000004'   -- Standard Chartered Journey (online-scoped rows)
 );
 UPDATE card_library SET mcc_mode = 'blacklist' WHERE id IN (
   '00000000-0000-0000-0001-000000000017',  -- Citi Rewards
@@ -471,6 +472,22 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000008', 'Cruises / Travel / Car Rental', '3351', '3500', 'Car rental'),
   ('00000000-0000-0000-0001-000000000008', 'Cruises / Travel / Car Rental', '4411', '4411', 'Cruise lines'),
   ('00000000-0000-0000-0001-000000000008', 'Cruises / Travel / Car Rental', '4722', '4722', 'Travel agencies');
+
+-- ── Standard Chartered Journey (...004): whitelist, ONLINE-scoped ─────────────
+-- 3 mpd only on online (card-not-present) SGD transactions in these MCCs; mobile
+-- wallets don't count as online; everything else earns base.
+DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000004';
+INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note, payment_channel) VALUES
+  ('00000000-0000-0000-0001-000000000004', 'Transport', '4111', '4111', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Transport', '4121', '4121', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Transport', '4411', '4411', 'Cruise lines', 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Transport', '4789', '4789', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Online Grocery / Food', '5411', '5411', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Online Grocery / Food', '5462', '5462', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Online Grocery / Food', '5499', '5499', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Online Grocery / Food', '5921', '5921', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Online Food Delivery', '5811', '5812', NULL, 'online'),
+  ('00000000-0000-0000-0001-000000000004', 'Online Food Delivery', '5814', '5814', NULL, 'online');
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Bonus rates (effective from 2000-01-01 = "since launch")
