@@ -18,7 +18,7 @@ DELETE FROM card_mcc_eligibility WHERE card_id IN (
 );
 
 INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note)
-SELECT c.card_id, NULL, m.mcc_start, m.mcc_end, m.note
+SELECT c.card_id::uuid, NULL, m.mcc_start, m.mcc_end, m.note
 FROM (VALUES
   ('00000000-0000-0000-0001-000000000003'),
   ('00000000-0000-0000-0001-000000000009'),
