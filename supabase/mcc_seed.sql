@@ -203,5 +203,13 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
   ('5172', 'Petroleum and Petroleum Products',                     '00000000-0000-0000-0000-000000000003'),
   ('5552', 'Electric Vehicle Charging',                            '00000000-0000-0000-0000-000000000003'),
   ('5921', 'Package Stores - Beer, Wine, Liquor',                  '00000000-0000-0000-0000-000000000002'),
-  ('7800', 'Government-Owned Lotteries',                           '00000000-0000-0000-0000-000000000010')
+  ('7800', 'Government-Owned Lotteries',                           '00000000-0000-0000-0000-000000000010'),
+  ('6532', 'Payment Service Provider - Member Payment',            '00000000-0000-0000-0000-000000000010'),
+  ('6533', 'Payment Service Provider - Merchant Payment',          '00000000-0000-0000-0000-000000000010'),
+  ('6536', 'MoneySend (Domestic)',                                 '00000000-0000-0000-0000-000000000010'),
+  ('6537', 'MoneySend (International)',                             '00000000-0000-0000-0000-000000000010'),
+  ('6538', 'MoneySend Funding',                                    '00000000-0000-0000-0000-000000000010'),
+  ('6555', 'Mastercard Initiated Rebate',                          '00000000-0000-0000-0000-000000000010'),
+  ('7299', 'Miscellaneous Personal Services',                      '00000000-0000-0000-0000-000000000010'),
+  ('7801', 'Online Gambling',                                      '00000000-0000-0000-0000-000000000010')
 ON CONFLICT (code) DO NOTHING;
