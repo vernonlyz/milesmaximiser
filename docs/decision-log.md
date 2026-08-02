@@ -4,6 +4,21 @@ Captures key architectural choices made during development — what was decided,
 
 ---
 
+## 2026-08-02 — MCC eligibility stays informational (level 1); estimates disclaimed via ⓘ, codes never invented
+
+**Decision:** Roll out MCC eligibility across the whole library as a **display-only** signal — a per-card model (`mcc_mode` + `card_mcc_eligibility` interpreted by `resolveMccEligibility`) surfaced in My Cards, Recommend, and the log form, but **not consumed by the engine**. The ranked MPD and the miles/cashback stored on a transaction are unchanged. Two supporting rules: (a) where a bank doesn't publish exact MCCs, use the standard code for the stated category and **flag it indicative** — never invent codes to fill a gap, and skip merchant-name / transaction-type exclusions that MCCs can't express; (b) carry the "estimated — do your own due diligence / verify with your bank" caveat and the ✓/◐/✗ legend in a collapsible **ⓘ (`MccInfo`)** rather than persistent body text.
+
+**Alternatives considered:**
+- **Level 2 now** (thread eligibility into `calcMiles`/`recommendCards` so an ineligible MCC drops a card to base/reduced and re-ranks) — the highest-value end state, but it changes logged rewards and, for selectable cards, needs the bank's MCC categories mapped to the user's chosen app categories. Deferred until wanted, precisely because it affects stored numbers.
+- **Persistent inline disclaimers/legend** — always visible, but clutters every surface where a glyph appears; rejected for the ⓘ.
+- **Best-effort guessed MCCs** for banks that publish only categories (Amex, MariBank, Absolute) — rejected as fabricating card terms; used standard category→MCC mappings flagged indicative instead.
+
+**Why:** Bank MCC lists are themselves indicative and change; an informational hint is immediately useful at the point of deciding a card without risking wrong stored miles, and it can be corrected with a single SQL edit. Keeping the engine out of it means the rollout carried zero regression risk to the core recommendation math (24/24 engine tests untouched throughout). The ⓘ keeps the caveat honest and discoverable (works on mobile, no hover) without visual noise.
+
+**Trade-off:** Until level 2 the ranked MPD can still show a bonus for an MCC that wouldn't qualify — the glyph/badge flags the discrepancy but doesn't resolve it. Indicative category→MCC mappings may over/under-match at the edges; the disclaimer sets that expectation.
+
+---
+
 ## 2026-08-02 — Reduced-rate MCC state (`reduced` flag) rather than force-fit blacklist
 
 **Decision:** Add a per-row `reduced BOOLEAN` to `card_mcc_eligibility` and a fourth eligibility state, **`reduced`**, to `resolveMccEligibility`. A matched row with `reduced = true` resolves to `reduced` (earns a lower-than-standard rate) instead of `ineligible` (earns nothing). Surfaced as an amber "◐ Reduced rate" hint in the Cards checker and the log form; the rate/label rides in the row's `note` (e.g. "0.3% cashback").

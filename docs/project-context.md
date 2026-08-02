@@ -36,7 +36,7 @@ Browser (React + Vite + TypeScript)
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
     ├─ context/          — AuthContext, AppContext, ToastContext (app-wide toast notifications)
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary, MccInfo)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine (unit-tested: recommendations.test.ts)
         ├─ types.ts            — All TypeScript interfaces
@@ -182,6 +182,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [supabase/migrations/066_citi_cashback_plus_blacklist.sql](../supabase/migrations/066_citi_cashback_plus_blacklist.sql) | Citi Cash Back+ (cashback) blacklist — mirrors Citi PremierMiles exclusion list |
 | [supabase/migrations/067_maribank_blacklist.sql](../supabase/migrations/067_maribank_blacklist.sql) | MariBank (cashback) blacklist — indicative MCCs for excluded categories (money transfer, finance, insurance, gambling, government, etc.) |
 | [src/lib/mcc.ts](../src/lib/mcc.ts) | `resolveMccEligibility(card, mcc, rows, channel?)` → {state: eligible\|ineligible\|reduced\|nodata, label, note}; whitelist/blacklist/hybrid + channel + reduced-rate aware; shared by Cards, Recommend, Transactions |
+| [src/components/MccInfo.tsx](../src/components/MccInfo.tsx) | ⓘ popover: ✓/◐/✗ glyph legend + "eligibility is estimated — verify with your bank" disclaimer (collapsible, no clutter) |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 24-card SG library seed — 19 miles cards, 4 cashback cards, 1 debit card; also sets `mcc_mode` + all `card_mcc_eligibility` rows (consolidated from migrations 044–051) so fresh installs get MCC data (run after all migrations) |
 | [supabase/mcc_seed.sql](../supabase/mcc_seed.sql) | MCC catalogue (code → description → default category); includes the extra codes referenced by `card_mcc_eligibility` |
 | [supabase/vendor_seed.sql](../supabase/vendor_seed.sql) | Vendor → default category/MCC (re-run after 043 for subscription/health/insurer recategorisation) |
@@ -313,6 +314,9 @@ The app is a functional MVP. All core features are implemented:
 | MCC eligibility for cashback cards — SC Simply Cash blacklist (excluded MCCs earn no cashback); card-type-aware hint wording | Complete |
 | Reduced-rate MCC state (`reduced` flag) — UOB Absolute Cashback categories earn 0.3% (amber "reduced rate" hint) | Complete |
 | MCC eligibility — Citi Cash Back+ + MariBank blacklist; every card with an earn/no-earn distinction now modelled | Complete |
+| Recommend: standalone MCC check — enter an MCC alone to see ✓/◐/✗ across all wallet cards (channel-aware) | Complete |
+| Log-form recommendation widget: compact per-card MCC glyph (✓/◐/✗) when an MCC is entered | Complete |
+| MccInfo (ⓘ) — collapsible legend + "estimated, do your own due diligence" disclaimer; log form + Recommend | Complete |
 | Log-transaction form MCC eligibility hint — ✓/⚠/no-data* asterisk + footnote | Complete |
 | HSBC Revolution rate boost → 8 mpd with an Everyday Global Account (effective-dated, engine-threaded) | Complete |
 | Recurring editor — Cash/Debit support + fields mirror the log form (single-column, same sequence) | Complete |

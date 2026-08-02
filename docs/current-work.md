@@ -273,6 +273,24 @@ Recurring charges are now **rules** (on `transaction_favourites`: `recur_unit`/`
 - **My Cards → Details** — a "Bonus-eligible MCCs" section: an **MCC checker** (type a code → eligible/not + category) plus the eligible list grouped by category, noting unlisted MCCs earn base.
 - **Recommend — MCC hint (level 1)** — the MCC field is editable (auto-filled by the vendor, or typed); each card with eligibility data shows "✓ MCC eligible · <category>" / "⚠ not in bonus list — likely base rate". Informational only (no ranking change); silent for cards without data.
 
+### MCC eligibility — full library coverage + model extensions (migrations 044–067)
+Every card that has any earn/no-earn distinction now carries an MCC eligibility model — **23 cards** (only Cash/Debit is untagged). Model + interpretation live in `card_library.mcc_mode` + `card_mcc_eligibility` + `src/lib/mcc.ts`.
+- **Modes:** `whitelist` (Lady's Solitaire/Card, KrisFlyer Visa, HSBC Revolution, XL Rewards, Horizon), `blacklist` (Citi Rewards, DBS Woman's World, Citi PremierMiles, PRVI Visa/Amex/Mastercard, DBS Altitude, Amex Ascend, OCBC 90°N, HSBC TravelOne, SC Simply Cash, Citi Cash Back+, MariBank), `hybrid` (UOB Preferred Platinum, UOB Visa Signature), plus an **online-scoped whitelist** (SC Journey).
+- **Channel-aware** (migration 053): per-row `payment_channel`; `hybrid` = contactless-all + online-whitelist + shared null-channel exclusions; whitelist rows can be online-scoped. Resolver takes an optional `channel`.
+- **Reduced-rate state** (migration 065): per-row `reduced` flag → a 4th `reduced` state (UOB Absolute Cashback 0.3% tier).
+- **Card-type-aware wording** — "cashback" vs "bonus", "earns no cashback" vs "base rate".
+- **Seeds** — all `mcc_mode` + `card_mcc_eligibility` rows consolidated into `library_seed.sql` (mode by id, rows per card) and extra descriptions into `mcc_seed.sql`, so a fresh install has full MCC data from the seeds.
+- **Data honesty** — bank MCC lists are indicative/estimated; where a bank publishes categories not codes (Amex, MariBank, Absolute) the standard MCCs are used and flagged; merchant-name and transaction-type exclusions (SPC, SimplyGo, NETS, cash advance, etc.) are noted as not MCC-modellable.
+
+### MCC eligibility surfacing (UX)
+- **Recommend — standalone MCC check** — enter a 4-digit MCC with no category/amount and the results panel lists every wallet card (with an eligibility model) as ✓ eligible / ◐ reduced / ✗ not eligible (channel-aware, eligible-first).
+- **Log-form recommendation widget** — each ranked card shows a compact colour-coded "✓/◐/✗ MCC" glyph (with tooltip) when an MCC is entered.
+- **MccInfo (ⓘ)** — a collapsible popover carrying the glyph legend + the "eligibility is estimated — do your own due diligence / verify with your bank" disclaimer, so the meaning and caveat are available without persistent clutter (log form + Recommend headers).
+- All of this stays **informational (level 1)** — the engine's ranked MPD and logged rewards are unchanged; Level 2 (engine consuming eligibility) remains deferred.
+
+### One-click Cash logging
+- A "Cash" button (Transactions) and "Log Cash" button (Dashboard) open the log form with **Cash/Debit preselected** (`openAdd(presetCardId)` / nav-state `presetCash`); headers switched to `flex-wrap` to avoid overflow from the extra button.
+
 ### Categories & vendors
 - **New categories** (migration 043 + seed): Insurance 🛡️ (013), Subscription 📺 (014), Health 🩺 (015) — base rate only.
 - **Vendor recategorisation** (`vendor_seed.sql`): streaming + Investing Note → Subscription; medical + Guardian/Watsons → Health; added SG insurers (AIA, Great Eastern, Prudential, Income, Singlife, FWD, Manulife, AXA, MSIG) under Insurance.
