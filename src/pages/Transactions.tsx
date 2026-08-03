@@ -281,7 +281,7 @@ export default function Transactions() {
     if (k === 'category_id') {
       // Online Shopping is inherently card-not-present, so default its channel to
       // 'online' — this keeps it in the Online Shopping cap rather than a card's
-      // contactless cap (e.g. UOB Preferred Platinum defaults to contactless).
+      // contactless cap (e.g. UOB Preferred Visa defaults to contactless).
       const cat = categories.find(c => c.id === v)
       if (cat?.name === 'Online Shopping') setPaymentChannel('online')
     }

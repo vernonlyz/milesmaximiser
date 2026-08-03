@@ -11,7 +11,7 @@ const inRange = (r: CardMccEligibility, mcc: string) => mcc >= r.mcc_start && mc
 //   blacklist — everything earns except the listed MCCs.
 //   hybrid    — contactless earns on all MCCs; online earns only on the listed
 //               'online' MCCs; null-channel rows are exclusions on every channel;
-//               chip/swipe earns base. (e.g. UOB Preferred Platinum Visa.)
+//               chip/swipe earns base. (e.g. UOB Preferred Visa.)
 // Rows may be channel-scoped via payment_channel (null = all channels).
 // Returns 'nodata' when the card has no eligibility model (mcc_mode not set).
 export function resolveMccEligibility(

@@ -115,7 +115,7 @@ export const STARTER_CARDS: StarterCard[] = [
   {
     // 4 mpd on online spend and contactless payments.
     // Note: S$1,110/quarter is a COMBINED cap across both bonus categories.
-    name: 'Preferred Platinum Visa', bank: 'UOB', card_network: 'Visa',
+    name: 'Preferred Visa', bank: 'UOB', card_network: 'Visa',
     base_mpd: 0.4, color: '#1565C0',
     rates: [
       { category_id: CAT.onlineShopping, label: 'Online shopping',       mpd: 4.0 },
