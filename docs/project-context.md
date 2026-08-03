@@ -36,7 +36,7 @@ Browser (React + Vite + TypeScript)
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
     ├─ context/          — AuthContext, AppContext, ToastContext (app-wide toast notifications)
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary, MccInfo)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary, MccInfo, Skeleton, ErrorState)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine (unit-tested: recommendations.test.ts)
         ├─ types.ts            — All TypeScript interfaces
@@ -317,6 +317,8 @@ The app is a functional MVP. All core features are implemented:
 | Recommend: standalone MCC check — enter an MCC alone to see ✓/◐/✗ across all wallet cards (channel-aware) | Complete |
 | Log-form recommendation widget: compact per-card MCC glyph (✓/◐/✗) when an MCC is entered | Complete |
 | MccInfo (ⓘ) — collapsible legend + "estimated, do your own due diligence" disclaimer; log form + Recommend | Complete |
+| UI polish — keyboard focus rings (all buttons/links); popover click-outside/Esc; sticky Transactions header; Miles nav highlights on /earnings | Complete |
+| Skeleton loading states + per-page error/retry (Dashboard/Miles/Earnings/Reconcile/Points/Expenses-Trends) | Complete |
 | Log-transaction form MCC eligibility hint — ✓/⚠/no-data* asterisk + footnote | Complete |
 | HSBC Revolution rate boost → 8 mpd with an Everyday Global Account (effective-dated, engine-threaded) | Complete |
 | Recurring editor — Cash/Debit support + fields mirror the log form (single-column, same sequence) | Complete |
@@ -362,7 +364,7 @@ The app is a functional MVP. All core features are implemented:
 - **Error boundary** — ✅ `ErrorBoundary` around the Layout Outlet (keyed by route) and app root catches render crashes and lazy-chunk load failures (no more blank screens).
 
 ### Missing but lower priority
-- **Silent failures on pages other than Dashboard** — If a Supabase query *fails* (rather than crashes) on Cards, Recommend, or Transactions, the page shows an empty state with no error message. The ErrorBoundary covers crashes/chunk loads but not these non-throwing query failures.
+- **Silent failures on some pages** — The self-fetching pages (Miles, Earnings, Reconcile, Points, Expenses→Trends) + Dashboard now show an inline "Couldn't load — Retry" (ErrorState) on a failed query, and skeletons while loading. Still outstanding: Cards / Recommend / Transactions read from AppContext, whose top-level load error isn't surfaced per-page yet (they'd show an empty state).
 - **No pagination or date-range control on transactions** — Loads the entire current year. Will become slow with very high transaction volumes.
 - **No push notifications or reminders** — Users must actively open the app; there is no proactive "cap almost reached" or "miles expiring" alert. (Miles expiry warnings exist on the Miles Balance page but are not surfaced on the Dashboard.)
 - **Mobile dashboard navigation** — Dashboard can be long on phones (stats, milestones, wallet bars, recent transactions all on one scroll). Ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design — not implementing for now.

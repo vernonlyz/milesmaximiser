@@ -8,6 +8,8 @@ import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides,
 import { getPeriodStart, getPeriodEnd, isoDate } from '../lib/utils'
 import MilesTabs from '../components/MilesTabs'
 import DatePicker from '../components/DatePicker'
+import { PageSkeleton } from '../components/Skeleton'
+import ErrorState from '../components/ErrorState'
 
 interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
 interface TxnRecon { transaction_id: string; base_reconciled: boolean }
@@ -40,6 +42,7 @@ export default function Reconcile() {
   const [txnRecon, setTxnRecon] = useState<TxnRecon[]>([])
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [filterBank, setFilterBank] = useState<string>('all')
   const [filterCard, setFilterCard] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
@@ -49,19 +52,26 @@ export default function Reconcile() {
 
   async function load() {
     setLoading(true)
-    const [txRes, progRes, mapRes, bonusRes, tprRes] = await Promise.all([
-      supabase.from('transactions').select('id, card_id, category_id, amount, miles_earned, vendor_name, transaction_date'),
-      supabase.from('reward_programs').select('*'),
-      supabase.from('card_reward_program').select('*'),
-      supabase.from('credit_reconciliations').select('*').in('kind', ['bonus', 'bonus_boost']),
-      supabase.from('transaction_point_recon').select('transaction_id, base_reconciled'),
-    ])
-    setTxns((txRes.data as TxnRow[]) ?? [])
-    setPrograms((progRes.data as RewardProgram[]) ?? [])
-    setMapping((mapRes.data as CardRewardProgram[]) ?? [])
-    setBonusRecon((bonusRes.data as CreditReconciliation[]) ?? [])
-    setTxnRecon((tprRes.data as TxnRecon[]) ?? [])
-    setLoading(false)
+    try {
+      const [txRes, progRes, mapRes, bonusRes, tprRes] = await Promise.all([
+        supabase.from('transactions').select('id, card_id, category_id, amount, miles_earned, vendor_name, transaction_date'),
+        supabase.from('reward_programs').select('*'),
+        supabase.from('card_reward_program').select('*'),
+        supabase.from('credit_reconciliations').select('*').in('kind', ['bonus', 'bonus_boost']),
+        supabase.from('transaction_point_recon').select('transaction_id, base_reconciled'),
+      ])
+      if (txRes.error || progRes.error || mapRes.error || bonusRes.error || tprRes.error) throw new Error('load failed')
+      setLoadError(false)
+      setTxns((txRes.data as TxnRow[]) ?? [])
+      setPrograms((progRes.data as RewardProgram[]) ?? [])
+      setMapping((mapRes.data as CardRewardProgram[]) ?? [])
+      setBonusRecon((bonusRes.data as CreditReconciliation[]) ?? [])
+      setTxnRecon((tprRes.data as TxnRecon[]) ?? [])
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { if (user) load() }, [user])
   async function refetchBonus() { const { data } = await supabase.from('credit_reconciliations').select('*').in('kind', ['bonus', 'bonus_boost']); setBonusRecon((data as CreditReconciliation[]) ?? []) }
@@ -320,7 +330,9 @@ export default function Reconcile() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <PageSkeleton />
+      ) : loadError ? (
+        <ErrorState onRetry={load} />
       ) : blocks.length === 0 ? (
         <div className="card p-8 text-center space-y-2">
           <ClipboardCheck size={28} className="text-gray-300 mx-auto" />

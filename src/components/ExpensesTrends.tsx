@@ -6,6 +6,7 @@ import { RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { Transaction } from '../lib/types'
+import ErrorState from './ErrorState'
 
 const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4']
 
@@ -58,6 +59,7 @@ export default function ExpensesTrends({ from, to }: Props) {
 
   const [txns, setTxns]     = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => { load(from, to) }, [from, to])
 
@@ -76,8 +78,9 @@ export default function ExpensesTrends({ from, to }: Props) {
         : `${toY}-${String(toM + 1).padStart(2, '0')}-01`
       query = query.lt('transaction_date', nextM)
     }
-    const { data } = await query
-    setTxns((data as Transaction[]) ?? [])
+    const { data, error } = await query
+    setLoadError(!!error)
+    if (!error) setTxns((data as Transaction[]) ?? [])
     setLoading(false)
   }
 
@@ -173,6 +176,10 @@ export default function ExpensesTrends({ from, to }: Props) {
         <RefreshCw size={20} className="animate-spin mr-2" /> Loading…
       </div>
     )
+  }
+
+  if (loadError) {
+    return <ErrorState onRetry={() => load(from, to)} message="Couldn't load trends data." />
   }
 
   if (txns.length === 0) {

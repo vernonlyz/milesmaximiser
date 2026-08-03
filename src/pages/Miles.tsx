@@ -10,6 +10,8 @@ import { MilesAccount, MilesAccountCard, MilesAdjustment } from '../lib/types'
 import Modal from '../components/Modal'
 import MilesTabs from '../components/MilesTabs'
 import DatePicker from '../components/DatePicker'
+import { PageSkeleton } from '../components/Skeleton'
+import ErrorState from '../components/ErrorState'
 
 interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
 
@@ -62,6 +64,7 @@ export default function Miles() {
   const [adjustments, setAdjustments] = useState<MilesAdjustment[]>([])
   const [earn, setEarn] = useState<EarnRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   // Per-account UI state
   const [drafts, setDrafts] = useState<Record<string, { name: string; opening: string; asOf: string; expiry: string }>>({})
@@ -96,6 +99,7 @@ export default function Miles() {
   }, [milesCards.length])
 
   async function reload() {
+   try {
     const [accRes, linkRes, adjRes, earnRes, settingsRes] = await Promise.all([
       supabase.from('miles_accounts').select('*').order('name'),
       supabase.from('miles_account_cards').select('*'),
@@ -103,6 +107,8 @@ export default function Miles() {
       supabase.from('transactions').select('card_id, miles_earned, transaction_date'),
       supabase.from('user_settings').select('miles_goal, miles_goal_label').maybeSingle(),
     ])
+    if (accRes.error || linkRes.error || adjRes.error || earnRes.error) throw new Error('load failed')
+    setLoadError(false)
     const settings = settingsRes.data as { miles_goal: number | null; miles_goal_label: string | null } | null
     const goal = settings?.miles_goal ?? null
     const goalLabel = settings?.miles_goal_label ?? ''
@@ -184,7 +190,11 @@ export default function Miles() {
     setLinks(lnk)
     setAdjustments((adjRes.data as MilesAdjustment[]) ?? [])
     setEarn((earnRes.data as EarnRow[]) ?? [])
+   } catch {
+    setLoadError(true)
+   } finally {
     setLoading(false)
+   }
   }
 
   // ---- derived lookups ----
@@ -390,7 +400,8 @@ export default function Miles() {
     return s + opening + earnedFor(a) + adjSum(a)
   }, 0)
 
-  if (loading) return <p className="text-sm text-gray-500 p-4">Loading…</p>
+  if (loading) return <div className="space-y-5"><MilesTabs /><PageSkeleton /></div>
+  if (loadError) return <div className="space-y-5"><MilesTabs /><ErrorState onRetry={() => { setLoadError(false); setLoading(true); reload() }} /></div>
 
   return (
     <div className="space-y-6">

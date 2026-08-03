@@ -7,6 +7,8 @@ import {
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import MilesTabs from '../components/MilesTabs'
+import { PageSkeleton } from '../components/Skeleton'
+import ErrorState from '../components/ErrorState'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const START_YEAR = 2024
@@ -85,6 +87,8 @@ export default function Earnings() {
   const [year, setYear] = useState(nowYear)
   const [txns, setTxns] = useState<EarnRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [cardView, setCardView] = useState<Record<string, 'chart' | 'numbers'>>({})
 
@@ -110,11 +114,13 @@ export default function Earnings() {
       .select('card_id, miles_earned, transaction_date')
       .gte('transaction_date', `${year - 1}-12-01`)
       .lt('transaction_date', `${year + 1}-02-01`)
-      .then(({ data }) => {
-        if (!cancelled) { setTxns((data as EarnRow[]) ?? []); setLoading(false) }
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) { setLoadError(true); setLoading(false); return }
+        setLoadError(false); setTxns((data as EarnRow[]) ?? []); setLoading(false)
       })
     return () => { cancelled = true }
-  }, [year])
+  }, [year, reloadKey])
 
   // months to display: full year for past years, up to current month for this year
   const lastMonthIdx = year < nowYear ? 11 : new Date().getMonth()
@@ -187,7 +193,9 @@ export default function Earnings() {
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <PageSkeleton />
+      ) : loadError ? (
+        <ErrorState onRetry={() => setReloadKey(k => k + 1)} />
       ) : milesCards.length === 0 ? (
         <div className="card p-10 text-center border-dashed border-2 border-gray-200 space-y-3">
           <p className="text-gray-500 text-sm">No miles cards in your wallet yet.</p>

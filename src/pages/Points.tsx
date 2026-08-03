@@ -7,6 +7,8 @@ import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, PointsAccount, PointsAdjustment } from '../lib/types'
 import MilesTabs from '../components/MilesTabs'
 import DatePicker from '../components/DatePicker'
+import { PageSkeleton } from '../components/Skeleton'
+import ErrorState from '../components/ErrorState'
 
 interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
 
@@ -31,6 +33,7 @@ export default function Points() {
   const [adjustments, setAdjustments] = useState<PointsAdjustment[]>([])
   const [earn, setEarn] = useState<EarnRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   const [drafts, setDrafts] = useState<Record<string, { opening: string; asOf: string; expiry: string }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -48,6 +51,7 @@ export default function Points() {
 
   async function load() {
     setLoading(true)
+   try {
     const [progRes, mapRes, acctRes, adjRes, earnRes] = await Promise.all([
       supabase.from('reward_programs').select('*').order('name'),
       supabase.from('card_reward_program').select('*'),
@@ -55,6 +59,8 @@ export default function Points() {
       supabase.from('points_adjustments').select('*').order('adjustment_date', { ascending: false }),
       supabase.from('transactions').select('card_id, miles_earned, transaction_date'),
     ])
+    if (progRes.error || mapRes.error || acctRes.error || adjRes.error || earnRes.error) throw new Error('load failed')
+    setLoadError(false)
 
     const progs = (progRes.data as RewardProgram[]) ?? []
     const map = (mapRes.data as CardRewardProgram[]) ?? []
@@ -77,7 +83,11 @@ export default function Points() {
     setAccounts(accts)
     setAdjustments((adjRes.data as PointsAdjustment[]) ?? [])
     setEarn((earnRes.data as EarnRow[]) ?? [])
+   } catch {
+    setLoadError(true)
+   } finally {
     setLoading(false)
+   }
   }
 
   useEffect(() => { if (user) load() }, [user, cards.length])
@@ -176,7 +186,9 @@ export default function Points() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <PageSkeleton />
+      ) : loadError ? (
+        <ErrorState onRetry={load} />
       ) : rows.length === 0 ? (
         <div className="card p-8 text-center space-y-2">
           <Coins size={28} className="text-gray-300 mx-auto" />

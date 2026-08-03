@@ -4,6 +4,7 @@ import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent,
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
+import { Skeleton, PageSkeleton } from '../components/Skeleton'
 import { SpendingCap, Transaction, TransactionFavourite } from '../lib/types'
 import { supabase } from '../lib/supabase'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
@@ -298,8 +299,11 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
-        <RefreshCw size={24} className="animate-spin mr-2" /> Loading…
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+        </div>
+        <PageSkeleton rows={2} />
       </div>
     )
   }

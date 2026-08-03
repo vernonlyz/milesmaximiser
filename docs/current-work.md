@@ -152,6 +152,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-02  Log-form live recommendation widget: compact per-card MCC glyph (✓/◐/✗ MCC, tooltip) shown when an MCC is entered.
 2026-08-02  MccInfo component — ⓘ popover with the ✓/◐/✗ legend + "estimated, do your own due diligence" disclaimer; wired into the log-form rec widget and both Recommend headers (no persistent clutter).
 2026-08-03  Rename UOB "Preferred Platinum Visa" → "Preferred Visa" (migration 068; library_seed + starterCards; display-only, id-keyed data unaffected).
+2026-08-03  UI polish pass — keyboard focus-visible rings (global + btn-*); MccInfo click-outside/Esc (useClickOutside); sticky Transactions table header; sidebar "Miles" highlights on /earnings; Skeleton + ErrorState components; skeleton loading + error/retry on Dashboard/Miles/Earnings/Reconcile/Points/Expenses-Trends.
 ```
 
 ---
