@@ -1296,7 +1296,7 @@ export default function Transactions() {
             {/* ── Desktop: table (hidden below sm) ── */}
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-gray-50">
                   <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                     <th className="px-3 py-3" title="Reconciled" />
                     <SortTh col="date"   label="Date"   active={sortBy} dir={sortDir} onSort={toggleSort} align="left" />

@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Info } from 'lucide-react'
+import { useClickOutside } from '../lib/useClickOutside'
 
 // Compact ⓘ affordance: legend for the ✓/◐/✗ MCC glyphs + the "estimates only"
 // disclaimer. Hidden until tapped so it never clutters the surrounding UI.
 export default function MccInfo({ className = '' }: { className?: string }) {
   const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  useClickOutside(ref, () => setOpen(false), open)
   return (
-    <span className={`relative inline-flex ${className}`}>
+    <span ref={ref} className={`relative inline-flex ${className}`}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}

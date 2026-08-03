@@ -47,14 +47,14 @@ function useInstallPrompt() {
   return { showInstall, isIOS, isAndroid, hasNativePrompt: deferred !== null, triggerInstall }
 }
 
-const nav = [
+const nav: { to: string; label: string; Icon: typeof LayoutDashboard; match?: string[] }[] = [
   { to: '/',             label: 'Dashboard',    Icon: LayoutDashboard },
   { to: '/recommend',    label: 'Recommend',    Icon: Sparkles        },
   { to: '/transactions', label: 'Transactions', Icon: Receipt         },
   { to: '/expenses',    label: 'Expenses',     Icon: BarChart2       },
   { to: '/calculator',   label: 'Mile Value',   Icon: Calculator      },
   { to: '/cards',        label: 'My Cards',     Icon: CreditCard      },
-  { to: '/miles',        label: 'Miles',        Icon: Award           },
+  { to: '/miles',        label: 'Miles',        Icon: Award, match: ['/miles', '/earnings'] },
 ]
 
 // Primary destinations for the mobile bottom tab bar; the rest live under "More".
@@ -209,6 +209,7 @@ export default function Layout() {
           <button
             className="ml-auto lg:hidden text-gray-400 hover:text-white"
             onClick={() => setOpen(false)}
+            aria-label="Close menu"
           >
             <X size={18} />
           </button>
@@ -216,19 +217,20 @@ export default function Layout() {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {nav.map(({ to, label, Icon }) => (
+          {nav.map(({ to, label, Icon, match }) => (
             <NavLink
               key={to}
               to={to}
               end={to === '/'}
               onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
+              className={({ isActive }) => {
+                const active = isActive || (match?.some(m => location.pathname.startsWith(m)) ?? false)
+                return `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  active
                     ? 'bg-indigo-600 text-white'
                     : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                 }`
-              }
+              }}
             >
               <Icon size={18} />
               {label}
