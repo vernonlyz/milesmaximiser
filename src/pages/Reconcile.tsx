@@ -161,12 +161,15 @@ export default function Reconcile() {
       if (card.no_bonus_split) continue   // direct-credit cards: no bonus lumps
       const deferred = card.bonus_timing === 'next_calendar_month'
       const creditDate = deferred ? firstOfNext(monthKey(cycleStart)) : cycleEnd
+      // Savings-account boost (e.g. UOB Lady's Savings +2 mpd) is credited at the
+      // END of the following month, separately from the main statement bonus.
+      const boostCreditDate = lastDayOf(monthKey(firstOfNext(monthKey(cycleStart))))
       const block = card.earn_increment || 1
-      const pushLump = (categoryId: string | null, miles: number, count: number, capped = false, capMi: number | null = null, kind = 'bonus', label = 'Bonus') => blk.lumps.push({
+      const pushLump = (categoryId: string | null, miles: number, count: number, capped = false, capMi: number | null = null, kind = 'bonus', label = 'Bonus', creditDateOverride?: string) => blk.lumps.push({
         key: `${card.id}:${kind}:${cycleStart}:${categoryId ?? 'none'}`,
         card, kind, label, cycleMonth: cycleStart, categoryId,
         categoryName: categoryId ? (catById.get(categoryId)?.name ?? null) : null,
-        creditDate, expectedMi: miles,
+        creditDate: creditDateOverride ?? creditDate, expectedMi: miles,
         expectedPt: prog ? miles / prog.miles_per_point : null,
         unit: prog?.unit_label ?? null, count, capped,
         capMi, capPt: prog && capMi != null ? capMi / prog.miles_per_point : null,
@@ -198,7 +201,7 @@ export default function Reconcile() {
           if (boostDelta > 0 && b.rawBoost > 0) {
             const eligBoost = Math.floor((cap != null ? Math.min(b.rawBoost, cap) : b.rawBoost) / block) * block
             pushLump(cat, eligBoost * boostDelta, b.count, cap != null && b.rawBoost > cap, capBlocks != null ? capBlocks * boostDelta : null,
-              'bonus_boost', `${card.boost_label ?? 'Boost'} · +${boostDelta} mpd`)
+              'bonus_boost', `${card.boost_label ?? 'Boost'} · +${boostDelta} mpd`, boostCreditDate)
           }
         }
       } else {
@@ -234,7 +237,12 @@ export default function Reconcile() {
       blk.lines.sort((a, z) => a.txn.transaction_date.localeCompare(z.txn.transaction_date))
     }
 
-    return [...map.values()].sort((a, z) => z.cycleStart.localeCompare(a.cycleStart) || a.card.name.localeCompare(z.card.name))
+    // Only reconcile cycles that have already started — future-dated recurring
+    // transactions would otherwise create blocks many months in advance.
+    const todayStr = isoDate(new Date())
+    return [...map.values()]
+      .filter(b => b.cycleStart <= todayStr)
+      .sort((a, z) => z.cycleStart.localeCompare(a.cycleStart) || a.card.name.localeCompare(z.card.name))
   }, [txns, cardById, catById, progForCard, caps, rates, overrides, cards, boosts])
 
   const baseDone = new Set(txnRecon.filter(r => r.base_reconciled).map(r => r.transaction_id))
@@ -395,7 +403,7 @@ export default function Reconcile() {
                 <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-gray-400 pb-1">
                   <span className="flex-1">Transaction</span>
                   <span className="w-20 text-right">Base</span>
-                  <span className="w-20 text-right">Bonus</span>
+                  <span className="w-20 text-right hidden sm:block">Bonus</span>
                   <span className="w-7 text-center">✓</span>
                 </div>
                 {blk.lines.map(l => (
@@ -405,7 +413,7 @@ export default function Reconcile() {
                       <p className="text-xs text-gray-400">{fmtDay(l.txn.transaction_date)}{l.catName ? ` · ${l.catName}` : ''} · S${l.txn.amount.toFixed(2)}</p>
                     </div>
                     <span className="w-20 text-right text-gray-700">{unitCol(l.basePt, l.baseMi, blk.prog?.unit_label ?? null)}</span>
-                    <span className="w-20 text-right text-gray-400">{l.bonusMi > 0 ? unitCol(l.bonusPt, l.bonusMi, blk.prog?.unit_label ?? null) : '—'}</span>
+                    <span className="w-20 text-right text-gray-400 hidden sm:block">{l.bonusMi > 0 ? unitCol(l.bonusPt, l.bonusMi, blk.prog?.unit_label ?? null) : '—'}</span>
                     <button onClick={() => toggleBase(l.txn.id)} title={baseDone.has(l.txn.id) ? 'Base reconciled' : 'Mark base reconciled'}
                       className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${baseDone.has(l.txn.id) ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-300 hover:text-gray-400'}`}>
                       <Check size={14} />
@@ -419,7 +427,7 @@ export default function Reconcile() {
                     <div className="flex items-center gap-2 pt-1.5 text-sm font-medium">
                       <span className="flex-1 text-gray-500">Base total</span>
                       <span className="w-20 text-right text-gray-800">{unitCol(basePtTotal, baseMiTotal, blk.prog?.unit_label ?? null)}</span>
-                      <span className="w-20" />
+                      <span className="w-20 hidden sm:block" />
                       <span className="w-7" />
                     </div>
                   )
@@ -441,7 +449,7 @@ export default function Reconcile() {
                     const dv = drafts[dk] ?? (act != null ? String(act) : '')
                     return (
                       <div key={l.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-indigo-50/40 rounded-lg px-3 py-2">
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
                           <p className="text-sm font-medium text-gray-800">
                             {l.label}{l.categoryName ? ` · ${l.categoryName}` : ''}
                           </p>
@@ -489,7 +497,7 @@ export default function Reconcile() {
 
           <p className="text-xs text-gray-400">
             Base and bonus points are split from each transaction's earned miles (points via the program rate).
-            Bonus timing follows each card's rule — deferred cards show the lump on the next month's credit date.
+            Bonus timing follows each card's rule — deferred cards show the lump on the next month's credit date; savings-account boosts credit at the end of the following month.
             Rules &amp; rates are indicative — edit them in the library.
           </p>
         </>

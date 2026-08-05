@@ -415,11 +415,11 @@ export default function Miles() {
         </p>
       </div>
 
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <MilesTabs />
         <button
           onClick={openAddBalance}
-          className="flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0 mb-1"
+          className="flex items-center gap-1.5 text-sm font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0 ml-auto"
         >
           <Plus size={14} /> Add balance
         </button>
