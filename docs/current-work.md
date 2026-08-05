@@ -155,6 +155,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-03  UI polish pass — keyboard focus-visible rings (global + btn-*); MccInfo click-outside/Esc (useClickOutside); sticky Transactions table header; sidebar "Miles" highlights on /earnings; Skeleton + ErrorState components; skeleton loading + error/retry on Dashboard/Miles/Earnings/Reconcile/Points/Expenses-Trends.
 2026-08-05  Recommend MCC check: fix truncation (status stacked under card name) + group Miles/Cashback cards.
 2026-08-05  Reconcile Maybank XL Rewards MCC whitelist with published Dine/Shop/Travel/Play table (migration 069) — removed over-broad Shop/Travel/Play codes, fixed Travel 3300–3308, added 5262/5655/5941/4899/5815/7993–7994.
+2026-08-05  HSBC Revolution MCC reconcile (migration 070) — codes already matched the published list exactly; added category groupings (Travel / Department & Retail / Dining / Others) so Details shows grouped headers like other whitelist cards.
 ```
 
 ---
