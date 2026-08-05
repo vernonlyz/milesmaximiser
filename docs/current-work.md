@@ -153,6 +153,8 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-02  MccInfo component — ⓘ popover with the ✓/◐/✗ legend + "estimated, do your own due diligence" disclaimer; wired into the log-form rec widget and both Recommend headers (no persistent clutter).
 2026-08-03  Rename UOB "Preferred Platinum Visa" → "Preferred Visa" (migration 068; library_seed + starterCards; display-only, id-keyed data unaffected).
 2026-08-03  UI polish pass — keyboard focus-visible rings (global + btn-*); MccInfo click-outside/Esc (useClickOutside); sticky Transactions table header; sidebar "Miles" highlights on /earnings; Skeleton + ErrorState components; skeleton loading + error/retry on Dashboard/Miles/Earnings/Reconcile/Points/Expenses-Trends.
+2026-08-05  Recommend MCC check: fix truncation (status stacked under card name) + group Miles/Cashback cards.
+2026-08-05  Reconcile Maybank XL Rewards MCC whitelist with published Dine/Shop/Travel/Play table (migration 069) — removed over-broad Shop/Travel/Play codes, fixed Travel 3300–3308, added 5262/5655/5941/4899/5815/7993–7994.
 ```
 
 ---
