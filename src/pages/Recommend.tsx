@@ -184,18 +184,31 @@ export default function Recommend() {
               <MccInfo />
             </h2>
             {mccCheck.length > 0 ? (
-              <div className="card divide-y divide-gray-100">
-                {mccCheck.map(({ card, r }) => (
-                  <div key={card.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: card.color }} />
-                    <p className="text-sm font-medium text-gray-800 truncate flex-1 min-w-0">{card.bank} {card.name}</p>
-                    <span className={`text-xs font-medium text-right ${r.state === 'eligible' ? 'text-emerald-600' : r.state === 'reduced' ? 'text-amber-600' : 'text-gray-400'}`}>
-                      {r.state === 'eligible' ? <>✓ Eligible{r.label ? ` · ${r.label}` : ''}{r.note ? ` (${r.note})` : ''}</>
-                        : r.state === 'reduced' ? <>◐ Reduced{r.note ? ` · ${r.note}` : ''}</>
-                        : <>✗ Not eligible{r.note ? ` (${r.note})` : ''}</>}
-                    </span>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {([['miles', 'Miles cards'], ['cashback', 'Cashback cards']] as const).map(([type, heading]) => {
+                  const rows = mccCheck.filter(x => x.card.card_type === type)
+                  if (rows.length === 0) return null
+                  return (
+                    <div key={type}>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{heading}</p>
+                      <div className="card divide-y divide-gray-100">
+                        {rows.map(({ card, r }) => (
+                          <div key={card.id} className="flex items-start gap-2.5 px-3 py-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style={{ background: card.color }} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-800 truncate">{card.bank} {card.name}</p>
+                              <p className={`text-xs ${r.state === 'eligible' ? 'text-emerald-600' : r.state === 'reduced' ? 'text-amber-600' : 'text-gray-400'}`}>
+                                {r.state === 'eligible' ? <>✓ Eligible{r.label ? ` · ${r.label}` : ''}{r.note ? ` · ${r.note}` : ''}</>
+                                  : r.state === 'reduced' ? <>◐ Reduced rate{r.note ? ` · ${r.note}` : ''}</>
+                                  : <>✗ Not eligible{r.note ? ` · ${r.note}` : ''}</>}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <div className="card p-6 text-center text-sm text-gray-500">No cards in your wallet have MCC eligibility data.</div>
