@@ -159,6 +159,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-05  Fixes: Miles Add-balance button wraps (no longer off-screen on mobile); Reconcile mobile declutter (hide per-txn Bonus col + full-width lump label); Reconcile hides future cycles (cycleStart ≤ today); Reconcile savings-boost lump credits end of following month.
 2026-08-08  HSBC Revolution + EGA raises the monthly bonus cap to S$1,200 — new boost_cap column (migration 071) + applyCapBoosts engine helper, threaded through recommendCards/calcMiles + Dashboard cap bars. Also consolidated boost_mpd/boost_label/boost_cap into library_seed (fixes fresh-install boost gap).
 2026-08-08  MCC hint refinements (migration 072): Lady's Solitaire/Card gated by chosen category (non-chosen → not eligible; none chosen → "set categories"); DBS WWMC + Citi Rewards bonus is online-only (bonus_channel; off-online → base); Citi in-store fashion earns any channel (always_eligible rows). resolveMccEligibility gains chosenLabels + chosenCategoryLabels(); threaded into Cards/Recommend/Transactions.
+2026-08-09  Transactions: filter by bank (narrows the card dropdown) + "Upcoming only" quick toggle (shows the canonical future-dated set, ignoring year/month/range). Frontend only.
 ```
 
 ---

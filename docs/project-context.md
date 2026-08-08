@@ -306,6 +306,7 @@ The app is a functional MVP. All core features are implemented:
 | Dashboard collapsible Upcoming (preview + View-all → Transactions) | Complete |
 | Dashboard wallet card → Transactions filtered to that card (current month) | Complete |
 | Transactions: From/To date-range filter; totals as stat tiles (incl. future in period) | Complete |
+| Transactions: filter by bank (narrows card dropdown) + "Upcoming only" quick toggle | Complete |
 | Transactions Upcoming: recurring collapsed per rule + one-offs grouped by month; mobile fixes | Complete |
 | Recurring editor mirrors the log form (VendorInput/MCC/notes); rules show next charge date | Complete |
 | Bonus-eligible MCC viewer (My Cards Details) + Recommend MCC hint (level 1) — Lady's Solitaire | Complete |

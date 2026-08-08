@@ -127,7 +127,9 @@ export default function Transactions() {
   const [filterYear,     setFilterYear]     = useState(nowYear)
   const [filterMonthNum, setFilterMonthNum] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'))
   const [filterCat,  setFilterCat]  = useState('')
+  const [filterBank, setFilterBank] = useState('')
   const [filterCard, setFilterCard] = useState('')
+  const [onlyUpcoming, setOnlyUpcoming] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   // Optional date range (overrides year/month when set); can be open-ended.
   const [dateFrom, setDateFrom] = useState('')
@@ -699,21 +701,33 @@ export default function Transactions() {
   // Active transaction pool — date range (from Supabase) when set, else year (AppContext / prev-year fetch).
   const txPool = rangeActive ? rangePool : (filterYear === nowYear ? transactions : prevYearTxns)
 
+  const bankById = useMemo(() => new Map(allCards.map(c => [c.id, c.bank])), [allCards])
+  const bankOptions = useMemo(
+    () => Array.from(new Set([...cards, ...allCards.filter(c => c.card_type === 'debit')].map(c => c.bank))).sort(),
+    [cards, allCards]
+  )
+
   // Base set (excludes the reconcile-status filter so the reconciliation panel reflects the whole set).
+  // "Upcoming only" swaps the source to the canonical future-dated set (all of it,
+  // incl. next year) and ignores the year/month/range period filters.
   const baseFiltered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const monthPrefix = !rangeActive && filterMonthNum ? `${filterYear}-${filterMonthNum}` : null
-    return txPool.filter(t => {
-      if (rangeActive) {
+    const source = onlyUpcoming ? upcoming : txPool
+    return source.filter(t => {
+      if (onlyUpcoming) {
+        if (t.transaction_date <= todayStr) return false
+      } else if (rangeActive) {
         if (dateFrom && t.transaction_date < dateFrom) return false
         if (dateTo   && t.transaction_date > dateTo)   return false
       } else if (monthPrefix && !t.transaction_date.startsWith(monthPrefix)) return false
+      if (filterBank && bankById.get(t.card_id ?? '') !== filterBank) return false
       if (filterCat  && t.category_id !== filterCat)  return false
       if (filterCard && t.card_id     !== filterCard)  return false
       if (q && !t.vendor_name?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false
       return true
     })
-  }, [txPool, rangeActive, dateFrom, dateTo, filterYear, filterMonthNum, filterCat, filterCard, searchQuery])
+  }, [txPool, upcoming, onlyUpcoming, todayStr, rangeActive, dateFrom, dateTo, filterYear, filterMonthNum, filterBank, bankById, filterCat, filterCard, searchQuery])
 
   // Displayed list: apply the reconcile-status filter and sort.
   const filtered = useMemo(() => {
@@ -736,7 +750,7 @@ export default function Transactions() {
   // Split future-dated (upcoming) from the main list so it isn't cluttered — but
   // when a specific period (month or date range) is selected, show the whole
   // window inline (past + future) so the totals include future-dated rows in it.
-  const periodFilterActive = !!filterMonthNum || rangeActive
+  const periodFilterActive = !!filterMonthNum || rangeActive || onlyUpcoming
   const pastFiltered = useMemo(
     () => (periodFilterActive ? filtered : filtered.filter(t => t.transaction_date <= todayStr)),
     [filtered, todayStr, periodFilterActive]
@@ -775,7 +789,9 @@ export default function Transactions() {
   const totalMiles = pastFiltered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = pastFiltered.reduce((s, t) => s + t.amount, 0)
   const totalCashback = pastFiltered.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
-  const periodLabel = rangeActive
+  const periodLabel = onlyUpcoming
+    ? 'Upcoming'
+    : rangeActive
     ? `${dateFrom ? fmtDate(dateFrom) : 'start'} → ${dateTo ? fmtDate(dateTo) : 'now'}`
     : filterMonthNum
       ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(filterMonthNum) - 1]} ${filterYear}`
@@ -951,15 +967,27 @@ export default function Transactions() {
 
         <div className="relative">
           <select
+            value={filterBank}
+            onChange={e => { setFilterBank(e.target.value); setFilterCard('') }}
+            className="input w-32 appearance-none pr-7 text-sm"
+          >
+            <option value="">All banks</option>
+            {bankOptions.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+        </div>
+
+        <div className="relative">
+          <select
             value={filterCard}
             onChange={e => setFilterCard(e.target.value)}
             className="input w-48 appearance-none pr-7 text-sm"
           >
             <option value="">All cards</option>
-            {cards.map(c => (
+            {cards.filter(c => !filterBank || c.bank === filterBank).map(c => (
               <option key={c.id} value={c.id}>{c.bank} {c.name}</option>
             ))}
-            {allCards.filter(c => c.card_type === 'debit').map(c => (
+            {allCards.filter(c => c.card_type === 'debit' && (!filterBank || c.bank === filterBank)).map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
@@ -984,7 +1012,7 @@ export default function Transactions() {
 
       </div>
 
-      {/* Date range (overrides year/month when set) */}
+      {/* Date range (overrides year/month when set) + Upcoming quick filter */}
       <div className="card px-4 py-2.5 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-xs text-gray-500">Date range</span>
         <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="From" clearable max={dateTo || undefined} />
@@ -996,6 +1024,16 @@ export default function Transactions() {
             <span className="text-xs text-indigo-500">· overriding year/month</span>
           </>
         )}
+        <button
+          onClick={() => setOnlyUpcoming(v => !v)}
+          className={`ml-auto inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
+            onlyUpcoming ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+          }`}
+          title="Show only upcoming (future-dated) transactions"
+        >
+          <Repeat size={13} /> Upcoming only
+        </button>
+        {onlyUpcoming && <span className="text-xs text-indigo-500 basis-full sm:basis-auto">Showing upcoming only · year/month/range ignored</span>}
       </div>
 
       {/* Totals — reflect the active filters (incl. future-dated within the period) */}
