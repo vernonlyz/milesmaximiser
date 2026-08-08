@@ -149,6 +149,32 @@ export function applyRateBoosts(
   })
 }
 
+// Raise a card's monthly bonus cap to its boosted cap when the boost is active
+// (e.g. HSBC Revolution + Everyday Global Account → S$1,200 combined bonus cap).
+// Mirrors applyRateBoosts: resolves by `date` when `boosts` is given, else falls
+// back to the card's precomputed `rate_boost` flag. Only monthly caps with a real
+// spend_limit are raised.
+export function applyCapBoosts(
+  cards: CreditCard[],
+  resolvedCaps: SpendingCap[],
+  boosts?: CardBoost[],
+  date: Date = new Date()
+): SpendingCap[] {
+  const boosted = new Map<string, number>()
+  for (const c of cards) {
+    if (c.boost_cap == null) continue
+    const on = boosts ? resolveBoost(boosts, c.id, date) : !!c.rate_boost
+    if (on) boosted.set(c.id, c.boost_cap)
+  }
+  if (boosted.size === 0) return resolvedCaps
+  return resolvedCaps.map(cap => {
+    const bc = boosted.get(cap.card_id)
+    return bc != null && cap.spend_limit != null && cap.cap_period === 'monthly'
+      ? { ...cap, spend_limit: bc }
+      : cap
+  })
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Period spending
 // Sums actual spend for each (card, category) combination within the cap period.
@@ -468,6 +494,7 @@ export function recommendCards(
     resolvedCaps = applied.caps
   }
   resolved = applyRateBoosts(cards, resolved, boosts, transactionDate)
+  resolvedCaps = applyCapBoosts(cards, resolvedCaps, boosts, transactionDate)
 
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
 
@@ -586,6 +613,7 @@ export function calcMiles(
     }
   }
   resolved = applyRateBoosts([card], resolved, boosts, transactionDate)
+  resolvedCaps = applyCapBoosts([card], resolvedCaps, boosts, transactionDate)
 
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
   const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel)

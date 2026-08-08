@@ -7,7 +7,7 @@ import CapUsageBar from '../components/CapUsageBar'
 import { Skeleton, PageSkeleton } from '../components/Skeleton'
 import { SpendingCap, Transaction, TransactionFavourite } from '../lib/types'
 import { supabase } from '../lib/supabase'
-import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, resolveOverride } from '../lib/recommendations'
+import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, applyCapBoosts, resolveOverride } from '../lib/recommendations'
 import { currentMonthLabel, getPeriodLabel, getPeriodStart, getPeriodEnd, formatSGD, isoDate } from '../lib/utils'
 import { isOnboarded, markOnboarded } from './Onboarding'
 
@@ -69,7 +69,7 @@ export default function Dashboard() {
   // not the library's Dining default.
   const resolvedCaps = useMemo(() => resolveCaps(walletCaps, now), [walletCaps])
   const effectiveCaps = useMemo(
-    () => applyAllSelectableOverrides(cards, rates, resolvedCaps, overrides, now).caps,
+    () => applyCapBoosts(cards, applyAllSelectableOverrides(cards, rates, resolvedCaps, overrides, now).caps),
     [cards, rates, resolvedCaps, overrides]
   )
 

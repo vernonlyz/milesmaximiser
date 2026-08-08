@@ -157,6 +157,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-05  Reconcile Maybank XL Rewards MCC whitelist with published Dine/Shop/Travel/Play table (migration 069) — removed over-broad Shop/Travel/Play codes, fixed Travel 3300–3308, added 5262/5655/5941/4899/5815/7993–7994.
 2026-08-05  HSBC Revolution MCC reconcile (migration 070) — codes already matched the published list exactly; added category groupings (Travel / Department & Retail / Dining / Others) so Details shows grouped headers like other whitelist cards.
 2026-08-05  Fixes: Miles Add-balance button wraps (no longer off-screen on mobile); Reconcile mobile declutter (hide per-txn Bonus col + full-width lump label); Reconcile hides future cycles (cycleStart ≤ today); Reconcile savings-boost lump credits end of following month.
+2026-08-08  HSBC Revolution + EGA raises the monthly bonus cap to S$1,200 — new boost_cap column (migration 071) + applyCapBoosts engine helper, threaded through recommendCards/calcMiles + Dashboard cap bars. Also consolidated boost_mpd/boost_label/boost_cap into library_seed (fixes fresh-install boost gap).
 ```
 
 ---

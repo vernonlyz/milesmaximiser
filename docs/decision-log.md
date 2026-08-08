@@ -4,6 +4,18 @@ Captures key architectural choices made during development — what was decided,
 
 ---
 
+## 2026-08-08 — Boost-dependent cap (`boost_cap`) mirrors the rate boost
+
+**Decision:** A card's rate boost can also raise its **monthly bonus cap**. Added `card_library.boost_cap` and an `applyCapBoosts(cards, resolvedCaps, boosts?, date?)` helper that raises a boosted card's monthly cap `spend_limit` to `boost_cap` when the boost is active — resolved effective-dated via `resolveBoost` (or the card's `rate_boost` flag for "now" views). First user: **HSBC Revolution + Everyday Global Account → S$1,200** combined bonus cap (up from S$1,000), alongside the existing 4 → 8 mpd rate boost. Threaded into `recommendCards` and `calcMiles` (right after `applyRateBoosts`) and the Dashboard cap bars.
+
+**Alternatives considered:**
+- **Effective-dated `library_caps` rows** — caps depend on whether the *user* holds the linked product, not on a date, so a shared library row can't express it. Rejected.
+- **Hard-code the Revolution exception** — not reusable and pollutes the engine. Rejected in favour of a data-driven column mirroring `boost_mpd`.
+
+**Why:** `boost_cap` sits exactly parallel to `boost_mpd`, so the same effective-dated toggle drives both rate and cap; one nullable column leaves every other card untouched. Applying it at the two engine entry points + Dashboard covers where caps actually gate earning.
+
+**Notes / trade-offs:** Reconcile is unaffected for Revolution because its per-category combined caps already resolve to "no ceiling" in `capForBucket` (a pre-existing simplification), so the boosted cap changes nothing there. Also consolidated `boost_mpd`/`boost_label`/`boost_cap` into `library_seed.sql` (set by id) — the migrations set them by card name and no-op on a fresh install where cards are seeded afterwards (same class of gap previously fixed for `mcc_mode`).
+
 ## 2026-08-02 — MCC eligibility stays informational (level 1); estimates disclaimed via ⓘ, codes never invented
 
 **Decision:** Roll out MCC eligibility across the whole library as a **display-only** signal — a per-card model (`mcc_mode` + `card_mcc_eligibility` interpreted by `resolveMccEligibility`) surfaced in My Cards, Recommend, and the log form, but **not consumed by the engine**. The ranked MPD and the miles/cashback stored on a transaction are unchanged. Two supporting rules: (a) where a bank doesn't publish exact MCCs, use the standard code for the stated category and **flag it indicative** — never invent codes to fill a gap, and skip merchant-name / transaction-type exclusions that MCCs can't express; (b) carry the "estimated — do your own due diligence / verify with your bank" caveat and the ✓/◐/✗ legend in a collapsible **ⓘ (`MccInfo`)** rather than persistent body text.

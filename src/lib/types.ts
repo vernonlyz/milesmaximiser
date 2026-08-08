@@ -31,6 +31,7 @@ export interface CreditCard {
   mcc_mode?: 'whitelist' | 'blacklist' | 'hybrid' | null  // how card_mcc_eligibility rows are interpreted (hybrid = channel-dependent)
   // Optional rate boost unlocked by a linked product (e.g. UOB Lady's Savings Account).
   boost_mpd?: number | null       // bonus-category rate when the boost is enabled
+  boost_cap?: number | null       // monthly bonus cap when the boost is enabled (e.g. HSBC Revolution + EGA → S$1,200)
   boost_label?: string | null     // what unlocks it, shown on the toggle
   rate_boost?: boolean            // per-user runtime flag: boost active as of the resolution date (from user_card_boosts)
   created_at: string

@@ -114,6 +114,13 @@ UPDATE card_library SET mcc_mode = 'hybrid' WHERE id IN (
   '00000000-0000-0000-0001-000000000012'   -- UOB Visa Signature (contactless all; no online bonus)
 );
 
+-- Rate/cap boosts (consolidated from migrations 039 / 047 / 071) — set by id so a
+-- fresh install has them (the migrations set them by name, before the cards exist).
+UPDATE card_library SET boost_mpd = 6, boost_label = 'UOB Lady''s Savings Account'
+  WHERE id = '00000000-0000-0000-0001-000000000011';   -- UOB Lady's Solitaire → 6 mpd
+UPDATE card_library SET boost_mpd = 8, boost_label = 'HSBC Everyday Global Account', boost_cap = 1200
+  WHERE id = '00000000-0000-0000-0001-000000000015';   -- HSBC Revolution → 8 mpd + S$1,200 cap
+
 -- ── UOB Lady's Solitaire (...011): whitelist, grouped by bonus category ───────
 DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000011';
 INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note) VALUES
