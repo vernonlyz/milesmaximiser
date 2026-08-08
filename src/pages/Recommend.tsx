@@ -7,7 +7,7 @@ import VendorInput from '../components/VendorInput'
 import { recommendCards } from '../lib/recommendations'
 import { formatSGD } from '../lib/utils'
 import { CardRecommendation, Vendor, CreditCard } from '../lib/types'
-import { resolveMccEligibility, MccEligibility } from '../lib/mcc'
+import { resolveMccEligibility, chosenCategoryLabels, MccEligibility } from '../lib/mcc'
 import MccInfo from '../components/MccInfo'
 
 export default function Recommend() {
@@ -35,7 +35,7 @@ export default function Recommend() {
   // Level-1 MCC eligibility hint per card (silent for cards without an eligibility model).
   const mccEligFor = (card: CreditCard): MccEligibility | null => {
     if (mcc.length !== 4) return null
-    const r = resolveMccEligibility(card, mcc, cardMccEligibility, paymentChannel)
+    const r = resolveMccEligibility(card, mcc, cardMccEligibility, paymentChannel, chosenCategoryLabels(card, overrides, categories))
     return r.state === 'nodata' ? null : r
   }
 
@@ -46,9 +46,9 @@ export default function Recommend() {
     const order = { eligible: 0, reduced: 1, ineligible: 2, nodata: 3 }
     return cards
       .filter(c => c.mcc_mode)
-      .map(c => ({ card: c, r: resolveMccEligibility(c, mcc, cardMccEligibility, paymentChannel) }))
+      .map(c => ({ card: c, r: resolveMccEligibility(c, mcc, cardMccEligibility, paymentChannel, chosenCategoryLabels(c, overrides, categories)) }))
       .sort((a, z) => order[a.r.state] - order[z.r.state] || a.card.name.localeCompare(z.card.name))
-  }, [mcc, cards, cardMccEligibility, paymentChannel])
+  }, [mcc, cards, cardMccEligibility, paymentChannel, overrides, categories])
 
   function handleVendorSelect(vendor: Vendor) {
     setVendorName(vendor.name)

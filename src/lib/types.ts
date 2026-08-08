@@ -29,6 +29,7 @@ export interface CreditCard {
   bonus_rounding?: 'per_transaction' | 'aggregate'  // aggregate = sum eligible spend, then floor once
   no_bonus_split?: boolean          // credits full earned miles as one (e.g. KrisFlyer Visa) — no base/bonus split
   mcc_mode?: 'whitelist' | 'blacklist' | 'hybrid' | null  // how card_mcc_eligibility rows are interpreted (hybrid = channel-dependent)
+  bonus_channel?: 'online' | 'contactless' | null  // if set, the whitelist/blacklist bonus applies only on this channel (e.g. DBS WWMC / Citi Rewards = online)
   // Optional rate boost unlocked by a linked product (e.g. UOB Lady's Savings Account).
   boost_mpd?: number | null       // bonus-category rate when the boost is enabled
   boost_cap?: number | null       // monthly bonus cap when the boost is enabled (e.g. HSBC Revolution + EGA → S$1,200)
@@ -133,6 +134,7 @@ export interface CardMccEligibility {
   note: string | null
   payment_channel: 'online' | 'contactless' | null  // null = applies to all channels
   reduced: boolean  // matched row earns a reduced rate (not full, not zero) — e.g. UOB Absolute 0.3%
+  always_eligible: boolean  // earns the bonus on ANY channel, overriding the card's bonus_channel (e.g. Citi in-store fashion)
 }
 
 // Admin-seeded known vendor with default MCC and category

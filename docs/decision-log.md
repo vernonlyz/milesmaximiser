@@ -4,6 +4,22 @@ Captures key architectural choices made during development — what was decided,
 
 ---
 
+## 2026-08-08 — MCC eligibility: selectable-category gating, online-only bonus, any-channel inclusions
+
+**Decision:** Three additions to `resolveMccEligibility` to make the hint personal and channel-accurate:
+1. **Selectable-category gating** — for cards where the user picks their bonus categories (UOB Lady's Solitaire/Card), an MCC only shows eligible if its `category_label` is among the user's **chosen** categories. Threaded via a new `chosenLabels` arg + `chosenCategoryLabels(card, overrides, categories)` helper (maps chosen category ids → names). No choices yet → eligible with a "set your categories" note; wrong category → "not your chosen category".
+2. **Online-only bonus** — new `card_library.bonus_channel` ('online'): the whitelist/blacklist bonus applies only on that channel. DBS Woman's World + Citi Rewards earn 4 mpd online only; off-online → base ("earns base — online only"); unknown channel → eligible with an "online only" note.
+3. **Any-channel inclusions** — new `card_mcc_eligibility.always_eligible`: an MCC that earns on **any** channel, overriding `bonus_channel`. Used for Citi Rewards **in-store fashion** (5311/56xx/5948), which earns the bonus in-store as well as online.
+
+**Alternatives considered:**
+- **Level-2 engine gating** (drop non-chosen categories/off-channel to base in ranked MPD + logged miles) — still deferred; this stays informational (level 1). The selectable-gating logic here is the groundwork for it.
+- **A second hybrid variant** for the online-all + in-store-fashion shape (Citi) — rejected; `bonus_channel` + `always_eligible` compose cleanly without another mode, and each is independently reusable.
+- **Storing Citi fashion as normal blacklist rows** — wrong: on a blacklist card a matched row means *excluded*, so an explicit `always_eligible` inclusion flag was needed.
+
+**Why:** Two small nullable columns + one helper cover all three cases without disturbing existing whitelist/blacklist/hybrid cards. The Cards checker gains the channel toggle whenever `bonus_channel` is set, and its blacklist list now separates exclusions from any-channel inclusions.
+
+**Trade-off:** Still level 1 — the engine's ranked MPD/logged rewards don't yet consume chosen-category or channel gating; the hint can differ from the ranked number until level 2. Selectable gating relies on `category_label` strings matching app category names (the seed's non-selectable "Family" group therefore never shows as chosen, which is correct for the app's model).
+
 ## 2026-08-08 — Boost-dependent cap (`boost_cap`) mirrors the rate boost
 
 **Decision:** A card's rate boost can also raise its **monthly bonus cap**. Added `card_library.boost_cap` and an `applyCapBoosts(cards, resolvedCaps, boosts?, date?)` helper that raises a boosted card's monthly cap `spend_limit` to `boost_cap` when the boost is active — resolved effective-dated via `resolveBoost` (or the card's `rate_boost` flag for "now" views). First user: **HSBC Revolution + Everyday Global Account → S$1,200** combined bonus cap (up from S$1,000), alongside the existing 4 → 8 mpd rate boost. Threaded into `recommendCards` and `calcMiles` (right after `applyRateBoosts`) and the Dashboard cap bars.

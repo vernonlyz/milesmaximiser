@@ -11,7 +11,7 @@ import DatePicker from '../components/DatePicker'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles } from '../lib/recommendations'
-import { resolveMccEligibility } from '../lib/mcc'
+import { resolveMccEligibility, chosenCategoryLabels } from '../lib/mcc'
 import MccInfo from '../components/MccInfo'
 import { isoDate, exportCsv, getPeriodEnd } from '../lib/utils'
 import { TransactionFormData, CardRecommendation, Transaction, Vendor, TransactionFavourite } from '../lib/types'
@@ -855,8 +855,8 @@ export default function Transactions() {
     if (mcc.length !== 4 || !form.card_id) return null
     const card = cards.find(c => c.id === form.card_id) ?? allCards.find(c => c.id === form.card_id)
     if (!card) return null
-    return resolveMccEligibility(card, mcc, cardMccEligibility, paymentChannel)
-  }, [mcc, form.card_id, cards, allCards, cardMccEligibility, paymentChannel])
+    return resolveMccEligibility(card, mcc, cardMccEligibility, paymentChannel, chosenCategoryLabels(card, overrides, categories))
+  }, [mcc, form.card_id, cards, allCards, cardMccEligibility, paymentChannel, overrides, categories])
   const mccRewardNoun = useMemo(() => {
     const card = cards.find(c => c.id === form.card_id) ?? allCards.find(c => c.id === form.card_id)
     return card?.card_type === 'cashback' ? 'cashback' : 'bonus'
@@ -1781,7 +1781,7 @@ export default function Transactions() {
                         {rec.bonusMpd.toFixed(2)} mpd
                       </span>
                       {mcc.length === 4 && (() => {
-                        const e = resolveMccEligibility(rec.card, mcc, cardMccEligibility, paymentChannel)
+                        const e = resolveMccEligibility(rec.card, mcc, cardMccEligibility, paymentChannel, chosenCategoryLabels(rec.card, overrides, categories))
                         if (e.state === 'nodata') return null
                         const sel = form.card_id === rec.card.id
                         const glyph = e.state === 'eligible' ? '✓ MCC' : e.state === 'reduced' ? '◐ MCC' : '✗ MCC'

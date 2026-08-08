@@ -114,6 +114,13 @@ UPDATE card_library SET mcc_mode = 'hybrid' WHERE id IN (
   '00000000-0000-0000-0001-000000000012'   -- UOB Visa Signature (contactless all; no online bonus)
 );
 
+-- Online-scoped bonus (migration 072): DBS Woman's World + Citi Rewards earn the
+-- 4 mpd bonus on online spend only (Citi in-store fashion is added any-channel below).
+UPDATE card_library SET bonus_channel = 'online' WHERE id IN (
+  '00000000-0000-0000-0001-000000000002',  -- DBS Woman's World
+  '00000000-0000-0000-0001-000000000017'   -- Citi Rewards
+);
+
 -- Rate/cap boosts (consolidated from migrations 039 / 047 / 071) — set by id so a
 -- fresh install has them (the migrations set them by name, before the cards exist).
 UPDATE card_library SET boost_mpd = 6, boost_label = 'UOB Lady''s Savings Account'
@@ -262,6 +269,19 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000017', NULL, '6529', '6540', 'Quasi-cash (GrabPay/YouTrip top-ups)'),
   ('00000000-0000-0000-0001-000000000017', NULL, '6513', '6513', 'Real estate'),
   ('00000000-0000-0000-0001-000000000017', NULL, '4900', '4900', 'Utilities');
+-- Citi Rewards: in-store fashion / department MCCs earn on ANY channel (not just online).
+INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note, always_eligible) VALUES
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5311', '5311', 'Department stores', true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5611', '5611', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5621', '5621', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5631', '5631', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5641', '5641', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5651', '5651', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5655', '5655', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5661', '5661', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5691', '5691', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5699', '5699', NULL, true),
+  ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5948', '5948', NULL, true);
 
 -- ── DBS Woman's World (...002): blacklist, exact singles ─────────────────────
 DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000002';

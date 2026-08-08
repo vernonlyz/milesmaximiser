@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } from '../lib/recommendations'
 import { capPeriodLabel, isoDate } from '../lib/utils'
 import { CreditCard, SpendingCap, CardBoost, CardMccEligibility } from '../lib/types'
-import { resolveMccEligibility } from '../lib/mcc'
+import { resolveMccEligibility, chosenCategoryLabels } from '../lib/mcc'
 import Modal from '../components/Modal'
 import DatePicker from '../components/DatePicker'
 
@@ -573,10 +573,10 @@ export default function Cards() {
                           </div>
                         ))
                         const hasChannelRows = elig.some(e => e.payment_channel != null)
-                        const showChannelToggle = isHybrid || hasChannelRows
-                        const scopedChannel = elig.find(e => e.payment_channel)?.payment_channel  // e.g. 'online' (SC Journey)
+                        const showChannelToggle = isHybrid || hasChannelRows || !!card.bonus_channel
+                        const scopedChannel = elig.find(e => e.payment_channel)?.payment_channel ?? card.bonus_channel  // e.g. 'online'
                         const check = mccCheck.trim()
-                        const res = check.length === 4 ? resolveMccEligibility(card, check, cardMccEligibility, showChannelToggle ? mccCheckChannel : undefined) : null
+                        const res = check.length === 4 ? resolveMccEligibility(card, check, cardMccEligibility, showChannelToggle ? mccCheckChannel : undefined, chosenCategoryLabels(card, overrides, categories)) : null
                         return (
                           <div className="mt-3">
                             <button onClick={() => { setMccEligOpen(o => (o === card.id ? null : card.id)); setMccCheck('') }}
@@ -623,12 +623,30 @@ export default function Cards() {
                                       </p>
                                     </>
                                   )
+                                })() : isBlacklist ? (() => {
+                                  const inclRows = elig.filter(e => e.always_eligible)
+                                  const exclRows = elig.filter(e => !e.always_eligible)
+                                  return (
+                                    <>
+                                      {section(exclRows)}
+                                      {inclRows.length > 0 && (
+                                        <>
+                                          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide pt-1">Also earns any channel (in-store)</p>
+                                          {section(inclRows)}
+                                        </>
+                                      )}
+                                      <p className="text-[11px] text-gray-400">
+                                        {onlyReduced ? `These MCCs earn a reduced rate; all others earn the full ${rewardNoun}.`
+                                          : card.bonus_channel ? `${card.bonus_channel === 'online' ? 'Online' : card.bonus_channel} spend earns the ${rewardNoun} except these MCCs${inclRows.length > 0 ? '; the "any channel" MCCs above also earn in-store' : ''}.`
+                                          : `All MCCs earn ${rewardNoun} except these.`} Indicative — verify with the bank.
+                                      </p>
+                                    </>
+                                  )
                                 })() : (
                                   <>
                                     {section(elig)}
                                     <p className="text-[11px] text-gray-400">
-                                      {isBlacklist ? (onlyReduced ? `These MCCs earn a reduced rate; all others earn the full ${rewardNoun}.` : `All MCCs earn ${rewardNoun} except these.`)
-                                        : hasChannelRows ? `Listed MCCs earn the ${rewardNoun} on ${scopedChannel} transactions only; everything else earns base rate.`
+                                      {hasChannelRows ? `Listed MCCs earn the ${rewardNoun} on ${scopedChannel} transactions only; everything else earns base rate.`
                                         : card.card_type === 'cashback' ? 'MCCs not listed earn no cashback.' : 'MCCs not listed earn the base rate.'} Indicative — verify with the bank.
                                     </p>
                                   </>
