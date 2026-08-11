@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock, Repeat, ChevronDown, ChevronRight, Wallet } from 'lucide-react'
+import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock, Repeat, ChevronDown, ChevronRight, Wallet, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
@@ -34,6 +34,33 @@ export default function Dashboard() {
   function toggleWallet() { setWalletCollapsed(c => { localStorage.setItem('dashWalletCollapsed', c ? '0' : '1'); return !c }) }
   function toggleRecent() { setRecentCollapsed(c => { localStorage.setItem('dashRecentCollapsed', c ? '0' : '1'); return !c }) }
   function toggleUpcoming() { setUpcomingCollapsed(c => { localStorage.setItem('dashUpcomingCollapsed', c ? '0' : '1'); return !c }) }
+
+  // Expiring-miles nudge: a compact, session-dismissible chip that appears ONLY when
+  // a miles account expires within 90 days (and hasn't expired). Zero footprint otherwise.
+  const [expiring, setExpiring] = useState<{ id: string; name: string; expiry_date: string; days: number }[]>([])
+  const [expiryDismissed, setExpiryDismissed] = useState(() => sessionStorage.getItem('milesExpiryDismissed') === '1')
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('miles_accounts')
+        .select('id, name, expiry_date')
+        .not('expiry_date', 'is', null)
+      if (cancelled || !data) return
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const soon = data
+        .map(a => {
+          const days = Math.round((new Date(a.expiry_date + 'T00:00:00').getTime() - today.getTime()) / 86400000)
+          return { id: a.id as string, name: a.name as string, expiry_date: a.expiry_date as string, days }
+        })
+        .filter(a => a.days >= 0 && a.days <= 90)
+        .sort((a, b) => a.days - b.days)
+      setExpiring(soon)
+    })()
+    return () => { cancelled = true }
+  }, [user])
+  function dismissExpiry() { sessionStorage.setItem('milesExpiryDismissed', '1'); setExpiryDismissed(true) }
 
   // allCards is always non-empty after a successful library load.
   // If it is empty, data has not yet arrived for this user — do not redirect.
@@ -351,6 +378,29 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Expiring-miles nudge — only rendered when something is actually expiring soon */}
+      {!expiryDismissed && expiring.length > 0 && (() => {
+        const soonest = expiring[0]
+        const urgent = soonest.days <= 14
+        const fmt = new Date(soonest.expiry_date + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+        const whenLong = soonest.days === 0 ? 'today' : `in ${soonest.days} day${soonest.days === 1 ? '' : 's'}`
+        const whenShort = soonest.days === 0 ? 'today' : `in ${soonest.days}d`
+        return (
+          <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${urgent ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+            <CalendarClock size={15} className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              {expiring.length === 1
+                ? <><strong>{soonest.name}</strong> miles expire {whenLong} · {fmt}</>
+                : <>{expiring.length} accounts have miles expiring soon — soonest <strong>{soonest.name}</strong> {whenShort}</>}
+            </span>
+            <Link to="/miles" className="shrink-0 font-medium underline underline-offset-2 hover:no-underline">View</Link>
+            <button onClick={dismissExpiry} aria-label="Dismiss expiring-miles alert" className="shrink-0 opacity-60 hover:opacity-100">
+              <X size={15} />
+            </button>
+          </div>
+        )
+      })()}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
