@@ -4,14 +4,14 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } from '../lib/types'
-import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, resolveBoost } from '../lib/recommendations'
+import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, resolveBoost, resolveOverride } from '../lib/recommendations'
 import { getPeriodStart, getPeriodEnd, isoDate } from '../lib/utils'
 import MilesTabs from '../components/MilesTabs'
 import DatePicker from '../components/DatePicker'
 import { PageSkeleton } from '../components/Skeleton'
 import ErrorState from '../components/ErrorState'
 
-interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; vendor_name: string | null; transaction_date: string }
+interface TxnRow { id: string; card_id: string | null; category_id: string | null; amount: number; miles_earned: number | null; manual_mpd: number | null; vendor_name: string | null; transaction_date: string }
 interface TxnRecon { transaction_id: string; base_reconciled: boolean }
 
 // ── date helpers (local, string-based) ──────────────────────────────────────
@@ -54,7 +54,7 @@ export default function Reconcile() {
     setLoading(true)
     try {
       const [txRes, progRes, mapRes, bonusRes, tprRes] = await Promise.all([
-        supabase.from('transactions').select('id, card_id, category_id, amount, miles_earned, vendor_name, transaction_date'),
+        supabase.from('transactions').select('id, card_id, category_id, amount, miles_earned, manual_mpd, vendor_name, transaction_date'),
         supabase.from('reward_programs').select('*'),
         supabase.from('card_reward_program').select('*'),
         supabase.from('credit_reconciliations').select('*').in('kind', ['bonus', 'bonus_boost']),
@@ -185,6 +185,9 @@ export default function Reconcile() {
         for (const l of blk.lines) {
           const cat = l.txn.category_id
           if (cat && info.has(cat)) {
+            // Respect a manual MPD override that drops the transaction to (at or
+            // below) base — e.g. logged in the wrong category, so it earns no bonus.
+            if (l.txn.manual_mpd != null && l.txn.manual_mpd <= card.base_mpd) continue
             const b = cats.get(cat) ?? { raw: 0, rawBoost: 0, count: 0 }
             b.raw += l.txn.amount; b.count += 1
             if (resolveBoost(boosts, card.id, new Date(l.txn.transaction_date))) b.rawBoost += l.txn.amount
@@ -397,8 +400,19 @@ export default function Reconcile() {
           ) : visibleBlocks.map(blk => (
             <div key={blk.key} className="card p-4 space-y-3">
               <div className="flex items-baseline justify-between gap-2">
-                <h2 className="font-semibold text-gray-900">{blk.card.bank} {blk.card.name}</h2>
-                <span className="text-xs text-gray-500">{blk.label}</span>
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-gray-900">{blk.card.bank} {blk.card.name}</h2>
+                  {blk.card.selectable_category && (() => {
+                    const chosen = resolveOverride(overrides, blk.card.id, new Date(blk.cycleEnd)) ?? []
+                    const names = chosen.map(id => catById.get(id)?.name).filter(Boolean)
+                    return (
+                      <p className="text-[11px] text-gray-400">
+                        Bonus categories: {names.length ? names.join(', ') : <span className="text-amber-600">none chosen</span>}
+                      </p>
+                    )
+                  })()}
+                </div>
+                <span className="text-xs text-gray-500 shrink-0">{blk.label}</span>
               </div>
 
               {/* Per-transaction: base (with tick) + bonus contribution */}
