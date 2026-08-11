@@ -194,9 +194,12 @@ export default function Reconcile() {
         for (const [cat, b] of cats) {
           const { baseDelta, boostDelta, cap } = info.get(cat)!
           const capBlocks = cap != null ? Math.floor(cap / block) * block : null
-          // Standard program bonus — all eligible spend (boost-independent)
+          // Standard program bonus — all eligible spend (boost-independent). For
+          // boost-capable cards, name it after the card so it reads distinctly
+          // from the savings-account boost line below.
           const eligAll = Math.floor((cap != null ? Math.min(b.raw, cap) : b.raw) / block) * block
-          pushLump(cat, eligAll * baseDelta, b.count, cap != null && b.raw > cap, capBlocks != null ? capBlocks * baseDelta : null)
+          pushLump(cat, eligAll * baseDelta, b.count, cap != null && b.raw > cap, capBlocks != null ? capBlocks * baseDelta : null,
+            'bonus', card.boost_mpd != null ? card.name : 'Bonus')
           // Boost extra — only spend charged while the boost was active
           if (boostDelta > 0 && b.rawBoost > 0) {
             const eligBoost = Math.floor((cap != null ? Math.min(b.rawBoost, cap) : b.rawBoost) / block) * block
