@@ -162,7 +162,8 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-09  Transactions: filter by bank (narrows the card dropdown) + "Upcoming only" quick toggle (shows the canonical future-dated set, ignoring year/month/range). Frontend only.
 2026-08-11  Admin: card export-name aliases — new card_export_aliases table (migration 073) + collapsible editor on the Admin page (per card, per chosen bonus category for selectable cards); the Admin CSV export substitutes the alias into the "Card Used" column (fallback: category alias → card alias → "Bank Name").
 2026-08-11  Admin: Vendors→MCC editor — admin write RLS on vendor_catalogue (migration 074); collapsible module to add/search/inline-edit (MCC + category)/delete vendors, with a "Copy vendor_seed SQL" button that regenerates the vendor_seed.sql VALUES block for pasting into the repo (sync-back).
-2026-08-11  Vendor→MCC confidence tag (migration 075): unverified/likely/confirmed (default likely) — editable per vendor in Admin (+ add form), included in the vendor_seed SQL export; log form shows a colour-coded confidence badge next to the MCC when a vendor auto-fills it.
+2026-08-11  Vendor→MCC confidence tag (migration 075): unverified/likely/confirmed (default likely) — editable per vendor in Admin (+ add form), included in the vendor_seed SQL export; log form shows a colour-coded confidence badge next to the MCC when a vendor auto-fills it. Added ConfidenceInfo ⓘ tooltip in the log form explaining the levels.
+2026-08-11  Miles Balance history (migration 076): miles_balance_history table + RLS; a snapshot (date + total, source reconcile|manual) is saved automatically on Reconcile and via a per-account "Snapshot" button; collapsible per-account history list shows each snapshot with the change vs the previous one; deletable.
 ```
 
 ---

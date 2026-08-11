@@ -221,6 +221,17 @@ export interface MilesAdjustment {
   created_at: string
 }
 
+// A dated snapshot of an account's total balance (kept across reconciles).
+export interface MilesBalanceHistory {
+  id: string
+  user_id: string
+  account_id: string
+  balance: number
+  as_of_date: string
+  source: 'reconcile' | 'manual'
+  created_at: string
+}
+
 // ── Reward points (EXPERIMENTAL) ──────────────────────────────────────────
 // A bank reward currency (UOB UNI$, DBS Points, …) that converts to miles.
 export interface RewardProgram {

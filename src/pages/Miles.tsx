@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight, Pencil, HelpCircle, Infinity as InfinityIcon, ArrowUp, Plane,
+  Award, AlertTriangle, AlertCircle, CalendarClock, Save, Plus, X, Layers, RotateCcw, Trash2, ChevronDown, ChevronRight, Pencil, HelpCircle, Infinity as InfinityIcon, ArrowUp, Plane, History, Camera,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
-import { MilesAccount, MilesAccountCard, MilesAdjustment } from '../lib/types'
+import { MilesAccount, MilesAccountCard, MilesAdjustment, MilesBalanceHistory } from '../lib/types'
 import Modal from '../components/Modal'
 import MilesTabs from '../components/MilesTabs'
 import DatePicker from '../components/DatePicker'
@@ -62,6 +62,8 @@ export default function Miles() {
   const [accounts, setAccounts] = useState<MilesAccount[]>([])
   const [links, setLinks] = useState<MilesAccountCard[]>([])
   const [adjustments, setAdjustments] = useState<MilesAdjustment[]>([])
+  const [history, setHistory] = useState<MilesBalanceHistory[]>([])
+  const [historyOpen, setHistoryOpen] = useState<Set<string>>(new Set())
   const [earn, setEarn] = useState<EarnRow[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -100,15 +102,17 @@ export default function Miles() {
 
   async function reload() {
    try {
-    const [accRes, linkRes, adjRes, earnRes, settingsRes] = await Promise.all([
+    const [accRes, linkRes, adjRes, earnRes, settingsRes, histRes] = await Promise.all([
       supabase.from('miles_accounts').select('*').order('name'),
       supabase.from('miles_account_cards').select('*'),
       supabase.from('miles_adjustments').select('*').order('adjustment_date', { ascending: false }),
       supabase.from('transactions').select('card_id, miles_earned, transaction_date'),
       supabase.from('user_settings').select('miles_goal, miles_goal_label').maybeSingle(),
+      supabase.from('miles_balance_history').select('*').order('as_of_date', { ascending: false }).order('created_at', { ascending: false }),
     ])
     if (accRes.error || linkRes.error || adjRes.error || earnRes.error) throw new Error('load failed')
     setLoadError(false)
+    setHistory((histRes.data as MilesBalanceHistory[]) ?? [])
     const settings = settingsRes.data as { miles_goal: number | null; miles_goal_label: string | null } | null
     const goal = settings?.miles_goal ?? null
     const goalLabel = settings?.miles_goal_label ?? ''
@@ -237,6 +241,30 @@ export default function Miles() {
       .reduce((s, a) => s + a.miles, 0)
   }
 
+  function totalFor(account: MilesAccount): number {
+    return account.opening_miles + earnedFor(account) + adjSum(account)
+  }
+
+  // Balance-history snapshots, newest first, per account.
+  const historyByAccount = useMemo(() => {
+    const m = new Map<string, MilesBalanceHistory[]>()
+    for (const h of history) { const arr = m.get(h.account_id) ?? []; arr.push(h); m.set(h.account_id, arr) }
+    return m
+  }, [history])
+
+  async function saveSnapshot(account: MilesAccount) {
+    await supabase.from('miles_balance_history').insert({
+      user_id: user!.id, account_id: account.id, balance: totalFor(account), as_of_date: today(), source: 'manual',
+    })
+    toast('Snapshot saved')
+    reload()
+  }
+
+  async function deleteSnapshot(id: string) {
+    await supabase.from('miles_balance_history').delete().eq('id', id)
+    reload()
+  }
+
   function draftFor(a: MilesAccount) {
     return drafts[a.id] ?? {
       name: a.name,
@@ -290,6 +318,10 @@ export default function Miles() {
       as_of_date: today(),
       updated_at: new Date().toISOString(),
     }).eq('id', a.id)
+    // Keep a snapshot of the balance at each reconcile.
+    await supabase.from('miles_balance_history').insert({
+      user_id: user!.id, account_id: a.id, balance: total, as_of_date: today(), source: 'reconcile',
+    })
     setReconcileFor(null)
     toast('Balance reconciled')
     reload()
@@ -811,6 +843,22 @@ export default function Miles() {
                   >
                     <RotateCcw size={12} /> Reconcile
                   </button>
+                  <button
+                    onClick={() => saveSnapshot(account)}
+                    title="Save a snapshot of this balance to the history"
+                    className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5"
+                  >
+                    <Camera size={12} /> Snapshot
+                  </button>
+                  {(historyByAccount.get(account.id)?.length ?? 0) > 0 && (
+                    <button
+                      onClick={() => setHistoryOpen(s => { const n = new Set(s); n.has(account.id) ? n.delete(account.id) : n.add(account.id); return n })}
+                      className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg px-2.5 py-1.5"
+                    >
+                      <History size={12} /> History
+                      <span className="text-gray-400">{historyByAccount.get(account.id)!.length}</span>
+                    </button>
+                  )}
                   {dirty && (
                     <button
                       onClick={() => saveAccount(account)}
@@ -822,6 +870,31 @@ export default function Miles() {
                     </button>
                   )}
                 </div>
+
+                {/* Balance history */}
+                {historyOpen.has(account.id) && (historyByAccount.get(account.id)?.length ?? 0) > 0 && (
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Balance history</p>
+                    <div className="space-y-1">
+                      {historyByAccount.get(account.id)!.map((h, i, arr) => {
+                        const prev = arr[i + 1]  // chronologically earlier (list is newest-first)
+                        const delta = prev ? h.balance - prev.balance : null
+                        return (
+                          <div key={h.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
+                            <span className="text-gray-500 w-20 shrink-0">{fmtDate(h.as_of_date)}</span>
+                            <span className="font-medium text-gray-800 w-24 shrink-0 text-right">{Math.round(h.balance).toLocaleString()}</span>
+                            <span className={`w-20 shrink-0 text-right ${delta == null ? 'text-gray-300' : delta < 0 ? 'text-red-500' : delta > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
+                              {delta == null ? '—' : `${delta > 0 ? '+' : ''}${Math.round(delta).toLocaleString()}`}
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 capitalize ${h.source === 'reconcile' ? 'bg-indigo-50 text-indigo-500' : 'bg-gray-100 text-gray-500'}`}>{h.source}</span>
+                            <span className="flex-1" />
+                            <button onClick={() => deleteSnapshot(h.id)} title="Delete snapshot" className="text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={12} /></button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
