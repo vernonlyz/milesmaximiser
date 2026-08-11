@@ -808,3 +808,19 @@ Captures key architectural choices made during development — what was decided,
 **Why:** One nullable row column + one new mode keeps all existing whitelist/blacklist cards working untouched (their rows are channel-NULL) while capturing the hybrid card exactly. It's data-driven and reusable (UOB Visa Signature's contactless-all-plus-exclusions is expressible as blacklist; a future hybrid card just needs rows). Channel is known at the two decision points that matter (log form, Recommend); the Cards checker adds a channel toggle; unknown/null channel falls back to a sensible "contactless earns; online only if listed" note.
 
 **Trade-off:** Still informational (level 1) — the engine ranking/miles are unchanged; the hint can differ from the ranked MPD until level 2 threads eligibility into `calcMiles`. `hybrid`'s convention (NULL rows = exclusions, `'online'` rows = whitelist, contactless = allow-all) is specific to the online-whitelist + contactless-all shape; a card needing contactless-specific inclusions would need another convention.
+
+---
+
+## 2026-08-11 — Dashboard expiring-miles alert is conditional and session-dismissible, not a persistent banner
+
+**Decision:** Surface the expiring-miles reminder on the Dashboard as a **compact one-line chip that renders only when** a `miles_accounts.expiry_date` falls within 90 days (and hasn't passed) — amber normally, red when ≤14 days — with a **View** deep-link to `/miles` and an **✕** that dismisses it for the current session (`sessionStorage`). When nothing is expiring it renders nothing. The Dashboard runs its own lightweight `miles_accounts` query (id, name, expiry_date); no migration.
+
+**Why:** The user explicitly did not want "a perpetual alert which takes up space on home page." A conditional + session-dismissible chip gives the reminder when it's actionable and zero footprint otherwise, so the home page stays clean for the common case (nothing expiring).
+
+**Alternatives considered:**
+- **Always-on expiry panel** — rejected; that is exactly the perpetual space-taker the user ruled out.
+- **Compute and show the live expiring balance** in the chip — would need the account-cards + adjustments + earned-transaction math from `Miles.tsx`. Rejected to avoid duplicating (and drifting from) that logic on the Dashboard; the chip shows name + date and the exact number is one tap away via **View**.
+- **Persisted (localStorage) dismissal** — rejected; a hard deadline should reappear next session, so session-scoped dismissal is the right granularity.
+- **Loading expiry into AppContext** — deferred; only the Dashboard needs it today, so a local query keeps AppContext lean.
+
+**Trade-off:** With session dismissal, a *newly* expiring account won't reappear until the next session if the user already dismissed the chip that session — accepted as the intended "quiet for now" behaviour. The 90-day window is a fixed constant (the Miles page still uses its own 6-month badge); if these should share a threshold later, lift it to a shared constant.

@@ -108,7 +108,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [src/lib/types.ts](../src/lib/types.ts) | All shared TypeScript interfaces |
 | [src/lib/utils.ts](../src/lib/utils.ts) | `getPeriodStart()`, formatting helpers, constants |
 | [src/lib/starterCards.ts](../src/lib/starterCards.ts) | Default SG cards used during onboarding |
-| [src/pages/Dashboard.tsx](../src/pages/Dashboard.tsx) | Monthly stats (miles, cashback, total spent), wallet cap bars, spend milestones, recent transactions |
+| [src/pages/Dashboard.tsx](../src/pages/Dashboard.tsx) | Monthly stats (miles, cashback, total spent), wallet cap bars, spend milestones, recent transactions, conditional expiring-miles nudge |
 | [src/pages/Expenses.tsx](../src/pages/Expenses.tsx) | Full expense breakdown: Overview (spend by type, category bars, by card) and Trends tab (3 Recharts grouped bar charts) |
 | [src/pages/MileValue.tsx](../src/pages/MileValue.tsx) | Static mile value calculator — ticket price + miles + optional co-payment → cents per mile with colour-coded benchmark |
 | [src/components/ExpensesTrends.tsx](../src/components/ExpensesTrends.tsx) | Trends tab charts — fetches directly from Supabase for cross-year support; useIsMobile hook for responsive config |
@@ -297,6 +297,7 @@ The app is a functional MVP. All core features are implemented:
 | Empty-state CTAs (Transactions, Miles, Earnings) | Complete |
 | My Cards redesign — uniform tile grid + Details modal; in-app remove confirmation | Complete |
 | Cap "nearly maxed" nudge — CapUsageBar shows amber warning at 90–99% used (Dashboard) | Complete |
+| Dashboard expiring-miles nudge — conditional, session-dismissible one-line chip when a miles account expires within 90 days (amber; red ≤14 days); deep-links to /miles; hidden otherwise | Complete |
 | Miles goal — single cumulative target across all accounts (user_settings); progress bar with airplane marker + goal title (migrations 031–032) | Complete |
 | Mile Value benchmark changed from 1.5¢ to 1.8¢ (constant, "Good" grade, note copy) | Complete |
 | Expenses: Card spend definition banner (alongside the existing My spend banner) | Complete |
@@ -381,7 +382,7 @@ The app is a functional MVP. All core features are implemented:
 ### Missing but lower priority
 - **Silent failures on some pages** — The self-fetching pages (Miles, Earnings, Reconcile, Points, Expenses→Trends) + Dashboard now show an inline "Couldn't load — Retry" (ErrorState) on a failed query, and skeletons while loading. Still outstanding: Cards / Recommend / Transactions read from AppContext, whose top-level load error isn't surfaced per-page yet (they'd show an empty state).
 - **No pagination or date-range control on transactions** — Loads the entire current year. Will become slow with very high transaction volumes.
-- **No push notifications or reminders** — Users must actively open the app; there is no proactive "cap almost reached" or "miles expiring" alert. (Miles expiry warnings exist on the Miles Balance page but are not surfaced on the Dashboard.)
+- **No push notifications or reminders** — Users must actively open the app; there is no proactive push. In-app nudges do exist on the Dashboard (cap "nearly maxed" via CapUsageBar; an expiring-miles chip when an account expires within 90 days), but nothing reaches the user while the app is closed.
 - **Mobile dashboard navigation** — Dashboard can be long on phones (stats, milestones, wallet bars, recent transactions all on one scroll). Ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design — not implementing for now.
 
 ---
