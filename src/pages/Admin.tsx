@@ -46,7 +46,7 @@ export default function Admin() {
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [vendorEditorOpen, setVendorEditorOpen] = useState(false)
   const [vendorSearch, setVendorSearch] = useState('')
-  const [newV, setNewV] = useState({ name: '', mcc: '', categoryId: '' })
+  const [newV, setNewV] = useState<{ name: string; mcc: string; categoryId: string; confidence: Vendor['mcc_confidence'] }>({ name: '', mcc: '', categoryId: '', confidence: 'likely' })
   const [vendorMsg, setVendorMsg] = useState('')
 
   useEffect(() => {
@@ -70,10 +70,10 @@ export default function Admin() {
     const name = newV.name.trim()
     if (!name) return
     const { error } = await supabase.from('vendor_catalogue').insert({
-      name, default_mcc: newV.mcc.trim() || null, default_category_id: newV.categoryId || null,
+      name, default_mcc: newV.mcc.trim() || null, default_category_id: newV.categoryId || null, mcc_confidence: newV.confidence,
     })
     if (error) { setVendorMsg(error.message); return }
-    setNewV({ name: '', mcc: '', categoryId: '' })
+    setNewV({ name: '', mcc: '', categoryId: '', confidence: 'likely' })
     setVendorMsg('Added.')
     loadVendors()
   }
@@ -95,9 +95,9 @@ export default function Admin() {
   function copyVendorSeed() {
     const esc = (s: string) => s.replace(/'/g, "''")
     const rows = [...vendors].sort((a, b) => a.name.localeCompare(b.name)).map(v =>
-      `  ('${esc(v.name)}', ${v.default_mcc ? `'${v.default_mcc}'` : 'NULL'}, ${v.default_category_id ? `'${v.default_category_id}'` : 'NULL'})`
+      `  ('${esc(v.name)}', ${v.default_mcc ? `'${v.default_mcc}'` : 'NULL'}, ${v.default_category_id ? `'${v.default_category_id}'` : 'NULL'}, '${v.mcc_confidence}')`
     ).join(',\n')
-    const sql = `INSERT INTO vendor_catalogue (name, default_mcc, default_category_id) VALUES\n${rows}\nON CONFLICT (name) DO UPDATE SET\n  default_mcc         = EXCLUDED.default_mcc,\n  default_category_id = EXCLUDED.default_category_id;\n`
+    const sql = `INSERT INTO vendor_catalogue (name, default_mcc, default_category_id, mcc_confidence) VALUES\n${rows}\nON CONFLICT (name) DO UPDATE SET\n  default_mcc         = EXCLUDED.default_mcc,\n  default_category_id = EXCLUDED.default_category_id,\n  mcc_confidence      = EXCLUDED.mcc_confidence;\n`
     navigator.clipboard?.writeText(sql).then(
       () => setVendorMsg(`Copied ${vendors.length} vendors as vendor_seed SQL — paste into supabase/vendor_seed.sql`),
       () => setVendorMsg('Clipboard blocked — check browser permissions'),
@@ -338,6 +338,14 @@ export default function Admin() {
                   {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
                 </select>
               </div>
+              <div className="w-28">
+                <label className="text-[11px] text-gray-500 block">Confidence</label>
+                <select value={newV.confidence} onChange={e => setNewV(v => ({ ...v, confidence: e.target.value as Vendor['mcc_confidence'] }))} className="input text-sm w-full">
+                  <option value="unverified">Unverified</option>
+                  <option value="likely">Likely</option>
+                  <option value="confirmed">Confirmed</option>
+                </select>
+              </div>
               <button onClick={addVendor} className="btn-primary text-sm py-1.5"><Plus size={14} /> Add</button>
             </div>
 
@@ -367,6 +375,16 @@ export default function Admin() {
                   >
                     <option value="">—</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                  </select>
+                  <select
+                    value={v.mcc_confidence}
+                    onChange={e => patchVendor(v, { mcc_confidence: e.target.value as Vendor['mcc_confidence'] })}
+                    className={`input text-sm w-28 py-1 font-medium ${v.mcc_confidence === 'confirmed' ? 'text-emerald-600' : v.mcc_confidence === 'unverified' ? 'text-amber-600' : 'text-gray-600'}`}
+                    title="MCC confidence"
+                  >
+                    <option value="unverified">Unverified</option>
+                    <option value="likely">Likely</option>
+                    <option value="confirmed">Confirmed</option>
                   </select>
                   <button onClick={() => deleteVendor(v)} title="Delete vendor" className="text-gray-300 hover:text-red-500 p-1 shrink-0"><Trash2 size={14} /></button>
                 </div>

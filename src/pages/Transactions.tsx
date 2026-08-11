@@ -1636,6 +1636,18 @@ export default function Transactions() {
                 <span className="text-sm text-gray-600 flex-1">
                   {mccDescription ?? 'Unknown MCC'}
                 </span>
+                {selectedVendor && selectedVendor.default_mcc === mcc && (
+                  <span
+                    title="How confident this vendor's MCC is (set in Admin → Vendors)"
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 capitalize ${
+                      selectedVendor.mcc_confidence === 'confirmed' ? 'bg-emerald-100 text-emerald-700'
+                        : selectedVendor.mcc_confidence === 'unverified' ? 'bg-amber-100 text-amber-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {selectedVendor.mcc_confidence}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => { setMccInputVal(mcc); setMccEditing(true) }}

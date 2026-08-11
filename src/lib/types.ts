@@ -154,6 +154,7 @@ export interface Vendor {
   name: string
   default_mcc: string | null
   default_category_id: string | null
+  mcc_confidence: 'unverified' | 'likely' | 'confirmed'  // how sure the default MCC is
   active: boolean
 }
 
