@@ -20,11 +20,14 @@ export default function ConfidenceInfo({ className = '' }: { className?: string 
         <Info size={13} />
       </button>
       {open && (
-        <div className="absolute right-0 top-5 z-20 w-56 text-[11px] leading-snug text-gray-600 bg-white border border-gray-200 rounded-lg shadow-lg p-2.5 space-y-1">
+        <div className="absolute right-0 top-5 z-20 w-60 text-[11px] leading-snug text-gray-600 bg-white border border-gray-200 rounded-lg shadow-lg p-2.5 space-y-1">
           <p className="font-semibold text-gray-700">MCC confidence</p>
           <p><span className="text-emerald-600 font-medium">Confirmed</span> — verified on a real statement.</p>
           <p><span className="text-gray-600 font-medium">Likely</span> — the expected MCC for this merchant, not yet verified.</p>
           <p><span className="text-amber-600 font-medium">Unverified</span> — a guess; may be inaccurate.</p>
+          <p className="text-gray-500 pt-1 border-t border-gray-100">
+            All MCCs are <strong>indicative only</strong> — they can vary by merchant/acquirer and change over time. SmileMax is not liable for MCC accuracy; always verify with your bank.
+          </p>
         </div>
       )}
     </span>
