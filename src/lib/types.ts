@@ -38,6 +38,17 @@ export interface CreditCard {
   created_at: string
 }
 
+// Per-user card-name alias for the Admin CSV export. category_id null = the
+// card's default alias; category_id set = a category-specific alias (Lady's).
+export interface CardExportAlias {
+  id: string
+  user_id: string
+  card_id: string
+  category_id: string | null
+  alias: string
+  created_at: string
+}
+
 // A dated on/off toggle for a card's rate boost (effective-dated like overrides).
 export interface CardBoost {
   id: string

@@ -68,7 +68,8 @@ Supabase (Postgres + Auth + RLS)
     ├─ mcc_catalogue                  — Admin-seeded MCC code → description lookup
     ├─ card_mcc_eligibility           — MCC ranges per card interpreted by card_library.mcc_mode: whitelist = these earn bonus, blacklist = these are excluded, hybrid = channel-dependent (per-row payment_channel; migration 053); per-row `reduced` flag = earns a reduced rate not zero (migration 065); shared read-only (migrations 044/045/048/049/051/053/054/055/056/057/058/059/060/061/062/063/064/065/066/067)
     ├─ vendor_catalogue               — Admin-seeded vendor → default category + MCC
-    └─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
+    ├─ feedback                       — User-submitted bug reports and suggestions (admin-managed)
+    └─ card_export_aliases            — Per-user card→export-name aliases (per-category for selectable cards) used by the Admin CSV export (migration 073)
 
 Tooling: `npm run build` = `tsc -b && vite build` (→ `dist/`); `npm test` = Vitest (engine unit tests).
   - `postbuild` copies `dist/index.html` → `dist/404.html` — this is the SPA deep-link fallback on Cloudflare Pages.
@@ -186,6 +187,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [supabase/migrations/070_hsbc_revolution_mcc_groups.sql](../supabase/migrations/070_hsbc_revolution_mcc_groups.sql) | HSBC Revolution — add category groupings to MCC rows (codes unchanged) |
 | [supabase/migrations/071_revolution_boost_cap.sql](../supabase/migrations/071_revolution_boost_cap.sql) | HSBC Revolution boost cap (EGA → S$1,200) — `boost_cap` column + engine `applyCapBoosts` |
 | [supabase/migrations/072_online_bonus_and_instore_fashion.sql](../supabase/migrations/072_online_bonus_and_instore_fashion.sql) | `card_library.bonus_channel` (online-only: DBS WWMC + Citi Rewards) + `card_mcc_eligibility.always_eligible`; Citi in-store fashion rows |
+| [supabase/migrations/073_card_export_aliases.sql](../supabase/migrations/073_card_export_aliases.sql) | `card_export_aliases` (per-user card→export-name map, per-category for selectable cards; RLS); used by the Admin CSV export |
 | [src/lib/mcc.ts](../src/lib/mcc.ts) | `resolveMccEligibility(card, mcc, rows, channel?, chosenLabels?)` + `chosenCategoryLabels()`; whitelist/blacklist/hybrid + channel + reduced + `bonus_channel` (online-only) + `always_eligible` (any-channel) + selectable-category gating; shared by Cards, Recommend, Transactions |
 | [src/components/MccInfo.tsx](../src/components/MccInfo.tsx) | ⓘ popover: ✓/◐/✗ glyph legend + "eligibility is estimated — verify with your bank" disclaimer (collapsible, no clutter) |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 24-card SG library seed — 19 miles cards, 4 cashback cards, 1 debit card; also sets `mcc_mode` + all `card_mcc_eligibility` rows (consolidated from migrations 044–051) so fresh installs get MCC data (run after all migrations) |
@@ -234,6 +236,7 @@ The app is a functional MVP. All core features are implemented:
 | Transactions: sort by column header, wildcard search, mobile card list | Complete |
 | Lady's Solitaire first-time setup: smart effective_from default (2000-01-01) | Complete |
 | Feedback system (bug reports + suggestions, admin inbox with resolve/reopen) | Complete |
+| Admin: card export-name aliases (per card + per selectable category) applied to the Admin CSV export | Complete |
 | Feedback badge in sidebar (live count of open items, updates on resolve/reopen) | Complete |
 | UOB PRVI Miles Mastercard and Amex KrisFlyer Ascend added to library | Complete |
 | Expense tracking — cashback cards (card_type, cashback_rate, cashback_earned) | Complete |
@@ -396,7 +399,7 @@ The app is a functional MVP. All core features are implemented:
 - **No error boundaries** — A runtime exception in a page component will crash the entire app. With routes now code-split, a failed lazy-chunk load (flaky mobile network) is also unhandled. React's default error display shows in production.
 - **Limited offline support** — A PWA service worker caches the app shell (so the installed app opens offline), but all data still comes from Supabase; the app is not usable offline beyond the shell.
 - **Single Supabase project** — There is no staging environment. All development and production activity hits the same database.
-- **Manual migrations** — Migrations 027–072 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`); 044–046/048/049/051 = MCC eligibility (per-card ranges + `mcc_mode` whitelist/blacklist); 047 = HSBC Revolution boost; 050 = MariBank card. NOTE: MCC eligibility is now consolidated into the seeds too — `library_seed.sql` sets `mcc_mode` + all `card_mcc_eligibility` rows and `mcc_seed.sql` carries the referenced MCC descriptions — so a fresh install has full MCC data from the seeds alone (the data migrations set `mcc_mode` by name and no-op if run before the cards exist).
+- **Manual migrations** — Migrations 027–073 must be run in the Supabase SQL Editor; there is no automated migration runner. Notable: 035–041 = EXPERIMENTAL Points/Reconcile/rate-boost; 042 = recurring rules (real future transactions); 043 = new categories (then re-run `vendor_seed.sql`); 044–046/048/049/051 = MCC eligibility (per-card ranges + `mcc_mode` whitelist/blacklist); 047 = HSBC Revolution boost; 050 = MariBank card. NOTE: MCC eligibility is now consolidated into the seeds too — `library_seed.sql` sets `mcc_mode` + all `card_mcc_eligibility` rows and `mcc_seed.sql` carries the referenced MCC descriptions — so a fresh install has full MCC data from the seeds alone (the data migrations set `mcc_mode` by name and no-op if run before the cards exist).
 - **Experimental Miles tabs** — The **Points** (`/points`) and **Reconcile** (`/reconcile`) tabs are admin-gated in `MilesTabs.tsx` (`user.email === ADMIN_EMAIL`) and not shown to other users. Their seeded reward-program rates and card crediting rules are indicative — verify against real statements. Drop the gate to expose.
 - **Recurring generates real rows** — Recurring rules pre-create real future transactions (miles computed at generation, not recomputed later), so they count toward caps and also appear in month spend totals / future Miles Earned. Intentional (for cap planning); the estimates can drift if later spend fills a cap first.
 - **Dates are local (SGT)** — All date-boundary math uses `isoDate()` (local `YYYY-MM-DD`, never `toISOString()`) and string comparisons. New date logic must follow this — mixing `new Date('YYYY-MM-DD')` (UTC) with local Date bounds previously dropped end-of-month transactions in SGT.
