@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bug, Lightbulb, CheckCircle, Circle, RefreshCw, Download, Tag, ChevronDown } from 'lucide-react'
+import { Bug, Lightbulb, CheckCircle, Circle, RefreshCw, Download, Tag, ChevronDown, Store, Trash2, Plus, Clipboard } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { exportCsv } from '../lib/utils'
 import { resolveOverride } from '../lib/recommendations'
-import { CardExportAlias } from '../lib/types'
+import { CardExportAlias, Vendor } from '../lib/types'
 
 const ADMIN_EMAIL = 'vernonlyz@gmail.com'
 
@@ -32,7 +32,7 @@ function toDisplayDate(iso: string) {
 
 export default function Admin() {
   const { user } = useAuth()
-  const { categories, cards, allCards, transactions, overrides } = useApp()
+  const { categories, cards, allCards, transactions, overrides, mccCatalogue } = useApp()
   const navigate = useNavigate()
 
   const [rows, setRows] = useState<FeedbackRow[]>([])
@@ -43,6 +43,11 @@ export default function Admin() {
   const [aliases, setAliases] = useState<CardExportAlias[]>([])
   const [aliasDrafts, setAliasDrafts] = useState<Record<string, string>>({})
   const [aliasEditorOpen, setAliasEditorOpen] = useState(false)
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [vendorEditorOpen, setVendorEditorOpen] = useState(false)
+  const [vendorSearch, setVendorSearch] = useState('')
+  const [newV, setNewV] = useState({ name: '', mcc: '', categoryId: '' })
+  const [vendorMsg, setVendorMsg] = useState('')
 
   useEffect(() => {
     if (user?.email !== ADMIN_EMAIL) {
@@ -51,7 +56,55 @@ export default function Admin() {
     }
     load()
     loadAliases()
+    loadVendors()
   }, [user])
+
+  async function loadVendors() {
+    const { data } = await supabase.from('vendor_catalogue').select('*').order('name')
+    setVendors((data as Vendor[]) ?? [])
+  }
+
+  const mccDesc = (code: string | null) => code ? (mccCatalogue.find(m => m.code === code)?.description ?? null) : null
+
+  async function addVendor() {
+    const name = newV.name.trim()
+    if (!name) return
+    const { error } = await supabase.from('vendor_catalogue').insert({
+      name, default_mcc: newV.mcc.trim() || null, default_category_id: newV.categoryId || null,
+    })
+    if (error) { setVendorMsg(error.message); return }
+    setNewV({ name: '', mcc: '', categoryId: '' })
+    setVendorMsg('Added.')
+    loadVendors()
+  }
+
+  async function patchVendor(v: Vendor, patch: Partial<Vendor>) {
+    const { error } = await supabase.from('vendor_catalogue').update(patch).eq('id', v.id)
+    if (error) { setVendorMsg(error.message); return }
+    setVendorMsg('')
+    setVendors(prev => prev.map(x => x.id === v.id ? { ...x, ...patch } : x))
+  }
+
+  async function deleteVendor(v: Vendor) {
+    await supabase.from('vendor_catalogue').delete().eq('id', v.id)
+    setVendors(prev => prev.filter(x => x.id !== v.id))
+  }
+
+  // Sync-back: generate the vendor_seed.sql VALUES block from the live catalogue.
+  // (The app can't write repo files — copy this into supabase/vendor_seed.sql and commit.)
+  function copyVendorSeed() {
+    const esc = (s: string) => s.replace(/'/g, "''")
+    const rows = [...vendors].sort((a, b) => a.name.localeCompare(b.name)).map(v =>
+      `  ('${esc(v.name)}', ${v.default_mcc ? `'${v.default_mcc}'` : 'NULL'}, ${v.default_category_id ? `'${v.default_category_id}'` : 'NULL'})`
+    ).join(',\n')
+    const sql = `INSERT INTO vendor_catalogue (name, default_mcc, default_category_id) VALUES\n${rows}\nON CONFLICT (name) DO UPDATE SET\n  default_mcc         = EXCLUDED.default_mcc,\n  default_category_id = EXCLUDED.default_category_id;\n`
+    navigator.clipboard?.writeText(sql).then(
+      () => setVendorMsg(`Copied ${vendors.length} vendors as vendor_seed SQL — paste into supabase/vendor_seed.sql`),
+      () => setVendorMsg('Clipboard blocked — check browser permissions'),
+    )
+  }
+
+  const filteredVendors = vendors.filter(v => v.name.toLowerCase().includes(vendorSearch.trim().toLowerCase()))
 
   async function load() {
     setLoading(true)
@@ -247,6 +300,83 @@ export default function Admin() {
               )
             })}
             {aliasCards.length === 0 && <p className="text-sm text-gray-500">No cards yet.</p>}
+          </div>
+        )}
+      </div>
+
+      {/* Vendors → MCC (shared vendor_catalogue) */}
+      <div className="card p-4">
+        <button
+          onClick={() => setVendorEditorOpen(o => !o)}
+          className="flex items-center gap-2 w-full text-sm font-medium text-gray-700"
+        >
+          <Store size={15} className="text-indigo-500 shrink-0" />
+          Vendors → MCC
+          <span className="text-xs text-gray-400 font-normal">{vendors.length}</span>
+          <ChevronDown size={16} className={`ml-auto text-gray-400 transition-transform ${vendorEditorOpen ? '' : '-rotate-90'}`} />
+        </button>
+        {vendorEditorOpen && (
+          <div className="mt-3 space-y-3">
+            <datalist id="mcc-codes">
+              {mccCatalogue.map(m => <option key={m.code} value={m.code}>{m.description}</option>)}
+            </datalist>
+
+            {/* Add new vendor */}
+            <div className="flex flex-wrap items-end gap-2 bg-gray-50 rounded-lg p-2.5">
+              <div className="flex-1 min-w-[140px]">
+                <label className="text-[11px] text-gray-500 block">Vendor name</label>
+                <input value={newV.name} onChange={e => setNewV(v => ({ ...v, name: e.target.value }))} placeholder="e.g. Ya Kun Kaya Toast" className="input text-sm w-full" />
+              </div>
+              <div className="w-24">
+                <label className="text-[11px] text-gray-500 block">MCC</label>
+                <input value={newV.mcc} onChange={e => setNewV(v => ({ ...v, mcc: e.target.value.replace(/\D/g, '').slice(0, 4) }))} list="mcc-codes" placeholder="5814" inputMode="numeric" className="input text-sm w-full" />
+              </div>
+              <div className="w-40">
+                <label className="text-[11px] text-gray-500 block">Category</label>
+                <select value={newV.categoryId} onChange={e => setNewV(v => ({ ...v, categoryId: e.target.value }))} className="input text-sm w-full">
+                  <option value="">—</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                </select>
+              </div>
+              <button onClick={addVendor} className="btn-primary text-sm py-1.5"><Plus size={14} /> Add</button>
+            </div>
+
+            {/* Search + sync-back */}
+            <div className="flex flex-wrap items-center gap-2">
+              <input value={vendorSearch} onChange={e => setVendorSearch(e.target.value)} placeholder="Search vendors…" className="input text-sm flex-1 min-w-[160px]" />
+              <button onClick={copyVendorSeed} className="btn-secondary text-sm py-1.5"><Clipboard size={13} /> Copy vendor_seed SQL</button>
+            </div>
+            {vendorMsg && <p className="text-xs text-indigo-600">{vendorMsg}</p>}
+
+            {/* Vendor list (inline edit) */}
+            <div className="max-h-96 overflow-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
+              {filteredVendors.map(v => (
+                <div key={v.id} className="flex flex-wrap items-center gap-2 px-2.5 py-2">
+                  <span className="text-sm text-gray-800 flex-1 min-w-[120px] truncate" title={v.name}>{v.name}</span>
+                  <input
+                    defaultValue={v.default_mcc ?? ''}
+                    onBlur={e => { const val = e.target.value.replace(/\D/g, '').slice(0, 4) || null; if (val !== (v.default_mcc ?? null)) patchVendor(v, { default_mcc: val }) }}
+                    list="mcc-codes" inputMode="numeric" placeholder="MCC"
+                    className="input text-sm w-20 py-1"
+                    title={mccDesc(v.default_mcc) ?? ''}
+                  />
+                  <select
+                    value={v.default_category_id ?? ''}
+                    onChange={e => patchVendor(v, { default_category_id: e.target.value || null })}
+                    className="input text-sm w-36 py-1"
+                  >
+                    <option value="">—</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                  </select>
+                  <button onClick={() => deleteVendor(v)} title="Delete vendor" className="text-gray-300 hover:text-red-500 p-1 shrink-0"><Trash2 size={14} /></button>
+                </div>
+              ))}
+              {filteredVendors.length === 0 && <p className="text-sm text-gray-500 p-4 text-center">No vendors match.</p>}
+            </div>
+            <p className="text-[11px] text-gray-400">
+              Edits save immediately to the shared vendor catalogue (used by the transaction-form typeahead). MCC must exist in the MCC catalogue.
+              “Copy vendor_seed SQL” copies the full block to paste into <code>supabase/vendor_seed.sql</code> and commit — keeping the repo in sync.
+            </p>
           </div>
         )}
       </div>
