@@ -12,6 +12,7 @@ import MilesTabs from '../components/MilesTabs'
 import DatePicker from '../components/DatePicker'
 import { PageSkeleton } from '../components/Skeleton'
 import ErrorState from '../components/ErrorState'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface EarnRow { card_id: string | null; miles_earned: number | null; transaction_date: string }
 
@@ -875,6 +876,27 @@ export default function Miles() {
                 {historyOpen.has(account.id) && (historyByAccount.get(account.id)?.length ?? 0) > 0 && (
                   <div className="mt-3 border-t border-gray-100 pt-3">
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Balance history</p>
+                    {historyByAccount.get(account.id)!.length >= 2 && (
+                      <div className="h-36 mb-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={[...historyByAccount.get(account.id)!].reverse().map(h => ({ d: fmtDate(h.as_of_date), balance: Math.round(h.balance) }))}
+                            margin={{ top: 5, right: 8, bottom: 0, left: 4 }}
+                          >
+                            <XAxis dataKey="d" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} minTickGap={24} />
+                            <YAxis
+                              tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={false} width={40}
+                              tickFormatter={v => (v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`)}
+                            />
+                            <Tooltip
+                              formatter={(v: any) => [Number(v).toLocaleString(), 'Balance']}
+                              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                            />
+                            <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={{ r: 2 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       {historyByAccount.get(account.id)!.map((h, i, arr) => {
                         const prev = arr[i + 1]  // chronologically earlier (list is newest-first)
