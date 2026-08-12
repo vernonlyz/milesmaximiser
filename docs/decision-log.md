@@ -824,3 +824,36 @@ Captures key architectural choices made during development — what was decided,
 - **Loading expiry into AppContext** — deferred; only the Dashboard needs it today, so a local query keeps AppContext lean.
 
 **Trade-off:** With session dismissal, a *newly* expiring account won't reappear until the next session if the user already dismissed the chip that session — accepted as the intended "quiet for now" behaviour. The 90-day window is a fixed constant (the Miles page still uses its own 6-month badge); if these should share a threshold later, lift it to a shared constant.
+
+---
+
+## 2026-08-12 — Editing a transaction must exclude that transaction from its own cap base
+
+**Decision:** When the transaction form recomputes miles for an **edit**, feed the engine a `transactions` list with the edited row removed (`engineTxns` omits `editingId`) — for the preview MPD, the live recommendations, and the miles persisted on save. New (non-edit) logs and recurring-occurrence generation keep the full list unchanged.
+
+**Background (the bug):** `calcMiles`/`recommendCards` derive cap usage from the `transactions` array via `buildPeriodSpending`, which sums **all** period transactions. On edit, the array (from AppContext) still held the old version of the row being edited, so its amount was counted as "already spent" against the cap **and** the engine then evaluated the edited amount on top of it. The same spend was counted twice, pushing the cap over its limit and dropping the effective MPD (bonus on less spend, base on the overflow) even when nothing cap-relevant had changed — corrupting both the preview and the saved `miles_earned`/`computed_mpd`.
+
+**Alternatives considered:**
+- **Add an `excludeId` parameter to `calcMiles`/`buildPeriodSpending`** — pushes the edit concern into the shared engine and would need threading through every caller and the test suite. Rejected: the engine is correct given its inputs; the caller was passing the wrong set. Fixing it at the one call site keeps the engine pure.
+- **Recompute only on field change, trusting the stored value otherwise** — doesn't address the double-count; the recompute itself was wrong.
+
+**Why:** The double-count is a caller-side data problem (stale self-inclusion), so the minimal, local fix is to hand the engine the correct base. A memoized `engineTxns` is cheap and keeps the three call sites consistent.
+
+**Trade-off:** No automated regression test was added, because the defect lived in the page component rather than the engine (whose behaviour is already unit-tested and unchanged). If a guard is wanted later, extract "exclude self on edit" into a tiny testable helper. Also: transactions edited **before** this fix may carry a wrong saved MPD if they sat near a cap boundary; re-saving them recomputes correctly (no bulk backfill shipped).
+
+---
+
+## 2026-08-12 — Citi Rewards blacklist completed against the full published exclusion list
+
+**Decision:** Append the 14 exclusion MCCs from Citi's published list that migration 048 had not seeded (`4829`, `5199`, `5960`, `5993`, `6012`, `6050–6051`, `6211`, `7349`, `7511`, `7523`, `7800`, `7995`, `8062`) as a new migration **077**, and mirror them into `library_seed.sql`. 048's rows are left untouched.
+
+**Why:** 048 seeded the big contiguous blocks (travel, education `8211–8299`, government `9000–9999`, quasi-cash `6529–6540`) but omitted the scattered singles Citi also excludes, so those charges were wrongly shown as bonus-eligible. Completing the list makes the blacklist match the bank's document.
+
+**Implementation notes:**
+- **Delete-then-insert scoped to only the added start-codes** (`WHERE mcc_start IN (...)`), not a blanket `DELETE ... WHERE card_id = ...`, so 077 is re-runnable without duplicating and without disturbing the 048 rows. (048's own seed still does the full-card delete/insert; 077 layers on top.)
+- `6050–6051` collapsed into one range; the rest are singles.
+- MCC descriptions already existed in `mcc_seed.sql`, so 077's `mcc_catalogue` insert is `ON CONFLICT DO NOTHING` (won't clobber the better existing descriptions).
+
+**Judgment call:** `7800` (Government-Owned Lotteries) is flagged "US Region only" in Citi's list and is unlikely to appear on a SG transaction, but it was included for fidelity to the published list rather than second-guessing which codes can occur locally — consistent with the project's "seed the bank's list as published" stance.
+
+**Trade-off:** Still informational (level 1) — the engine ranking/logged miles are unchanged; the blacklist only drives the MCC hint until Level 2 threads eligibility into `calcMiles`.
