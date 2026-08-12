@@ -211,5 +211,6 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
   ('6538', 'MoneySend Funding',                                    '00000000-0000-0000-0000-000000000010'),
   ('6555', 'Mastercard Initiated Rebate',                          '00000000-0000-0000-0000-000000000010'),
   ('7299', 'Miscellaneous Personal Services',                      '00000000-0000-0000-0000-000000000010'),
-  ('7801', 'Online Gambling',                                      '00000000-0000-0000-0000-000000000010')
+  ('7801', 'Online Gambling',                                      '00000000-0000-0000-0000-000000000010'),
+  ('8021', 'Dentists and Orthodontists',                                      '00000000-0000-0000-0000-000000000010')
 ON CONFLICT (code) DO NOTHING;
