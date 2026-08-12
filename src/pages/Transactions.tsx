@@ -239,6 +239,15 @@ export default function Transactions() {
     exportCsv(`transactions_${exportPeriod}.csv`, headers, rows)
   }
 
+  // When editing, exclude the transaction under edit from the period-spending base.
+  // Otherwise the engine counts its OLD amount as "already spent" against the cap
+  // AND evaluates the new amount on top of it — double-counting the same spend, so
+  // the cap looks crossed and the MPD dips even when nothing about the cap changed.
+  const engineTxns = useMemo(
+    () => (editingId ? transactions.filter(t => t.id !== editingId) : transactions),
+    [transactions, editingId]
+  )
+
   // Engine-computed MPD for the current form selection
   const computedMpd = useMemo(() => {
     const amt = parseFloat(form.amount)
@@ -246,16 +255,16 @@ export default function Transactions() {
     const card = cards.find(c => c.id === form.card_id)
     if (!card) return null
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return calcMiles(card, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel, statementDays, boosts).effectiveMpd
-  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel, statementDays, boosts])
+    return calcMiles(card, rates, caps, form.category_id, amt, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts).effectiveMpd
+  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, engineTxns, overrides, paymentChannel, statementDays, boosts])
 
   // Live recommendations while filling form
   const recs = useMemo<CardRecommendation[]>(() => {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return recommendCards(cards, rates, caps, form.category_id, amt, transactions, txDate, overrides, paymentChannel, statementDays, boosts)
-  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, transactions, overrides, paymentChannel, statementDays, boosts])
+    return recommendCards(cards, rates, caps, form.category_id, amt, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts)
+  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, engineTxns, overrides, paymentChannel, statementDays, boosts])
 
   const bestCardId = recs[0]?.card.id ?? ''
   const selectedRec = useMemo(() => recs.find(r => r.card.id === form.card_id) ?? null, [recs, form.card_id])
@@ -400,7 +409,7 @@ export default function Transactions() {
       const rate = override?.cashback_rate ?? card.cashback_rate ?? 0
       cashback_earned = parseFloat((amount * rate).toFixed(4))
     } else if (card.card_type === 'miles') {
-      ;({ effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, transactions, txDate, overrides, paymentChannel, statementDays, boosts))
+      ;({ effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts))
     }
 
     const parsedManual = parseFloat(manualMpd)
