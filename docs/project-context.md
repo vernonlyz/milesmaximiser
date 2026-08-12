@@ -196,7 +196,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [src/components/MccInfo.tsx](../src/components/MccInfo.tsx) | ⓘ popover: ✓/◐/✗ glyph legend + "eligibility is estimated — verify with your bank" disclaimer (collapsible, no clutter) |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 24-card SG library seed — 19 miles cards, 4 cashback cards, 1 debit card; also sets `mcc_mode` + all `card_mcc_eligibility` rows (consolidated from migrations 044–051) so fresh installs get MCC data (run after all migrations) |
 | [supabase/mcc_seed.sql](../supabase/mcc_seed.sql) | MCC catalogue (code → description → default category); includes the extra codes referenced by `card_mcc_eligibility` |
-| [supabase/vendor_seed.sql](../supabase/vendor_seed.sql) | Vendor → default category/MCC (re-run after 043 for subscription/health/insurer recategorisation) |
+| [supabase/vendor_seed.sql](../supabase/vendor_seed.sql) | Vendor → default category/MCC/confidence — **generated** by the Admin "Copy vendor_seed SQL" export (4-col: name, default_mcc, default_category_id, mcc_confidence; 214 vendors, alphabetized; `ON CONFLICT (name) DO UPDATE` syncs all three). Edit vendors in Admin and re-export, don't hand-edit |
 
 ---
 

@@ -857,3 +857,16 @@ Captures key architectural choices made during development — what was decided,
 **Judgment call:** `7800` (Government-Owned Lotteries) is flagged "US Region only" in Citi's list and is unlikely to appear on a SG transaction, but it was included for fidelity to the published list rather than second-guessing which codes can occur locally — consistent with the project's "seed the bank's list as published" stance.
 
 **Trade-off:** Still informational (level 1) — the engine ranking/logged miles are unchanged; the blacklist only drives the MCC hint until Level 2 threads eligibility into `calcMiles`.
+
+---
+
+## 2026-08-12 — `vendor_seed.sql` is a generated artifact of the Admin editor, not hand-maintained
+
+**Decision:** Treat `supabase/vendor_seed.sql` as the **export output** of the Admin Vendors→MCC editor's "Copy vendor_seed SQL" button. Vendors (and their `default_mcc`, `default_category_id`, `mcc_confidence`) are edited in the Admin UI against the live `vendor_catalogue`, then re-exported and committed so the repo seed matches production. The exported shape is a 4-column `INSERT ... ON CONFLICT (name) DO UPDATE SET default_mcc, default_category_id, mcc_confidence`, alphabetized by name.
+
+**Why:** The vendor list is large (200+ rows) and the natural place to curate it is the running app (typeahead, confidence tags, category pickers) — not by editing SQL by hand. Making the seed a faithful export keeps a fresh install's `vendor_catalogue` identical to what the admin curated, and the round-trip (edit live → export → commit) is the sync-back mechanism. Alphabetical ordering makes duplicate `name` rows visible in review — the class of bug that previously broke `ON CONFLICT` with a duplicate `'Foodgle'`.
+
+**Consequences / trade-offs:**
+- The generated file **drops the earlier hand-written header comment** (the category-ID legend and "run after 043" note). Accepted: the exporter owns the file now. Anyone needing the category-ID legend can find it in `mcc_seed.sql`'s header or `docs/project-context.md`.
+- **Do not hand-edit** `vendor_seed.sql` — changes would be overwritten on the next export, and hand edits don't reach the live DB. Edit in Admin instead.
+- `ON CONFLICT (name)` means the seed is keyed on vendor **name**; renaming a vendor creates a new row rather than updating the old one (the old name would need manual deletion). Acceptable for a curated catalogue.
