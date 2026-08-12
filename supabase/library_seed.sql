@@ -268,7 +268,20 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000017', NULL, '8651', '8661', 'Professional services & membership'),
   ('00000000-0000-0000-0001-000000000017', NULL, '6529', '6540', 'Quasi-cash (GrabPay/YouTrip top-ups)'),
   ('00000000-0000-0000-0001-000000000017', NULL, '6513', '6513', 'Real estate'),
-  ('00000000-0000-0000-0001-000000000017', NULL, '4900', '4900', 'Utilities');
+  ('00000000-0000-0000-0001-000000000017', NULL, '4900', '4900', 'Utilities'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '4829', '4829', 'Wire transfer money orders'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '5199', '5199', 'Nondurable goods (NEC)'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '5960', '5960', 'Direct marketing (insurance)'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '5993', '5993', 'Cigar stores'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '6012', '6012', 'Financial institutions (debt repayment)'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '6050', '6051', 'Quasi-cash / foreign currency / stored value'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '6211', '6211', 'Securities brokers & dealers'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '7349', '7349', 'Cleaning & janitorial services'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '7511', '7511', 'Quasi-cash (truck stop)'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '7523', '7523', 'Parking lots & garages'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '7800', '7800', 'Government-owned lotteries'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '7995', '7995', 'Betting & lottery'),
+  ('00000000-0000-0000-0001-000000000017', NULL, '8062', '8062', 'Hospitals');
 -- Citi Rewards: in-store fashion / department MCCs earn on ANY channel (not just online).
 INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note, always_eligible) VALUES
   ('00000000-0000-0000-0001-000000000017', 'In-store fashion', '5311', '5311', 'Department stores', true),
