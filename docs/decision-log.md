@@ -870,3 +870,20 @@ Captures key architectural choices made during development — what was decided,
 - The generated file **drops the earlier hand-written header comment** (the category-ID legend and "run after 043" note). Accepted: the exporter owns the file now. Anyone needing the category-ID legend can find it in `mcc_seed.sql`'s header or `docs/project-context.md`.
 - **Do not hand-edit** `vendor_seed.sql` — changes would be overwritten on the next export, and hand edits don't reach the live DB. Edit in Admin instead.
 - `ON CONFLICT (name)` means the seed is keyed on vendor **name**; renaming a vendor creates a new row rather than updating the old one (the old name would need manual deletion). Acceptable for a curated catalogue.
+
+---
+
+## 2026-08-12 — Admin vendor edits refresh the shared catalogue via a targeted `refreshVendors()`, not a full `refresh()`
+
+**Decision:** Add a dedicated `refreshVendors()` to `AppContext` that reloads **only** `vendor_catalogue` (filtered `active=true`, no `loading` toggle) and call it from the Admin Vendors→MCC module after `addVendor`/`patchVendor`/`deleteVendor`. This keeps the shared `vendorCatalogue` — which feeds the log-form typeahead — current within the session.
+
+**Background (the bug):** `vendorCatalogue` is loaded once by `loadLibrary()` at startup. The Admin module maintained its **own** local `vendors` state, so its CRUD updated the DB and the Admin list but left the app-wide `vendorCatalogue` untouched. A newly added vendor therefore didn't appear in the log-form typeahead until an app relaunch re-ran `loadLibrary()`.
+
+**Alternatives considered:**
+- **Call the existing `refresh()`** — reloads the whole library + selections + transactions and flips global `loading=true`, flashing the entire app into a skeleton state after every single vendor edit. Too heavy and visually disruptive for a one-row change.
+- **Have Admin write into `vendorCatalogue` directly** — would require exposing the setter and duplicating the `active=true`/ordering logic in the page; a small reload query is simpler and guarantees the shared state matches the DB (including server defaults on insert).
+- **Supabase realtime subscription on `vendor_catalogue`** — automatic, but adds a live subscription and reconnection handling for a low-frequency, admin-only mutation. Overkill.
+
+**Why:** A narrow reload is the minimal fix that removes the staleness without the full-refresh flash, and re-querying (rather than mirroring the mutation client-side) keeps `vendorCatalogue` a faithful copy of the DB. Admin still keeps its own `vendors` list (it needs all rows incl. any inactive) and now simply also nudges the shared copy.
+
+**Trade-off:** Two reads per edit (Admin's `loadVendors()` + `refreshVendors()`) — negligible for an admin-only action. The two lists could later be unified, but the split keeps Admin's fuller view independent of the app-wide active-only catalogue.
