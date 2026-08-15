@@ -24,6 +24,7 @@ interface AppContextValue {
   error: string | null
   refresh: () => Promise<void>
   refreshTransactions: () => Promise<void>
+  refreshVendors: () => Promise<void>
   addCardSelection: (cardId: string) => Promise<void>
   removeCardSelection: (cardId: string) => Promise<void>
   saveOverride: (cardId: string, categoryIds: string[], effectiveFrom?: string) => Promise<void>
@@ -137,6 +138,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setError(e instanceof Error ? e.message : 'Failed to load transactions')
     }
   }, [loadTransactions])
+
+  // Reload just the vendor catalogue (no global loading flash) so Admin edits to
+  // vendors/MCC/confidence show up in the log-form typeahead without a relaunch.
+  const refreshVendors = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('vendor_catalogue').select('*').eq('active', true).order('name')
+    if (!error) setVendorCatalogue(data ?? [])
+  }, [])
 
   async function addCardSelection(cardId: string) {
     if (!user) return
@@ -257,7 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       rates, caps, selectableCategories, overrides,
       transactions, mccCatalogue, cardMccEligibility, vendorCatalogue, cashbackRates,
       loading, error,
-      refresh, refreshTransactions,
+      refresh, refreshTransactions, refreshVendors,
       addCardSelection, removeCardSelection, saveOverride, saveStatementDay, boosts, setRateBoost, updateBoost, deleteBoost,
     }}>
       {children}

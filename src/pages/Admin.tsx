@@ -32,7 +32,7 @@ function toDisplayDate(iso: string) {
 
 export default function Admin() {
   const { user } = useAuth()
-  const { categories, cards, allCards, transactions, overrides, mccCatalogue } = useApp()
+  const { categories, cards, allCards, transactions, overrides, mccCatalogue, refreshVendors } = useApp()
   const navigate = useNavigate()
 
   const [rows, setRows] = useState<FeedbackRow[]>([])
@@ -76,6 +76,7 @@ export default function Admin() {
     setNewV({ name: '', mcc: '', categoryId: '', confidence: 'likely' })
     setVendorMsg('Added.')
     loadVendors()
+    refreshVendors()  // keep the shared catalogue (log-form typeahead) current without a relaunch
   }
 
   async function patchVendor(v: Vendor, patch: Partial<Vendor>) {
@@ -83,11 +84,13 @@ export default function Admin() {
     if (error) { setVendorMsg(error.message); return }
     setVendorMsg('')
     setVendors(prev => prev.map(x => x.id === v.id ? { ...x, ...patch } : x))
+    refreshVendors()
   }
 
   async function deleteVendor(v: Vendor) {
     await supabase.from('vendor_catalogue').delete().eq('id', v.id)
     setVendors(prev => prev.filter(x => x.id !== v.id))
+    refreshVendors()
   }
 
   // Sync-back: generate the vendor_seed.sql VALUES block from the live catalogue.
