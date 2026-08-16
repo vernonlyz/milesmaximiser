@@ -130,6 +130,7 @@ export default function Transactions() {
   const [filterCat,  setFilterCat]  = useState('')
   const [filterBank, setFilterBank] = useState('')
   const [filterCard, setFilterCard] = useState('')
+  const [filterRecur, setFilterRecur] = useState<'' | 'recurring' | 'oneoff'>('')
   const [onlyUpcoming, setOnlyUpcoming] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   // Optional date range (overrides year/month when set); can be open-ended.
@@ -734,10 +735,12 @@ export default function Transactions() {
       if (filterBank && bankById.get(t.card_id ?? '') !== filterBank) return false
       if (filterCat  && t.category_id !== filterCat)  return false
       if (filterCard && t.card_id     !== filterCard)  return false
+      if (filterRecur === 'recurring' && !t.recurring_id) return false
+      if (filterRecur === 'oneoff'    &&  t.recurring_id) return false
       if (q && !t.vendor_name?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false
       return true
     })
-  }, [txPool, upcoming, onlyUpcoming, todayStr, rangeActive, dateFrom, dateTo, filterYear, filterMonthNum, filterBank, bankById, filterCat, filterCard, searchQuery])
+  }, [txPool, upcoming, onlyUpcoming, todayStr, rangeActive, dateFrom, dateTo, filterYear, filterMonthNum, filterBank, bankById, filterCat, filterCard, filterRecur, searchQuery])
 
   // Displayed list: apply the reconcile-status filter and sort.
   const filtered = useMemo(() => {
@@ -766,8 +769,11 @@ export default function Transactions() {
     [filtered, todayStr, periodFilterActive]
   )
   const upcomingForCard = useMemo(
-    () => (filterCard ? upcoming.filter(t => t.card_id === filterCard) : upcoming),
-    [upcoming, filterCard]
+    () => upcoming.filter(t =>
+      (!filterCard || t.card_id === filterCard) &&
+      (filterRecur === '' || (filterRecur === 'recurring' ? !!t.recurring_id : !t.recurring_id))
+    ),
+    [upcoming, filterCard, filterRecur]
   )
   // Apply the range window (default next 1 month) on top of the card filter.
   const upcomingShown = useMemo(() => {
@@ -1000,6 +1006,19 @@ export default function Transactions() {
             {allCards.filter(c => c.card_type === 'debit' && (!filterBank || c.bank === filterBank)).map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
+          </select>
+          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+        </div>
+
+        <div className="relative">
+          <select
+            value={filterRecur}
+            onChange={e => setFilterRecur(e.target.value as '' | 'recurring' | 'oneoff')}
+            className="input w-36 appearance-none pr-7 text-sm"
+          >
+            <option value="">All types</option>
+            <option value="recurring">Recurring only</option>
+            <option value="oneoff">One-off only</option>
           </select>
           <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
