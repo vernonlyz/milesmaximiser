@@ -887,3 +887,20 @@ Captures key architectural choices made during development — what was decided,
 **Why:** A narrow reload is the minimal fix that removes the staleness without the full-refresh flash, and re-querying (rather than mirroring the mutation client-side) keeps `vendorCatalogue` a faithful copy of the DB. Admin still keeps its own `vendors` list (it needs all rows incl. any inactive) and now simply also nudges the shared copy.
 
 **Trade-off:** Two reads per edit (Admin's `loadVendors()` + `refreshVendors()`) — negligible for an admin-only action. The two lists could later be unified, but the split keeps Admin's fuller view independent of the app-wide active-only catalogue.
+
+---
+
+## 2026-08-12 — Transactions MPD column reconstructs the nominal rate from `miles_earned`, not `effective_mpd`
+
+**Decision:** In the Transactions MPD column, derive the displayed nominal rate from **`miles_earned / earnAmt`** (where `earnAmt = floor(amount / earn_increment) × earn_increment`), instead of the previous `effective_mpd × amount / earnAmt`. Manual-override rows still display the stored `manual_mpd`. Display-only; no stored values change.
+
+**Background (the bug):** The column shows a *nominal* rate (e.g. "6 mpd"), not the block-reduced `effective_mpd` (e.g. 5.83 on a $51.70 charge), so it reconstructs the nominal by scaling the effective value back up by `amount / earnAmt`. That reconstruction assumes `effective_mpd == milesAmount × nominal / amount` exactly. When that assumption breaks — notably rows whose `effective_mpd` was stored as the flat nominal (`6.0`) rather than the block-reduced figure — scaling `6.0 × amount / earnAmt` overshoots, landing on **6.01** for Lady's Solitaire amounts just above a $5 earn block. A brute-force simulation over $1–$3000 confirmed: the clean current save path never overshoots (0/199,501), while a flat-nominal `effective_mpd` overshoots ~83% of amounts — matching the intermittent "sometimes 6.01" report.
+
+**Why `miles_earned / earnAmt`:** Miles are credited on the block amount, so `miles_earned = earnAmt × nominal` for a full-bonus transaction, and the ratio recovers the nominal **exactly** — with no dependence on the fractional cents that inflated the old formula. Verified: **zero** rows over $1–$3000 exceed the true rate; and for normal correctly-saved rows it is mathematically identical to the old formula (e.g. $13.80 at 4 mpd → 4.00, not 3.96). For partial-cap rows it shows the blended per-block rate (≤ nominal), same as before.
+
+**Alternatives considered:**
+- **Round the reconstructed nominal to 1 dp** — would hide 6.01 → 6.0, but all real card rates are already ≤1 dp so it's a cosmetic band-aid that still mis-scales larger fractions (a legacy $5.10 row would show 6.1). Rejected in favour of a reconstruction that's correct by construction.
+- **Show `effective_mpd` directly (no reconstruction)** — would display 5.83 instead of 6 on non-block amounts, which the nominal column exists specifically to avoid.
+- **Backfill/repair legacy `effective_mpd`** — a data migration to recompute stored effective values. Deferred: the display fix makes the column correct for all rows without touching data; a backfill can follow if the stored `effective_mpd`/`miles_earned` themselves are found wrong (not just their display).
+
+**Trade-off:** If a legacy row also had its `miles_earned` stored non-block-rounded (a deeper artifact), the column now shows the honest per-block rate implied by those miles (e.g. 6.2) rather than a false 6.01 — arguably more truthful, but still not the clean "6" a properly-saved row shows. The fix guards `miles_earned != null` and falls back to `effective_mpd` otherwise.
