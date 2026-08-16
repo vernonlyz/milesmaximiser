@@ -1257,11 +1257,13 @@ export default function Transactions() {
                   if (isManual && t.manual_mpd != null) {
                     nomMpd = t.manual_mpd
                   } else {
+                    // Nominal from miles credited on the block amount (see desktop note) —
+                    // robust against effective_mpd not being the exact block-reduced value.
                     const earnAmt = card
                       ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
                       : t.amount
-                    nomMpd = card && earnAmt > 0
-                      ? parseFloat((t.effective_mpd * t.amount / earnAmt).toFixed(2))
+                    nomMpd = card && earnAmt > 0 && t.miles_earned != null
+                      ? parseFloat((t.miles_earned / earnAmt).toFixed(2))
                       : t.effective_mpd
                   }
                 }
@@ -1434,11 +1436,16 @@ export default function Transactions() {
                             if (isManual && t.manual_mpd != null) {
                               nomMpd = t.manual_mpd
                             } else {
+                              // Reconstruct the nominal rate from miles credited on the block
+                              // amount (miles_earned / earnAmt) — recovers the exact rate (e.g. 6,
+                              // not the block-reduced 5.83) without the overshoot the old
+                              // effective_mpd × amount / earnAmt formula produced when effective_mpd
+                              // wasn't the precise block value (e.g. legacy flat-nominal rows → 6.01).
                               const tEarnAmt = card
                                 ? Math.floor(t.amount / card.earn_increment) * card.earn_increment
                                 : t.amount
-                              nomMpd = card && tEarnAmt > 0
-                                ? parseFloat((t.effective_mpd * t.amount / tEarnAmt).toFixed(2))
+                              nomMpd = card && tEarnAmt > 0 && t.miles_earned != null
+                                ? parseFloat((t.miles_earned / tEarnAmt).toFixed(2))
                                 : t.effective_mpd
                             }
                             return (
