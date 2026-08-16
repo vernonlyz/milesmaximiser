@@ -904,3 +904,22 @@ Captures key architectural choices made during development — what was decided,
 - **Backfill/repair legacy `effective_mpd`** — a data migration to recompute stored effective values. Deferred: the display fix makes the column correct for all rows without touching data; a backfill can follow if the stored `effective_mpd`/`miles_earned` themselves are found wrong (not just their display).
 
 **Trade-off:** If a legacy row also had its `miles_earned` stored non-block-rounded (a deeper artifact), the column now shows the honest per-block rate implied by those miles (e.g. 6.2) rather than a false 6.01 — arguably more truthful, but still not the clean "6" a properly-saved row shows. The fix guards `miles_earned != null` and falls back to `effective_mpd` otherwise.
+
+---
+
+## 2026-08-12 — One 3-way Timeframe control for the past/future dimension, not another toggle
+
+**Decision:** Replace the Transactions page's binary "Upcoming only" toggle with a single 3-way segmented control — **Show: All / Past / Upcoming** — and add a separate recurring/one-off dropdown. "Past" hides every future-dated row (main list capped ≤ today, future days of a selected month hidden, the Upcoming panel hidden). `periodFilterActive` now treats any non-`all` timeframe as a period filter, so the Upcoming panel only surfaces in **All** mode.
+
+**Background:** The user asked for a "don't show upcoming" filter. The page had accreted several time-ish controls — the current-month default (which shows future days of the month inline), the separate Upcoming panel with its own range presets, and the "Upcoming only" toggle — with no single place expressing "past vs future". Adding a second boolean ("hide upcoming") alongside "upcoming only" would have created a nonsensical combination (both on) and two controls for one axis.
+
+**Alternatives considered:**
+- **Add a second "Hide upcoming" toggle** — two booleans for one dimension; the (upcoming-only + hide-upcoming) combination is contradictory and would need guard logic. Rejected.
+- **Fold the Upcoming panel into the main list** (future rows inline with an "in N days" badge, governed by the Timeframe control) — simpler screen, but loses the panel's recurring-rule collapsing (one line per rule) and its 1m/3m/6m range presets. Offered to the user; they chose to **keep the panel** (shown in All mode).
+- **A dropdown instead of a segmented control** — equivalent function; a segment set reads as a single mutually-exclusive axis at a glance and matches a 3-state better than a `<select>` buried among the category/bank/card selects.
+
+**Why:** A single mutually-exclusive 3-state control makes the past/future axis unambiguous and impossible to put into a contradictory state, and it subsumes the old toggle (Upcoming) while adding Past. Keeping the Upcoming panel preserves the recurring-rule summary; gating it on `timeframe === 'all'` (via `periodFilterActive`) means it never double-shows future items that are already inline or explicitly hidden.
+
+**Recurrence filter:** kept as a plain dropdown (All types / Recurring only / One-off only) since it's a genuinely independent axis (not time), and it composes with Timeframe (e.g. Past + Recurring only). "Recurring" is defined structurally as `recurring_id != null` (materialised from a rule), not by any per-row flag.
+
+**Trade-off:** Default remains **All**, so the current-month-inline-with-future default view is unchanged (no migration of user expectations). Users who want "past only" must now pick it explicitly — acceptable, since the previous behaviour never hid future either.
