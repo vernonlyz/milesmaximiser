@@ -131,7 +131,9 @@ export default function Transactions() {
   const [filterBank, setFilterBank] = useState('')
   const [filterCard, setFilterCard] = useState('')
   const [filterRecur, setFilterRecur] = useState<'' | 'recurring' | 'oneoff'>('')
-  const [onlyUpcoming, setOnlyUpcoming] = useState(false)
+  // Single time-dimension control: 'all' = past + future (with the Upcoming panel),
+  // 'past' = hide everything future-dated, 'upcoming' = future-dated only.
+  const [timeframe, setTimeframe] = useState<'all' | 'past' | 'upcoming'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   // Optional date range (overrides year/month when set); can be open-ended.
   const [dateFrom, setDateFrom] = useState('')
@@ -162,6 +164,7 @@ export default function Transactions() {
       openAdd()
       window.history.replaceState({}, '')
     } else if (st?.showUpcoming === 'all') {
+      setTimeframe('all')
       setFilterMonthNum('')   // clear the current-month filter so Upcoming isn't hidden
       setUpcomingRange('all')
       setUpcomingCollapsed(false)
@@ -724,14 +727,17 @@ export default function Transactions() {
   const baseFiltered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const monthPrefix = !rangeActive && filterMonthNum ? `${filterYear}-${filterMonthNum}` : null
-    const source = onlyUpcoming ? upcoming : txPool
+    const source = timeframe === 'upcoming' ? upcoming : txPool
     return source.filter(t => {
-      if (onlyUpcoming) {
+      if (timeframe === 'upcoming') {
         if (t.transaction_date <= todayStr) return false
-      } else if (rangeActive) {
-        if (dateFrom && t.transaction_date < dateFrom) return false
-        if (dateTo   && t.transaction_date > dateTo)   return false
-      } else if (monthPrefix && !t.transaction_date.startsWith(monthPrefix)) return false
+      } else {
+        if (timeframe === 'past' && t.transaction_date > todayStr) return false
+        if (rangeActive) {
+          if (dateFrom && t.transaction_date < dateFrom) return false
+          if (dateTo   && t.transaction_date > dateTo)   return false
+        } else if (monthPrefix && !t.transaction_date.startsWith(monthPrefix)) return false
+      }
       if (filterBank && bankById.get(t.card_id ?? '') !== filterBank) return false
       if (filterCat  && t.category_id !== filterCat)  return false
       if (filterCard && t.card_id     !== filterCard)  return false
@@ -740,7 +746,7 @@ export default function Transactions() {
       if (q && !t.vendor_name?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false
       return true
     })
-  }, [txPool, upcoming, onlyUpcoming, todayStr, rangeActive, dateFrom, dateTo, filterYear, filterMonthNum, filterBank, bankById, filterCat, filterCard, filterRecur, searchQuery])
+  }, [txPool, upcoming, timeframe, todayStr, rangeActive, dateFrom, dateTo, filterYear, filterMonthNum, filterBank, bankById, filterCat, filterCard, filterRecur, searchQuery])
 
   // Displayed list: apply the reconcile-status filter and sort.
   const filtered = useMemo(() => {
@@ -763,7 +769,7 @@ export default function Transactions() {
   // Split future-dated (upcoming) from the main list so it isn't cluttered — but
   // when a specific period (month or date range) is selected, show the whole
   // window inline (past + future) so the totals include future-dated rows in it.
-  const periodFilterActive = !!filterMonthNum || rangeActive || onlyUpcoming
+  const periodFilterActive = !!filterMonthNum || rangeActive || timeframe !== 'all'
   const pastFiltered = useMemo(
     () => (periodFilterActive ? filtered : filtered.filter(t => t.transaction_date <= todayStr)),
     [filtered, todayStr, periodFilterActive]
@@ -805,7 +811,7 @@ export default function Transactions() {
   const totalMiles = pastFiltered.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
   const totalSpent = pastFiltered.reduce((s, t) => s + t.amount, 0)
   const totalCashback = pastFiltered.reduce((s, t) => s + (t.cashback_earned ?? 0), 0)
-  const periodLabel = onlyUpcoming
+  const periodLabel = timeframe === 'upcoming'
     ? 'Upcoming'
     : rangeActive
     ? `${dateFrom ? fmtDate(dateFrom) : 'start'} → ${dateTo ? fmtDate(dateTo) : 'now'}`
@@ -1041,7 +1047,7 @@ export default function Transactions() {
 
       </div>
 
-      {/* Date range (overrides year/month when set) + Upcoming quick filter */}
+      {/* Date range (overrides year/month when set) + Timeframe control */}
       <div className="card px-4 py-2.5 flex flex-wrap items-center gap-2 text-sm">
         <span className="text-xs text-gray-500">Date range</span>
         <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="From" clearable max={dateTo || undefined} />
@@ -1053,16 +1059,26 @@ export default function Transactions() {
             <span className="text-xs text-indigo-500">· overriding year/month</span>
           </>
         )}
-        <button
-          onClick={() => setOnlyUpcoming(v => !v)}
-          className={`ml-auto inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors ${
-            onlyUpcoming ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
-          }`}
-          title="Show only upcoming (future-dated) transactions"
-        >
-          <Repeat size={13} /> Upcoming only
-        </button>
-        {onlyUpcoming && <span className="text-xs text-indigo-500 basis-full sm:basis-auto">Showing upcoming only · year/month/range ignored</span>}
+        {/* Timeframe: one control for the past/future dimension */}
+        <div className="ml-auto inline-flex items-center gap-1.5">
+          <span className="text-xs text-gray-500">Show</span>
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+            {([['all', 'All'], ['past', 'Past'], ['upcoming', 'Upcoming']] as const).map(([tf, label]) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`text-xs font-medium px-2.5 py-1.5 transition-colors ${
+                  timeframe === tf ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+                title={tf === 'all' ? 'Past and upcoming' : tf === 'past' ? 'Hide upcoming (future-dated) transactions' : 'Only upcoming (future-dated) transactions'}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {timeframe === 'upcoming' && <span className="text-xs text-indigo-500 basis-full sm:basis-auto">Showing upcoming only · year/month/range ignored</span>}
+        {timeframe === 'past' && <span className="text-xs text-gray-500 basis-full sm:basis-auto">Hiding upcoming (future-dated) transactions</span>}
       </div>
 
       {/* Totals — reflect the active filters (incl. future-dated within the period) */}
