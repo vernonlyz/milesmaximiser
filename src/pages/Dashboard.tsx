@@ -172,20 +172,16 @@ export default function Dashboard() {
         allCatTotals.set(t.category_id, (allCatTotals.get(t.category_id) ?? 0) + t.amount)
       }
 
+      type BreakdownRow = { catId: string; label: string; spent: number; bonus: boolean }
+
       const capRows = Array.from(capGroupMap.values()).map(groupCaps => {
         const firstCap = groupCaps[0]
         if (firstCap.cap_group) {
-          // Combined cap: one bar for total spend across all pooled categories, plus a
-          // per-category breakdown beneath it (so the shared cap is legible).
+          // Combined cap: one bar for total pooled (bonus) spend vs the shared cap.
+          // The per-category breakdown (incl. non-bonus spend) is attached below.
           const groupSpentKey = `${firstCap.card_id}:group:${firstCap.cap_group}`
           const spent = periodSpending.get(groupSpentKey) ?? 0
           const groupCatIds = groupCaps.map(c => c.category_id).filter(Boolean) as string[]
-          const breakdown = groupCatIds
-            .map(catId => {
-              const cat = categories.find(c => c.id === catId)
-              return { catId, label: cat ? `${cat.icon} ${cat.name}` : '—', spent: allCatTotals.get(catId) ?? 0 }
-            })
-            .sort((a, b) => b.spent - a.spent)
           return {
             key: groupSpentKey,
             label: 'Bonus categories',
@@ -193,7 +189,8 @@ export default function Dashboard() {
             limit: firstCap.spend_limit ?? 0,
             period: getPeriodLabel(firstCap.cap_period),
             catIds: groupCatIds,
-            breakdown,
+            combined: true,
+            breakdown: undefined as BreakdownRow[] | undefined,
           }
         }
         const cat = firstCap.category_id ? categories.find(c => c.id === firstCap.category_id) : null
@@ -213,37 +210,56 @@ export default function Dashboard() {
           limit: firstCap.spend_limit ?? 0,
           period: getPeriodLabel(firstCap.cap_period),
           catIds: firstCap.category_id ? [firstCap.category_id] : [],
-          breakdown: undefined as { catId: string; label: string; spent: number }[] | undefined,
+          combined: false,
+          breakdown: undefined as BreakdownRow[] | undefined,
         }
       }).sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
 
       const monthlySpent = cardTxns.reduce((s, t) => s + t.amount, 0)
       const monthlyMiles = cardTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
 
-      // Uncapped spend breakdown — all categories used this period that don't already
-      // have a cap bar. For selectable cards, the chosen categories appear first.
+      // Categories already represented by a cap bar (bonus-pool + any single caps).
       const coveredCatIds = new Set(capRows.flatMap(r => r.catIds))
 
-      // Tally per-category spend for this card this billing period (excluding
-      // categories already shown by a cap bar / combined-cap breakdown)
+      // Non-covered category spend for this card this billing period.
       const catTotals = new Map<string, number>()
       for (const [catId, amt] of allCatTotals) {
         if (coveredCatIds.has(catId)) continue
         catTotals.set(catId, amt)
       }
 
-      // For selectable cards, pin chosen categories to the top (even if S$0 this month)
+      const mkRow = (catId: string, spent: number, bonus: boolean): BreakdownRow => {
+        const cat = categories.find(c => c.id === catId)
+        return { catId, label: cat ? `${cat.icon} ${cat.name}` : '—', spent, bonus }
+      }
+
+      // Combined-cap cards: attach a UNIFIED breakdown to the pooled bar — bonus
+      // (cap-counting) categories first, then non-bonus, each measured against the
+      // card's TOTAL spend. Non-bonus rows live here instead of the separate list.
+      const combinedRow = capRows.find(r => r.combined)
+      if (combinedRow) {
+        const bonusRows = combinedRow.catIds
+          .map(catId => mkRow(catId, allCatTotals.get(catId) ?? 0, true))
+          .sort((a, b) => b.spent - a.spent)
+        const otherRows = Array.from(catTotals.entries())
+          .filter(([, amt]) => amt > 0)
+          .sort(([, a], [, b]) => b - a)
+          .map(([catId, spent]) => mkRow(catId, spent, false))
+        combinedRow.breakdown = [...bonusRows, ...otherRows]
+      }
+
+      // Separate uncapped spend rows — only for cards without a combined cap (for
+      // combined-cap cards these categories are folded into the unified breakdown).
+      // For selectable cards, the chosen categories appear first (even at S$0).
       const pinnedCatIds = card.selectable_category
         ? (resolveOverride(overrides, card.id, now) ?? []).filter(id => !coveredCatIds.has(id))
         : []
 
-      const spendRows = [
-        // Pinned chosen categories first
+      const spendRows = combinedRow ? [] : [
         ...pinnedCatIds.map(catId => {
           const cat = categories.find(c => c.id === catId)
           return { key: `pin:${card.id}:${catId}`, catId, label: cat ? `${cat.icon} ${cat.name}` : '—', spent: catTotals.get(catId) ?? 0, pinned: true }
         }),
-        // All other categories with actual spend, sorted by amount desc
         ...Array.from(catTotals.entries())
           .filter(([catId]) => !pinnedCatIds.includes(catId))
           .sort(([, a], [, b]) => b - a)
@@ -554,8 +570,10 @@ export default function Dashboard() {
                   </button>
                   <div className="pl-7 space-y-3">
                     {/* Cap bars for capped categories. Combined-cap cards (HSBC
-                        Revolution, Maybank XL Rewards) show the pooled total as the
-                        bar, then a per-category breakdown beneath it. */}
+                        Revolution, Maybank XL Rewards) show the pooled bonus total as
+                        the bar, then a unified per-category breakdown beneath it:
+                        bonus (cap-counting) categories, then non-bonus, each as a % of
+                        the card's total spend for the period. */}
                     {capRows.map(row => (
                       <div key={row.key}>
                         <CapUsageBar
@@ -564,19 +582,25 @@ export default function Dashboard() {
                           limit={row.limit}
                           period={row.period}
                         />
-                        {row.breakdown && row.breakdown.length > 1 && (
+                        {row.breakdown && row.breakdown.length > 0 && (
                           <div className="mt-1.5 ml-1 pl-3 border-l-2 border-gray-100 space-y-1">
-                            {row.breakdown.map(b => {
-                              const pct = row.spent > 0 ? (b.spent / row.spent) * 100 : 0
+                            {row.breakdown.map((b, i) => {
+                              const pct = monthlySpent > 0 ? (b.spent / monthlySpent) * 100 : 0
+                              const showDivider = !b.bonus && (i === 0 || row.breakdown![i - 1].bonus)
                               return (
-                                <div key={b.catId} className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-500">{b.label}</span>
-                                  <span className="text-gray-500 tabular-nums">
-                                    {b.spent > 0 ? `S$${b.spent.toFixed(2)}` : '—'}
-                                    {b.spent > 0 && row.spent > 0 && (
-                                      <span className="text-gray-300 ml-1">{Math.round(pct)}%</span>
-                                    )}
-                                  </span>
+                                <div key={b.catId}>
+                                  {showDivider && (
+                                    <div className="text-[10px] uppercase tracking-wide text-gray-300 pt-0.5 pb-0.5">Outside bonus cap</div>
+                                  )}
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-500">{b.label}</span>
+                                    <span className="text-gray-500 tabular-nums">
+                                      {b.spent > 0 ? `S$${b.spent.toFixed(2)}` : '—'}
+                                      {b.spent > 0 && monthlySpent > 0 && (
+                                        <span className="text-gray-300 ml-1">{Math.round(pct)}%</span>
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
                               )
                             })}
