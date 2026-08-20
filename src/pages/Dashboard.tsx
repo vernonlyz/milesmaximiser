@@ -155,26 +155,45 @@ export default function Dashboard() {
         capGroupMap.set(key, list)
       }
 
+      // Use the card's billing cycle bounds for per-card stats and category breakdown,
+      // so statement-cycle cards don't bleed in spend from the previous cycle.
+      const cardStatDay = card.cap_cycle === 'statement' ? statementDays.get(card.id) : undefined
+      const cardStartStr = isoDate(getPeriodStart('monthly', now, cardStatDay))
+      const cardEndStr   = isoDate(getPeriodEnd('monthly', now, cardStatDay))
+      const cardTxns = transactions.filter(t =>
+        t.card_id === card.id && t.transaction_date >= cardStartStr && t.transaction_date <= cardEndStr
+      )
+
+      // Per-category spend for this card this period (all categories) — used both for
+      // the combined-cap breakdown and the uncapped spend rows below.
+      const allCatTotals = new Map<string, number>()
+      for (const t of cardTxns) {
+        if (!t.category_id) continue
+        allCatTotals.set(t.category_id, (allCatTotals.get(t.category_id) ?? 0) + t.amount)
+      }
+
       const capRows = Array.from(capGroupMap.values()).map(groupCaps => {
         const firstCap = groupCaps[0]
         if (firstCap.cap_group) {
-          // Combined cap: sum spending across all group categories
+          // Combined cap: one bar for total spend across all pooled categories, plus a
+          // per-category breakdown beneath it (so the shared cap is legible).
           const groupSpentKey = `${firstCap.card_id}:group:${firstCap.cap_group}`
           const spent = periodSpending.get(groupSpentKey) ?? 0
-          const catLabels = groupCaps
-            .map(c => {
-              const cat = c.category_id ? categories.find(cat => cat.id === c.category_id) : null
-              return cat ? `${cat.icon} ${cat.name}` : ''
+          const groupCatIds = groupCaps.map(c => c.category_id).filter(Boolean) as string[]
+          const breakdown = groupCatIds
+            .map(catId => {
+              const cat = categories.find(c => c.id === catId)
+              return { catId, label: cat ? `${cat.icon} ${cat.name}` : '—', spent: allCatTotals.get(catId) ?? 0 }
             })
-            .filter(Boolean)
-            .join(' · ')
+            .sort((a, b) => b.spent - a.spent)
           return {
             key: groupSpentKey,
-            label: catLabels || 'Combined cap',
+            label: 'Bonus categories',
             spent,
             limit: firstCap.spend_limit ?? 0,
             period: getPeriodLabel(firstCap.cap_period),
-            catIds: groupCaps.map(c => c.category_id).filter(Boolean) as string[],
+            catIds: groupCatIds,
+            breakdown,
           }
         }
         const cat = firstCap.category_id ? categories.find(c => c.id === firstCap.category_id) : null
@@ -194,17 +213,9 @@ export default function Dashboard() {
           limit: firstCap.spend_limit ?? 0,
           period: getPeriodLabel(firstCap.cap_period),
           catIds: firstCap.category_id ? [firstCap.category_id] : [],
+          breakdown: undefined as { catId: string; label: string; spent: number }[] | undefined,
         }
       }).sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
-
-      // Use the card's billing cycle bounds for per-card stats and category breakdown,
-      // so statement-cycle cards don't bleed in spend from the previous cycle.
-      const cardStatDay = card.cap_cycle === 'statement' ? statementDays.get(card.id) : undefined
-      const cardStartStr = isoDate(getPeriodStart('monthly', now, cardStatDay))
-      const cardEndStr   = isoDate(getPeriodEnd('monthly', now, cardStatDay))
-      const cardTxns = transactions.filter(t =>
-        t.card_id === card.id && t.transaction_date >= cardStartStr && t.transaction_date <= cardEndStr
-      )
 
       const monthlySpent = cardTxns.reduce((s, t) => s + t.amount, 0)
       const monthlyMiles = cardTxns.reduce((s, t) => s + (t.miles_earned ?? 0), 0)
@@ -213,12 +224,12 @@ export default function Dashboard() {
       // have a cap bar. For selectable cards, the chosen categories appear first.
       const coveredCatIds = new Set(capRows.flatMap(r => r.catIds))
 
-      // Tally per-category spend for this card this billing period
+      // Tally per-category spend for this card this billing period (excluding
+      // categories already shown by a cap bar / combined-cap breakdown)
       const catTotals = new Map<string, number>()
-      for (const t of cardTxns) {
-        if (!t.category_id) continue
-        if (coveredCatIds.has(t.category_id)) continue
-        catTotals.set(t.category_id, (catTotals.get(t.category_id) ?? 0) + t.amount)
+      for (const [catId, amt] of allCatTotals) {
+        if (coveredCatIds.has(catId)) continue
+        catTotals.set(catId, amt)
       }
 
       // For selectable cards, pin chosen categories to the top (even if S$0 this month)
@@ -542,15 +553,36 @@ export default function Dashboard() {
                     </span>
                   </button>
                   <div className="pl-7 space-y-3">
-                    {/* Cap bars for capped categories */}
+                    {/* Cap bars for capped categories. Combined-cap cards (HSBC
+                        Revolution, Maybank XL Rewards) show the pooled total as the
+                        bar, then a per-category breakdown beneath it. */}
                     {capRows.map(row => (
-                      <CapUsageBar
-                        key={row.key}
-                        label={row.label}
-                        spent={row.spent}
-                        limit={row.limit}
-                        period={row.period}
-                      />
+                      <div key={row.key}>
+                        <CapUsageBar
+                          label={row.label}
+                          spent={row.spent}
+                          limit={row.limit}
+                          period={row.period}
+                        />
+                        {row.breakdown && row.breakdown.length > 1 && (
+                          <div className="mt-1.5 ml-1 pl-3 border-l-2 border-gray-100 space-y-1">
+                            {row.breakdown.map(b => {
+                              const pct = row.spent > 0 ? (b.spent / row.spent) * 100 : 0
+                              return (
+                                <div key={b.catId} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-500">{b.label}</span>
+                                  <span className="text-gray-500 tabular-nums">
+                                    {b.spent > 0 ? `S$${b.spent.toFixed(2)}` : '—'}
+                                    {b.spent > 0 && row.spent > 0 && (
+                                      <span className="text-gray-300 ml-1">{Math.round(pct)}%</span>
+                                    )}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     ))}
 
                     {/* Proportional spend bars for uncapped categories */}
