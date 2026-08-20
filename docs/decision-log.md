@@ -923,3 +923,25 @@ Captures key architectural choices made during development — what was decided,
 **Recurrence filter:** kept as a plain dropdown (All types / Recurring only / One-off only) since it's a genuinely independent axis (not time), and it composes with Timeframe (e.g. Past + Recurring only). "Recurring" is defined structurally as `recurring_id != null` (materialised from a rule), not by any per-row flag.
 
 **Trade-off:** Default remains **All**, so the current-month-inline-with-future default view is unchanged (no migration of user expectations). Users who want "past only" must now pick it explicitly — acceptable, since the previous behaviour never hid future either.
+
+---
+
+## 2026-08-21 — Combined-cap cards get a unified category breakdown measured against the card total
+
+**Decision:** On the Dashboard My Wallet section, a combined-cap card (`cap_group`: HSBC Revolution, Maybank XL Rewards) shows the pooled bar (bonus spend vs the shared cap) followed by a **single unified per-category breakdown**: the bonus (cap-counting) categories first, an "Outside bonus cap" divider, then the non-bonus categories — **each as a % of the card's total spend**, reconciling to the existing "Total this month" line. Non-bonus categories are folded into this breakdown and the separate uncapped spend-row list is suppressed for these cards. Driven by `cap_group`, not by card name.
+
+**Background:** The pooled bar originally concatenated the shared categories into its label and excluded them from the per-category rows, so the split of the pool was invisible. A first pass added a bonus-only breakdown (% of pool). The user then asked that non-bonus ("outside the cap") categories also count toward the total shown — i.e. the breakdown should describe the whole card, not just the pool.
+
+**Key choice — percentage basis:** breakdown rows are a **% of the card's total monthly spend** (`monthlySpent`), not % of the pool. This lets bonus and non-bonus rows live in one list whose percentages sum to 100% and reconcile to "Total this month". (An earlier version used % of pool, which couldn't include non-bonus rows coherently.)
+
+**Alternatives considered (via AskUserQuestion):**
+- **Total-spend bar + cap marker** — make the bar the card's total spend with the cap drawn as a threshold marker. Rejected by the user: it reframes the bar away from cap usage, which is the primary signal for these cards.
+- **Keep bonus bar + add a total line** — leave the bonus-only breakdown and just add a total. Rejected: non-bonus categories stay visually disconnected from the total.
+- **Unified breakdown + card total** — chosen.
+
+**Implementation notes:**
+- Breakdown spend is tallied from the card's billing-cycle transactions (`allCatTotals`), computed once and reused for both the breakdown and the (now-suppressed) uncapped rows; it sums to the pooled bar for these cards (calendar cycle, no channel caps, so no `buildPeriodSpending` group exclusions apply).
+- `spendRows` is set to `[]` when a combined cap exists, so non-bonus categories aren't rendered twice.
+- Bonus categories are always listed (incl. S$0) so the full pooled set is visible; non-bonus rows are shown only when they have spend.
+
+**Trade-off:** For a hypothetical future combined-cap card with a channel cap, `buildPeriodSpending` could exclude channel-capped txns from the group sum while the breakdown (from card txns) would not, so the breakdown could slightly exceed the bar. Not a concern for the current two cards; revisit if such a card is added.
