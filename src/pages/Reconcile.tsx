@@ -450,7 +450,13 @@ export default function Reconcile() {
                   <div key={l.txn.id} className="flex items-center gap-2 py-1.5 text-sm">
                     <div className="flex-1 min-w-0">
                       <p className="text-gray-800 truncate">{l.txn.vendor_name || l.catName || 'Transaction'}</p>
-                      <p className="text-xs text-gray-400">{fmtDay(l.txn.transaction_date)}{l.catName ? ` · ${l.catName}` : ''} · S${l.txn.amount.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">
+                        {fmtDay(l.txn.transaction_date)}{l.catName ? ` · ${l.catName}` : ''} · S${l.txn.amount.toFixed(2)}
+                        {/* Per-txn bonus is a hidden column on mobile — show it inline here instead. */}
+                        {l.bonusMi > 0 && (
+                          <span className="sm:hidden"> · bonus {unitCol(l.bonusPt, l.bonusMi, blk.prog?.unit_label ?? null)}</span>
+                        )}
+                      </p>
                     </div>
                     <span className="w-20 text-right text-gray-700">{unitCol(l.basePt, l.baseMi, blk.prog?.unit_label ?? null)}</span>
                     <span className="w-20 text-right text-gray-400 hidden sm:block">{l.bonusMi > 0 ? unitCol(l.bonusPt, l.bonusMi, blk.prog?.unit_label ?? null) : '—'}</span>
