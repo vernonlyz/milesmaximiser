@@ -918,6 +918,12 @@ UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '0000
 UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '00000000-0000-0000-0001-000000000017';  -- Citi Rewards
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Bonus crediting schedule (Reconcile page). DBS Woman's World credits its
+-- accumulated calendar-month bonus on the 15th of the following month.
+-- ─────────────────────────────────────────────────────────────────────────────
+UPDATE card_library SET bonus_timing = 'next_calendar_month' WHERE id = '00000000-0000-0000-0001-000000000002';  -- DBS Woman's World
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Wildcard contactless rates (null category = any category earns bonus when tapped)
 -- Supersedes the per-category contactless transport rates.
 -- ─────────────────────────────────────────────────────────────────────────────

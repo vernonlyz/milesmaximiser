@@ -31,6 +31,14 @@ const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 const baseRoundsToNearest = (c: CreditCard) =>
   c.bank === 'HSBC' || (c.bank === 'Maybank' && c.name === 'XL Rewards')
 
+// Credit date for a deferred (bonus_timing = 'next_calendar_month') bonus lump.
+// Default is the 1st of the following month; DBS Woman's World credits the
+// accumulated calendar-month bonus on the 15th of the following month.
+const deferredCreditDate = (c: CreditCard, cycleStart: string) =>
+  c.bank === 'DBS' && c.name === "Woman's World Card"
+    ? `${monthKey(firstOfNext(monthKey(cycleStart)))}-15`
+    : firstOfNext(monthKey(cycleStart))
+
 // One transaction's expected split, in miles + (optional) program points.
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
 // A bonus lump as it appears on the statement.
@@ -175,7 +183,7 @@ export default function Reconcile() {
       const { card, cycleStart, cycleEnd, prog } = blk
       if (card.no_bonus_split) continue   // direct-credit cards: no bonus lumps
       const deferred = card.bonus_timing === 'next_calendar_month'
-      const creditDate = deferred ? firstOfNext(monthKey(cycleStart)) : cycleEnd
+      const creditDate = deferred ? deferredCreditDate(card, cycleStart) : cycleEnd
       // Savings-account boost (e.g. UOB Lady's Savings +2 mpd) is credited at the
       // END of the following month, separately from the main statement bonus.
       const boostCreditDate = lastDayOf(monthKey(firstOfNext(monthKey(cycleStart))))
