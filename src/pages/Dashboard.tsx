@@ -597,13 +597,13 @@ export default function Dashboard() {
                         <div>
                           <div className="flex items-center justify-between text-xs mb-1">
                             <span className="text-gray-600 font-medium">Total spend</span>
-                            <span className="text-gray-500 tabular-nums">
+                            <span className={`tabular-nums ${overCap ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                               S${monthlySpent.toFixed(0)} / S${cap.toFixed(0)}
                             </span>
                           </div>
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-                            <div className="h-full bg-indigo-500" style={{ width: `${bonusW}%` }} title="Bonus spend (counts toward cap)" />
-                            <div className="h-full bg-indigo-200" style={{ width: `${nonBonusW}%` }} title="Non-bonus spend" />
+                            <div className={`h-full ${overCap ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${bonusW}%` }} title="Bonus spend (counts toward cap)" />
+                            <div className={`h-full ${overCap ? 'bg-red-300' : 'bg-indigo-200'}`} style={{ width: `${nonBonusW}%` }} title="Non-bonus spend" />
                           </div>
                           <div className="flex items-center justify-between text-[11px] mt-1">
                             <span className="text-gray-400">
