@@ -84,7 +84,7 @@ INSERT INTO reward_programs (name, unit_label, miles_per_point, convert_block, p
   ('Citi ThankYou Points',   'pts',  0.4,   NULL,  NULL, 'KrisFlyer', '10 pts ≈ 4 miles (0.4). PremierMiles earns Citi Miles ~1:1 — map separately if needed.'),
   ('HSBC Reward Points',     'pts',  0.4,   NULL,  NULL, 'KrisFlyer', '25,000 pts ≈ 10,000 miles (0.4).'),
   ('Standard Chartered 360° Rewards', 'pts', 0.4, NULL, NULL, 'KrisFlyer', 'Indicative — verify.'),
-  ('Maybank TREATS Points',  'pts',  0.2,   NULL,  NULL, 'KrisFlyer', 'Indicative — verify (≈5 pts per mile).'),
+  ('Maybank TREATS Points',  'pts',  0.4,   NULL,  NULL, 'KrisFlyer', '1 TREATS Point ≈ 0.4 miles (2.5 pts per mile). XL Rewards: 1X base / 9X bonus.'),
   ('OCBC 90°N Miles',        'mi',   1.0,   NULL,  NULL, 'KrisFlyer', 'Earns 90°N miles directly (1:1 to partners).');
 
 -- ── Seed: card → program by bank (INDICATIVE; edit per card as needed) ──────

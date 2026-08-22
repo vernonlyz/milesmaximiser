@@ -25,6 +25,12 @@ const fmtDay = (d: string) => new Date(d).toLocaleDateString('en-SG', { day: 'nu
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
 const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 
+// Cards whose 1X base reward points are awarded on the amount ROUNDED to the
+// nearest dollar (the bonus multiplier floors). HSBC Reward Points and Maybank
+// TREATS Points both credit base this way; extend this list as verified.
+const baseRoundsToNearest = (c: CreditCard) =>
+  c.bank === 'HSBC' || (c.bank === 'Maybank' && c.name === 'XL Rewards')
+
 // One transaction's expected split, in miles + (optional) program points.
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
 // A bonus lump as it appears on the statement.
@@ -147,11 +153,11 @@ export default function Reconcile() {
         : splitBaseBonus(card.base_mpd, card.earn_increment, t.amount, t.miles_earned)
       let base = split.base
       const bonus = split.bonus
-      // HSBC awards its 1X base Reward Points on the amount ROUNDED to the nearest
-      // dollar (the bonus multiplier is floored — that's the residual `bonus` above,
-      // e.g. Revolution 9X, or 19X with an Everyday Global Account). So the base
-      // component here rounds rather than floors; the bonus is left untouched.
-      if (!card.no_bonus_split && card.bank === 'HSBC') {
+      // Some programs award the 1X base reward points on the amount ROUNDED to the
+      // nearest dollar, while the bonus multiplier floors (that's the residual
+      // `bonus` above — e.g. HSBC Revolution 9X / 19X w/ EGA, Maybank XL Rewards 9X).
+      // For those cards the base component rounds rather than floors; bonus untouched.
+      if (!card.no_bonus_split && baseRoundsToNearest(card)) {
         base = Math.round(t.amount) * card.base_mpd
       }
       blk.lines.push({
