@@ -25,7 +25,7 @@ A React 18 + Vite 5 + TypeScript SPA over Supabase (Postgres + Auth + RLS), depl
 ## Migrations (IMPORTANT: manual)
 
 - SQL migrations in `supabase/migrations/NNN_*.sql` are **applied by hand in the Supabase SQL Editor** — there is no automated runner. After adding one, tell the user to run it.
-- Current latest: **077**. Number the next one 078+.
+- Current latest: **079**. Number the next one 080+.
 - Write migrations **idempotent** (e.g. `ON CONFLICT DO NOTHING`, or scoped delete-then-insert) so re-running is safe.
 - `supabase/library_seed.sql`, `mcc_seed.sql`, `vendor_seed.sql` are the **canonical** data for fresh installs. When a migration changes library/MCC/vendor data, **mirror the change into the seed** — otherwise a clean DB won't get it. (A recurring past bug: data migrations that key off card *name* run before `library_seed` inserts the cards on a fresh DB and silently no-op.)
 - **`vendor_seed.sql` is generated, not hand-maintained.** It's the export output of the Admin Vendors→MCC editor's "Copy vendor_seed SQL" button (4-col: name, default_mcc, default_category_id, mcc_confidence; alphabetized; `ON CONFLICT (name) DO UPDATE`). Curate vendors in the Admin UI against the live DB, then re-export and commit. Don't hand-edit it — edits get overwritten on the next export and never reach the live DB.

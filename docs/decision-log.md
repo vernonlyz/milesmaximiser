@@ -945,3 +945,41 @@ Captures key architectural choices made during development — what was decided,
 - Bonus categories are always listed (incl. S$0) so the full pooled set is visible; non-bonus rows are shown only when they have spend.
 
 **Trade-off:** For a hypothetical future combined-cap card with a channel cap, `buildPeriodSpending` could exclude channel-capped txns from the group sum while the breakdown (from card txns) would not, so the breakdown could slightly exceed the bar. Not a concern for the current two cards; revisit if such a card is added.
+
+---
+
+## 2026-08-21 — Card-accurate reward-point crediting on the Reconcile page (HSBC / Maybank / DBS)
+
+**Decision:** Refine the Reconcile page so expected points match how each bank actually credits, keeping all changes to the **Reconcile view only** (no engine, rate, cap, or logged-miles change):
+
+- **HSBC base rounds to nearest** — HSBC awards the 1X base Reward Points on the amount `ROUND`ed to the nearest dollar, while the bonus multiplier floors (Revolution 9X, or 19X with an Everyday Global Account). The base component is recomputed as `ROUND(amount)×base_mpd`; the bonus is left as the floored residual from `splitBaseBonus`, so the accumulated 9X/19X lumps are unchanged. (Previously base derived from `splitBaseBonus`, which floors — 1 base point low on any charge with cents ≥ .50.)
+- **Maybank XL Rewards = 1X base / 9X bonus** — Same TREATS-points structure (4 mpd total on bonus categories: 0.4 base + 3.6 bonus). The multipliers resolve from stored data once the **TREATS conversion is corrected from an indicative 0.2 to 0.4 mi/pt** (migration 078 + the migration-035 seed line): base 0.4 mpd ÷ 0.4 = 1X, bonus 3.6 ÷ 0.4 = 9X. The base-round rule was generalised into a `baseRoundsToNearest(card)` predicate covering HSBC + XL Rewards. Rate (4 mpd) and earn block (S$5) left unchanged per the user's scope choice.
+- **DBS Woman's World credits on the 15th of the next month** — Marked `bonus_timing='next_calendar_month'` (migration 079 + mirrored into `library_seed`, since a name-keyed migration would no-op before `library_seed` inserts the card on a fresh DB). The existing deferred path credited on the 1st; a new `deferredCreditDate(card, cycleStart)` returns the 15th for this card and the 1st for others (UOB Lady's).
+
+**Alternatives considered:** a `card_library.base_rounding` / `bonus_credit_day` column (the "proper" data-driven way, matching `bonus_rounding`/`no_bonus_split`). Deferred: the user scoped these to the Reconcile view, so small curated predicates (`baseRoundsToNearest`, `deferredCreditDate`) avoid a schema change + migration for a per-card cosmetic. If several more cards need custom base-rounding or credit days, promote them to columns.
+
+**Trade-off:** the predicates key on `(bank, name)` — mild hardcoding, localised to `Reconcile.tsx` and clearly commented. Reconcile-only means the Reconcile expected points can differ slightly from logged `miles_earned` (which still uses the engine's floor model), which is acceptable: Reconcile shows what the bank *should* credit for matching against the statement.
+
+---
+
+## 2026-08-21 — Dashboard combined-cap bar shows total spend, but stays honest about bonus headroom
+
+**Decision:** For combined-cap cards (HSBC Revolution, Maybank XL Rewards) the Dashboard pooled bar now fills to the card's **total** spend against the shared cap, **segmented** into a solid bonus portion and a lighter non-bonus portion, with a caption showing the remaining **bonus-cap headroom**; the bar turns **red** when total crosses the cap. Dashboard display only — the engine still caps bonus-eligible spend as before.
+
+**Background:** The user asked that total spend (bonus + non-bonus) count toward the cap on the Dashboard, keeping the bonus/non-bonus breakdown. But the S$1,000 cap only limits *bonus-eligible* spend, so a naive "sum all spend vs cap" bar can read maxed while bonus headroom remains — which would mislead the user into stopping bonus spend early.
+
+**Alternatives considered (via AskUserQuestion):**
+- **Bonus fills the cap; non-bonus extends past it** — most accurate to the mechanic, but the user preferred the total-vs-cap framing.
+- **Total-vs-cap segmented bar** — chosen. The correctness risk is mitigated by (a) the solid bonus segment being visually distinct, and (b) the caption always stating remaining bonus-cap headroom, so a full-looking bar never hides bonus room.
+
+**Trade-off:** The bar's headline "S$total / S$cap" is a spend-tracking view, not the true cap-usage number (that's the bonus segment + caption). Accepted because the caption + segmentation keep the actionable signal (bonus headroom) visible, and the engine — which drives recommendations and logged miles — is unaffected.
+
+---
+
+## 2026-08-21 — Manual MPD override accepts 0
+
+**Decision:** The transaction manual-MPD override guard changed from `parsedManual > 0` to `>= 0` (both the save path and the live preview), so an override of exactly **0 mpd** is valid.
+
+**Background:** Entering 0 made `hasValidOverride` false, so the save silently fell back to the engine-computed value — the user's 0 override "did nothing". A 0 override is legitimate (a charge that earned no miles, e.g. logged in the wrong category or a non-earning transaction).
+
+**Why:** `>= 0` accepts 0 while a blank field still parses to `NaN` (→ no override) and negatives are still rejected, so the only new behaviour is that 0 now persists (`manual_mpd=0`, `miles_earned=0`, shown as a manual-override row reading "0 mpd").
