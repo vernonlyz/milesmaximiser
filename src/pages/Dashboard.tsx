@@ -570,18 +570,51 @@ export default function Dashboard() {
                   </button>
                   <div className="pl-7 space-y-3">
                     {/* Cap bars for capped categories. Combined-cap cards (HSBC
-                        Revolution, Maybank XL Rewards) show the pooled bonus total as
-                        the bar, then a unified per-category breakdown beneath it:
-                        bonus (cap-counting) categories, then non-bonus, each as a % of
-                        the card's total spend for the period. */}
-                    {capRows.map(row => (
+                        Revolution, Maybank XL Rewards) show a segmented TOTAL-vs-cap
+                        bar — bonus spend (solid) counts toward the cap, non-bonus
+                        (lighter) is shown alongside — then a unified per-category
+                        breakdown beneath it (bonus first, then non-bonus). */}
+                    {capRows.map(row => {
+                      if (!row.combined) {
+                        return (
+                          <div key={row.key}>
+                            <CapUsageBar label={row.label} spent={row.spent} limit={row.limit} period={row.period} />
+                          </div>
+                        )
+                      }
+                      // Segmented total-vs-cap bar: bonus (solid) + non-bonus (light),
+                      // filling toward the shared cap. Still surfaces bonus headroom so
+                      // it doesn't read "maxed" while bonus room remains.
+                      const cap = row.limit
+                      const bonusSpent = row.spent
+                      const nonBonus = Math.max(0, monthlySpent - bonusSpent)
+                      const bonusW = cap > 0 ? Math.min(bonusSpent / cap, 1) * 100 : 0
+                      const nonBonusW = cap > 0 ? Math.min(nonBonus / cap, Math.max(0, 1 - bonusSpent / cap)) * 100 : 0
+                      const bonusLeft = Math.max(0, cap - bonusSpent)
+                      const overCap = monthlySpent > cap
+                      return (
                       <div key={row.key}>
-                        <CapUsageBar
-                          label={row.label}
-                          spent={row.spent}
-                          limit={row.limit}
-                          period={row.period}
-                        />
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-gray-600 font-medium">Total spend</span>
+                            <span className="text-gray-500 tabular-nums">
+                              S${monthlySpent.toFixed(0)} / S${cap.toFixed(0)}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
+                            <div className="h-full bg-indigo-500" style={{ width: `${bonusW}%` }} title="Bonus spend (counts toward cap)" />
+                            <div className="h-full bg-indigo-200" style={{ width: `${nonBonusW}%` }} title="Non-bonus spend" />
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] mt-1">
+                            <span className="text-gray-400">
+                              <span className="text-indigo-500 font-medium">S${bonusSpent.toFixed(0)} bonus</span> · S${nonBonus.toFixed(0)} other
+                            </span>
+                            <span className={bonusLeft > 0 ? 'text-gray-400' : 'text-amber-600 font-medium'}>
+                              {bonusLeft > 0 ? `S$${bonusLeft.toFixed(0)} bonus cap left` : 'bonus cap maxed'}
+                              {overCap && bonusLeft > 0 && ' · total over cap'}
+                            </span>
+                          </div>
+                        </div>
                         {row.breakdown && row.breakdown.length > 0 && (
                           <div className="mt-1.5 ml-1 pl-3 border-l-2 border-gray-100 space-y-1">
                             {row.breakdown.map((b, i) => {
@@ -607,7 +640,8 @@ export default function Dashboard() {
                           </div>
                         )}
                       </div>
-                    ))}
+                      )
+                    })}
 
                     {/* Proportional spend bars for uncapped categories */}
                     {spendRows.filter(r => r.spent > 0 || r.pinned).map(row => {
