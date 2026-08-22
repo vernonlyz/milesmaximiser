@@ -142,9 +142,18 @@ export default function Reconcile() {
       const blk = map.get(bk) ?? { key: bk, card, cycleStart, cycleEnd, label, prog, lines: [], lumps: [] }
       // Direct-credit cards (e.g. KrisFlyer Visa) have no base/bonus split — the whole
       // earned amount is shown as base.
-      const { base, bonus } = card.no_bonus_split
+      const split = card.no_bonus_split
         ? { base: t.miles_earned, bonus: 0 }
         : splitBaseBonus(card.base_mpd, card.earn_increment, t.amount, t.miles_earned)
+      let base = split.base
+      const bonus = split.bonus
+      // HSBC awards its 1X base Reward Points on the amount ROUNDED to the nearest
+      // dollar (the bonus multiplier is floored — that's the residual `bonus` above,
+      // e.g. Revolution 9X, or 19X with an Everyday Global Account). So the base
+      // component here rounds rather than floors; the bonus is left untouched.
+      if (!card.no_bonus_split && card.bank === 'HSBC') {
+        base = Math.round(t.amount) * card.base_mpd
+      }
       blk.lines.push({
         txn: t,
         catName: t.category_id ? (catById.get(t.category_id)?.name ?? null) : null,
