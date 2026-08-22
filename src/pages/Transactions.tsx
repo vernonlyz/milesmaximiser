@@ -417,7 +417,9 @@ export default function Transactions() {
     }
 
     const parsedManual = parseFloat(manualMpd)
-    const hasValidOverride = card.card_type === 'miles' && mpdOverrideActive && !isNaN(parsedManual) && parsedManual > 0
+    // Allow an override of exactly 0 mpd (e.g. a charge that earned no miles) —
+    // only a blank/negative entry is treated as "no override".
+    const hasValidOverride = card.card_type === 'miles' && mpdOverrideActive && !isNaN(parsedManual) && parsedManual >= 0
 
     // Apply the same block rounding to manual overrides that the engine applies automatically.
     const saveEarnAmount = Math.floor(amount / card.earn_increment) * card.earn_increment
@@ -855,7 +857,7 @@ export default function Transactions() {
 
   // Live preview in modal
   const parsedManualMpd = parseFloat(manualMpd)
-  const previewMpd = mpdOverrideActive && !isNaN(parsedManualMpd) && parsedManualMpd > 0
+  const previewMpd = mpdOverrideActive && !isNaN(parsedManualMpd) && parsedManualMpd >= 0
     ? parsedManualMpd
     : computedMpd
   const previewMiles = formCard?.card_type === 'miles' && previewMpd != null && formAmt > 0
