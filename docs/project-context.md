@@ -102,7 +102,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 
 | File | Purpose |
 |---|---|
-| [src/lib/recommendations.ts](../src/lib/recommendations.ts) | Core engine — cap resolution, period spend aggregation, effective MPD calculation, card ranking |
+| [src/lib/recommendations.ts](../src/lib/recommendations.ts) | Core engine — cap resolution, period spend aggregation, effective MPD calculation, card ranking; **Level-2 MCC gate** (`resolveMccGate` + `MccContext`; MCC-first bonus/base + MCC-aware cap counting via `buildPeriodSpending(baseMpdByCard)`) |
 | [src/context/AppContext.tsx](../src/context/AppContext.tsx) | Global state — library load, wallet selection, transaction list, cashback rates, derived `cards` + `allCards` arrays |
 | [src/context/AuthContext.tsx](../src/context/AuthContext.tsx) | Supabase Auth session management |
 | [src/lib/types.ts](../src/lib/types.ts) | All shared TypeScript interfaces |
@@ -194,7 +194,7 @@ Deployment: Cloudflare Pages (repo-connected; build command `npm run build`, out
 | [supabase/migrations/077_citi_rewards_blacklist_extra.sql](../supabase/migrations/077_citi_rewards_blacklist_extra.sql) | Citi Rewards — 14 missing exclusion MCCs from Citi's published list (finance/quasi-cash/parking/betting/hospital/misc), appended to the 048 blacklist; mirrored into library_seed |
 | [supabase/migrations/078_maybank_treats_conversion.sql](../supabase/migrations/078_maybank_treats_conversion.sql) | Maybank TREATS Points conversion 0.2 → 0.4 mi/pt (so XL Rewards reconciles as 1X base / 9X bonus); mirrored into the migration-035 seed line |
 | [supabase/migrations/079_dbs_womens_bonus_timing.sql](../supabase/migrations/079_dbs_womens_bonus_timing.sql) | DBS Woman's World `bonus_timing='next_calendar_month'` (Reconcile schedules the accumulated bonus to the 15th of the next month); mirrored into library_seed |
-| [src/lib/mcc.ts](../src/lib/mcc.ts) | `resolveMccEligibility(card, mcc, rows, channel?, chosenLabels?)` + `chosenCategoryLabels()`; whitelist/blacklist/hybrid + channel + reduced + `bonus_channel` (online-only) + `always_eligible` (any-channel) + selectable-category gating; shared by Cards, Recommend, Transactions |
+| [src/lib/mcc.ts](../src/lib/mcc.ts) | `resolveMccEligibility(card, mcc, rows, channel?, chosenLabels?)` + `chosenCategoryLabels()`; whitelist/blacklist/hybrid + channel + reduced + `bonus_channel` (online-only) + `always_eligible` (any-channel) + selectable-category gating; shared by Cards, Recommend, Transactions **and the engine (Level 2)** |
 | [src/components/MccInfo.tsx](../src/components/MccInfo.tsx) | ⓘ popover: ✓/◐/✗ glyph legend + "eligibility is estimated — verify with your bank" disclaimer (collapsible, no clutter) |
 | [supabase/library_seed.sql](../supabase/library_seed.sql) | Full 24-card SG library seed — 19 miles cards, 4 cashback cards, 1 debit card; also sets `mcc_mode` + all `card_mcc_eligibility` rows (consolidated from migrations 044–051) so fresh installs get MCC data (run after all migrations) |
 | [supabase/mcc_seed.sql](../supabase/mcc_seed.sql) | MCC catalogue (code → description → default category); includes the extra codes referenced by `card_mcc_eligibility` |
@@ -312,7 +312,7 @@ The app is a functional MVP. All core features are implemented:
 | Styled portal DatePicker replacing native date inputs (Transactions, Cards, Miles) | Complete |
 | Transaction reconciliation — per-row checkmark, filter, progress, statement-total compare (migration 034) | Complete |
 | SGT timezone fix — local YYYY-MM-DD boundaries; end-of-month transactions no longer dropped from totals/caps | Complete |
-| Vitest engine test suite — 18 tests over recommendations.ts (`npm test`); test files excluded from prod build | Complete |
+| Vitest engine test suite — 36 tests over recommendations.ts (`npm test`); test files excluded from prod build | Complete |
 | Error boundaries — ErrorBoundary around Layout Outlet (keyed by route) + app root; catches render crashes + lazy-chunk load failures | Complete |
 | README + .env.example — onboarding docs and documented env vars | Complete |
 | Recurring rules → real future transactions (every N units, end date/count); standalone create/edit editor; Transactions Upcoming section w/ range presets | Complete |
@@ -322,7 +322,8 @@ The app is a functional MVP. All core features are implemented:
 | Transactions: filter by bank (narrows card dropdown) + "Upcoming only" quick toggle | Complete |
 | Transactions Upcoming: recurring collapsed per rule + one-offs grouped by month; mobile fixes | Complete |
 | Recurring editor mirrors the log form (VendorInput/MCC/notes); rules show next charge date | Complete |
-| Bonus-eligible MCC viewer (My Cards Details) + Recommend MCC hint (level 1) — Lady's Solitaire | Complete |
+| Bonus-eligible MCC viewer (My Cards Details) + Recommend MCC hint — Lady's Solitaire | Complete |
+| **MCC-first engine (Level 2)** — confirmed MCC gates bonus/base + MCC-aware cap usage (see decision-log 2026-08-25) | Complete |
 | MCC whitelist/blacklist model (card_library.mcc_mode; shared resolveMccEligibility helper) | Complete |
 | MCC eligibility seeded — HSBC Revolution (whitelist), Citi Rewards + DBS Woman's World (blacklist) | Complete |
 | MCC eligibility seeded — UOB Lady's Card + UOB KrisFlyer Visa + Maybank XL Rewards + Maybank Horizon (whitelist) | Complete |
@@ -378,7 +379,7 @@ The app is a functional MVP. All core features are implemented:
 - **Annual fee-waiver tracker** — Track spend-to-waiver per card (needs new library data: fee + threshold).
 
 ### Done since last review
-- **Test suite** — ✅ Vitest: `npm test` runs 18 unit tests over `recommendations.ts` (cap types, blended/partial MPD, wildcard, channel caps, min-spend, block rounding, date boundaries, ranking). Add a test alongside any new cap/rate logic.
+- **Test suite** — ✅ Vitest: `npm test` runs 36 unit tests over `recommendations.ts` (cap types, blended/partial MPD, wildcard, channel caps, min-spend, block rounding, date boundaries, ranking). Add a test alongside any new cap/rate logic.
 - **`.env.example` + README** — ✅ Added; env vars documented and full setup/deploy instructions written.
 - **Error boundary** — ✅ `ErrorBoundary` around the Layout Outlet (keyed by route) and app root catches render crashes and lazy-chunk load failures (no more blank screens).
 

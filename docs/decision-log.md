@@ -983,3 +983,25 @@ Captures key architectural choices made during development — what was decided,
 **Background:** Entering 0 made `hasValidOverride` false, so the save silently fell back to the engine-computed value — the user's 0 override "did nothing". A 0 override is legitimate (a charge that earned no miles, e.g. logged in the wrong category or a non-earning transaction).
 
 **Why:** `>= 0` accepts 0 while a blank field still parses to `NaN` (→ no override) and negatives are still rejected, so the only new behaviour is that 0 now persists (`manual_mpd=0`, `miles_earned=0`, shown as a manual-override row reading "0 mpd").
+
+---
+
+## 2026-08-25 — MCC-first engine (Level 2): MCC gates the rate and the cap
+
+**Decision:** Make the engine consume MCC eligibility (long deferred as "Level 2"), in two layers that fall back to the existing category engine:
+
+- **Rate.** A *confirmed* MCC on a card with an MCC model gates bonus vs base via `resolveMccGate` → `getEffectiveForCard(mccGate)`. `'base'` demotes (blacklist hit / not whitelisted / wrong channel / not a chosen category); `'bonus'` promotes a **whitelist/hybrid** card to its channel-applicable bonus rate even when the picked category has no rate row; `null` defers to the category path.
+- **Caps.** `buildPeriodSpending` counts a bonus cap by whether each transaction *earned* bonus (`effective_mpd > base`) when given each card's base rate, instead of by category — so MCC-eligible spend consumes the cap and ineligible spend doesn't.
+
+**Key choices & why:**
+- **Trust threshold = typed / confirmed / likely; distrust only `unverified`.** The first cut gated on `confirmed` only, but almost every vendor is tagged `likely` (the default), so the gate never fired from autofill and eligible MCCs (XL Rewards 5651, Preferred online-shopping) fell back to the category and showed base. The user chose to trust `likely` too.
+- **Promote whitelist/hybrid only; never blacklist.** Whitelist/hybrid cards have a distinct bonus rate to promote to. Blacklist cards earn their normal wildcard/flat rate via the category path; promoting them would wrongly pick a category-specific rate — e.g. a flat card (PRVI) grabbing its 2.4 FCY rate on local spend. This also means the earlier "headline = max rate" bug is scoped away.
+- **Demotion never bypasses channel/cap rules.** An earlier version nulled `requiredChannel`/`channelBlocked` and forced a headline rate, which broke DBS Woman's World online-only and the per-category caps. Corrected so the resolver (which already accounts for channel + chosen category) is the only channel authority, and promotion still runs the normal cap/min-spend logic.
+- **Cap counting keys off stored `effective_mpd`, not a re-evaluation.** `effective_mpd` already encodes the log-time MCC + channel + category decision, so cap usage needs no re-run and no per-transaction "confirmed" flag (which isn't stored). Trade-off: relies on `effective_mpd` being present (always is for miles rows); a partial transaction counts its full amount toward the cap (same as the previous category approach).
+
+**Alternatives considered:**
+- **Map MCC → app category → that category's rate/cap** (instead of the card's headline rate + cap fallback). Rejected earlier by the user in favour of "card's bonus rate"; it would need an MCC→category table in the engine and still not resolve the per-category-cap attribution cleanly.
+- **Re-evaluate MCC eligibility inside `buildPeriodSpending`** for cap scope. Rejected: needs the rows/channel/chosen/confirmed per stored transaction (confirmed isn't stored) and duplicates the resolver; `effective_mpd > base` is a faithful proxy that's already computed.
+- **A `card_library` column for base-rounding / cap semantics.** Deferred; small curated predicates + the `effective_mpd` proxy avoid a schema change.
+
+**Scope / trade-offs:** No *promotion into the correct per-category cap* for the four per-category-cap cards (Lady's, Solitaire, Preferred, Visa Sig) when the picked category differs from the MCC's — the cap falls back to the pool/first cap; matters only for mismatched category+MCC (rare). Recurring-occurrence generation stays on Layer 2. The Dashboard combined-cap bar's bonus segment is now MCC-eligible spend while its per-category breakdown is still by category, so they can differ slightly (intended).
