@@ -110,6 +110,7 @@ export default function Transactions() {
   const [mccInputVal, setMccInputVal] = useState('')
 
   const [paymentChannel, setPaymentChannel] = useState<'contactless' | 'online' | 'chip' | null>(null)
+  const [recsExpanded, setRecsExpanded] = useState(false)  // log-form recommendation list: show all vs top 3
 
   // MPD override state
   const [mpdOverrideActive, setMpdOverrideActive] = useState(false)
@@ -324,6 +325,7 @@ export default function Transactions() {
     setMcc('')
     setMccEditing(false)
     setPaymentChannel(null)
+    setRecsExpanded(false)
     setMpdOverrideActive(false)
     setManualMpd('')
     setOverrideNote('')
@@ -1874,7 +1876,7 @@ export default function Transactions() {
                 <Sparkles size={12} /> Recommendation
                 {mcc.length === 4 && <MccInfo className="ml-auto" />}
               </p>
-              {recs.slice(0, 3).map((rec, i) => (
+              {(recsExpanded ? recs : recs.slice(0, 3)).map((rec, i) => (
                 <button
                   key={rec.card.id}
                   type="button"
@@ -1913,6 +1915,15 @@ export default function Transactions() {
                   </span>
                 </button>
               ))}
+              {recs.length > 3 && (
+                <button
+                  type="button"
+                  onClick={() => setRecsExpanded(v => !v)}
+                  className="w-full flex items-center justify-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 pt-0.5"
+                >
+                  {recsExpanded ? <>Show top 3 <ChevronDown size={12} className="rotate-180" /></> : <>Show all {recs.length} cards <ChevronDown size={12} /></>}
+                </button>
+              )}
               {form.card_id === '' && bestCardId && (
                 <p className="text-xs text-indigo-500 pl-1">
                   Tap a card above to select it, or choose below.
