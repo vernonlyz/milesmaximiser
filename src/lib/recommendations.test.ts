@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   resolveRates, resolveCaps, buildPeriodSpending, calcMiles, recommendCards, splitBaseBonus,
+  MccContext,
 } from './recommendations'
-import { CreditCard, CardRate, SpendingCap, Transaction } from './types'
+import { CreditCard, CardRate, SpendingCap, Transaction, CardMccEligibility } from './types'
 
 // ── fixtures ──────────────────────────────────────────────────────────────
 const DINING = 'cat-dining'
@@ -240,5 +241,72 @@ describe('recommendCards', () => {
     const prior = [txn({ card_id: 'A', amount: 577, transaction_date: '2026-06-05' })]
     const recs = recommendCards([c], rates, caps, DINING, 200, prior, JUN)
     expect(recs[0].status).toBe('partial')
+  })
+})
+
+// ── Level-2 MCC gate ────────────────────────────────────────────────────────
+function eligRow(p: Partial<CardMccEligibility> = {}): CardMccEligibility {
+  return {
+    id: `e-${Math.random()}`, card_id: CARD, category_label: null,
+    mcc_start: '5812', mcc_end: '5812', note: null, payment_channel: null,
+    reduced: false, always_eligible: false, ...p,
+  }
+}
+const mccCtx = (code: string, confirmed: boolean, rows: CardMccEligibility[]): MccContext =>
+  ({ code, confirmed, rows, categories: [] })
+
+describe('MCC gate (Level 2)', () => {
+  const rates = [rate({ category_id: DINING, mpd: 4 })]
+  const caps = [cap({ category_id: DINING, spend_limit: 600 })]
+
+  it('confirmed eligible MCC earns bonus even when the picked category has no bonus rate', () => {
+    const c = card({ mcc_mode: 'whitelist' })
+    const rows = [eligRow({ mcc_start: '5812', mcc_end: '5812', category_label: 'Dining' })]
+    // Category = GROCERY (no rate → base under Layer 2), but MCC 5812 is whitelisted.
+    const { effectiveMpd } = calcMiles(c, rates, caps, GROCERY, 100, [], JUN, [], null, undefined, undefined, mccCtx('5812', true, rows))
+    expect(effectiveMpd).toBe(4)
+  })
+
+  it('confirmed MCC not in the whitelist demotes a bonus category to base', () => {
+    const c = card({ mcc_mode: 'whitelist' })
+    const rows = [eligRow({ mcc_start: '5812', mcc_end: '5812' })]
+    // Category = DINING (bonus under Layer 2), but MCC 9999 is not whitelisted.
+    const { effectiveMpd } = calcMiles(c, rates, caps, DINING, 100, [], JUN, [], null, undefined, undefined, mccCtx('9999', true, rows))
+    expect(effectiveMpd).toBe(0.4)
+  })
+
+  it('an UNCONFIRMED MCC falls back to the category (Layer 2)', () => {
+    const c = card({ mcc_mode: 'whitelist' })
+    const rows = [eligRow({ mcc_start: '5812', mcc_end: '5812' })]
+    // MCC 9999 would demote, but it is not confirmed → category DINING earns bonus.
+    const { effectiveMpd } = calcMiles(c, rates, caps, DINING, 100, [], JUN, [], null, undefined, undefined, mccCtx('9999', false, rows))
+    expect(effectiveMpd).toBe(4)
+  })
+
+  it('blacklist: excluded MCC → base, other MCC → bonus', () => {
+    const c = card({ mcc_mode: 'blacklist' })
+    const rows = [eligRow({ mcc_start: '6051', mcc_end: '6051' })]
+    const excluded = calcMiles(c, rates, caps, DINING, 100, [], JUN, [], null, undefined, undefined, mccCtx('6051', true, rows))
+    expect(excluded.effectiveMpd).toBe(0.4)
+    const ok = calcMiles(c, rates, caps, DINING, 100, [], JUN, [], null, undefined, undefined, mccCtx('5812', true, rows))
+    expect(ok.effectiveMpd).toBe(4)
+  })
+
+  it('cards with no MCC model ignore the gate (Layer 2)', () => {
+    const c = card({ mcc_mode: null })
+    const { effectiveMpd } = calcMiles(c, rates, caps, DINING, 100, [], JUN, [], null, undefined, undefined, mccCtx('9999', true, []))
+    expect(effectiveMpd).toBe(4)
+  })
+
+  it('eligible MCC still draws from the combined-pool cap (headroom applies)', () => {
+    const c = card({ mcc_mode: 'whitelist' })
+    const poolRates = [rate({ category_id: DINING, mpd: 4 })]
+    const poolCaps = [cap({ category_id: DINING, spend_limit: 600, cap_group: 'bonus' })]
+    const rows = [eligRow({ mcc_start: '5812', mcc_end: '5812' })]
+    // $580 already in the pool, $100 more with an eligible MCC on a non-bonus category:
+    // only $20 of the block earns bonus, the rest base (partial).
+    const prior = [txn({ amount: 580, category_id: DINING, transaction_date: '2026-06-05' })]
+    const rec = recommendCards([c], poolRates, poolCaps, GROCERY, 100, prior, JUN, [], null, new Map(), undefined, mccCtx('5812', true, rows))
+    expect(rec[0].status).toBe('partial')
   })
 })

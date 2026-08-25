@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import StatusBadge from '../components/StatusBadge'
 import PartialBonusNote from '../components/PartialBonusNote'
 import VendorInput from '../components/VendorInput'
-import { recommendCards } from '../lib/recommendations'
+import { recommendCards, MccContext } from '../lib/recommendations'
 import { formatSGD } from '../lib/utils'
 import { CardRecommendation, Vendor, CreditCard } from '../lib/types'
 import { resolveMccEligibility, chosenCategoryLabels, MccEligibility } from '../lib/mcc'
@@ -24,10 +24,20 @@ export default function Recommend() {
 
   const amount = parseFloat(amountStr) || 0
 
+  // Level-2 MCC context (see Transactions): confirmed when user-typed, or the
+  // supplying vendor is tagged 'confirmed'; else the engine uses the category.
+  const mccContext = useMemo<MccContext | undefined>(() => {
+    const code = mcc.trim()
+    if (!code) return undefined
+    const fromVendor = !!selectedVendor && selectedVendor.default_mcc === code
+    const confirmed = fromVendor ? selectedVendor!.mcc_confidence === 'confirmed' : true
+    return { code, confirmed, rows: cardMccEligibility, categories }
+  }, [mcc, selectedVendor, cardMccEligibility, categories])
+
   const recs = useMemo<CardRecommendation[]>(() => {
     if (!categoryId || amount <= 0) return []
-    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides, paymentChannel, statementDays, boosts)
-  }, [cards, rates, caps, categoryId, amount, transactions, overrides, paymentChannel, statementDays, boosts])
+    return recommendCards(cards, rates, caps, categoryId, amount, transactions, new Date(), overrides, paymentChannel, statementDays, boosts, mccContext)
+  }, [cards, rates, caps, categoryId, amount, transactions, overrides, paymentChannel, statementDays, boosts, mccContext])
 
   const cat = categories.find(c => c.id === categoryId)
   const mccDescription = mcc ? mccCatalogue.find(m => m.code === mcc)?.description : undefined

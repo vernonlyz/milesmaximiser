@@ -10,7 +10,7 @@ import PartialBonusNote from '../components/PartialBonusNote'
 import DatePicker from '../components/DatePicker'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
-import { recommendCards, calcMiles } from '../lib/recommendations'
+import { recommendCards, calcMiles, MccContext } from '../lib/recommendations'
 import { resolveMccEligibility, chosenCategoryLabels } from '../lib/mcc'
 import MccInfo from '../components/MccInfo'
 import ConfidenceInfo from '../components/ConfidenceInfo'
@@ -252,6 +252,18 @@ export default function Transactions() {
     [transactions, editingId]
   )
 
+  // Level-2 MCC context for the engine. The MCC is "confirmed" (trusted to gate
+  // bonus vs base) when the user typed/edited it, or the vendor that supplied it is
+  // tagged 'confirmed'. A vendor-auto-filled MCC on a 'likely'/'unverified' vendor
+  // is NOT confirmed → the engine falls back to the category.
+  const mccContext = useMemo<MccContext | undefined>(() => {
+    const code = mcc.trim()
+    if (!code) return undefined
+    const fromVendor = !!selectedVendor && selectedVendor.default_mcc === code
+    const confirmed = fromVendor ? selectedVendor!.mcc_confidence === 'confirmed' : true
+    return { code, confirmed, rows: cardMccEligibility, categories }
+  }, [mcc, selectedVendor, cardMccEligibility, categories])
+
   // Engine-computed MPD for the current form selection
   const computedMpd = useMemo(() => {
     const amt = parseFloat(form.amount)
@@ -259,16 +271,16 @@ export default function Transactions() {
     const card = cards.find(c => c.id === form.card_id)
     if (!card) return null
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return calcMiles(card, rates, caps, form.category_id, amt, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts).effectiveMpd
-  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, engineTxns, overrides, paymentChannel, statementDays, boosts])
+    return calcMiles(card, rates, caps, form.category_id, amt, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts, mccContext).effectiveMpd
+  }, [form.card_id, form.category_id, form.amount, form.transaction_date, cards, rates, caps, engineTxns, overrides, paymentChannel, statementDays, boosts, mccContext])
 
   // Live recommendations while filling form
   const recs = useMemo<CardRecommendation[]>(() => {
     const amt = parseFloat(form.amount)
     if (!form.category_id || isNaN(amt) || amt <= 0) return []
     const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-    return recommendCards(cards, rates, caps, form.category_id, amt, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts)
-  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, engineTxns, overrides, paymentChannel, statementDays, boosts])
+    return recommendCards(cards, rates, caps, form.category_id, amt, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts, mccContext)
+  }, [form.category_id, form.amount, form.transaction_date, cards, rates, caps, engineTxns, overrides, paymentChannel, statementDays, boosts, mccContext])
 
   const bestCardId = recs[0]?.card.id ?? ''
   const selectedRec = useMemo(() => recs.find(r => r.card.id === form.card_id) ?? null, [recs, form.card_id])
@@ -413,7 +425,7 @@ export default function Transactions() {
       const rate = override?.cashback_rate ?? card.cashback_rate ?? 0
       cashback_earned = parseFloat((amount * rate).toFixed(4))
     } else if (card.card_type === 'miles') {
-      ;({ effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts))
+      ;({ effectiveMpd: engineMpd } = calcMiles(card, rates, caps, form.category_id, amount, engineTxns, txDate, overrides, paymentChannel, statementDays, boosts, mccContext))
     }
 
     const parsedManual = parseFloat(manualMpd)
