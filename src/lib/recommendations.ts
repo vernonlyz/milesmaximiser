@@ -18,21 +18,23 @@ export type MccContext = {
   categories: Category[]       // for resolving a selectable card's chosen labels
 }
 
-// 'bonus' → force the card's bonus rate; 'base' → force base; null → Layer 2 (category).
+// 'base' → a confirmed MCC the card treats as INELIGIBLE demotes the transaction
+// to base (this is the gate's job — it never promotes or bypasses the channel/cap
+// rules). null → defer entirely to the category engine (Layer 2): no MCC, not
+// confirmed, no card model, ELIGIBLE (the normal category path already earns the
+// bonus), or an indecisive verdict.
 export function resolveMccGate(
   card: CreditCard,
   mcc: MccContext | undefined,
   overrides: CategoryOverride[],
   channel: 'contactless' | 'online' | 'chip' | null,
   date: Date,
-): 'bonus' | 'base' | null {
+): 'base' | null {
   if (!mcc || !mcc.code || !mcc.confirmed || !card.mcc_mode) return null
   const cardRows = mcc.rows.filter(r => r.card_id === card.id)
   const chosen = chosenCategoryLabels(card, overrides, mcc.categories, date)
   const elig = resolveMccEligibility(card, mcc.code, cardRows, channel, chosen)
-  if (elig.state === 'eligible')   return 'bonus'
-  if (elig.state === 'ineligible') return 'base'
-  return null   // 'nodata' / 'reduced' → fall back to the category engine
+  return elig.state === 'ineligible' ? 'base' : null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -337,9 +339,8 @@ function getEffectiveForCard(
   amount: number,
   periodSpending: Map<string, number>,
   paymentChannel: 'contactless' | 'online' | 'chip' | null = null,
-  // Level-2 MCC gate: 'bonus' forces the card's bonus rate, 'base' forces base,
-  // null defers to the category-derived rate below.
-  mccGate: 'bonus' | 'base' | null = null
+  // Level-2 MCC gate: 'base' demotes to base (MCC ineligible); null = normal path.
+  mccGate: 'base' | null = null
 ): EffResult {
   // Category-specific rate for this card
   const categoryRateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
@@ -355,31 +356,35 @@ function getEffectiveForCard(
     ? wildcardRateRow
     : (categoryRateRow ?? null)
 
-  // Headline bonus rate for the card (highest resolved rate, boosts already applied).
-  // Used when the MCC gate forces bonus even though the picked category has no rate row.
-  const headlineBonus = resolvedRates
-    .filter(r => r.card_id === card.id)
-    .reduce((m, r) => Math.max(m, r.mpd), card.base_mpd)
+  // Banks award miles on the amount rounded down to their earning block ($1 for HSBC/Citi, $5 for most).
+  // Cap tracking always uses the real transaction amount; only miles calculations use milesAmount.
+  const milesAmount = Math.floor(amount / card.earn_increment) * card.earn_increment
 
-  // The MCC gate, when active, supersedes the category-derived channel requirement
-  // (the resolver already accounted for the payment channel).
-  const requiredChannel = mccGate ? null : (rateRow?.payment_channel ?? null)
+  // Level-2 MCC gate: a confirmed MCC the resolver deems INELIGIBLE (blacklist hit,
+  // not in the whitelist, wrong channel, not a chosen category) drops the whole
+  // transaction to base — this DEMOTES; it never bypasses the channel/cap rules
+  // below. An ELIGIBLE MCC leaves the normal category+channel+cap path untouched
+  // (so DBS online-only, Preferred's $600 contactless / $600 online-shopping caps,
+  // flat-card rates, etc. all still apply exactly as before).
+  if (mccGate === 'base') {
+    return {
+      effectiveMpd: amount > 0 ? (milesAmount * card.base_mpd) / amount : 0,
+      milesEarned: milesAmount * card.base_mpd,
+      capRemaining: null, capAmount: null, capPeriod: null,
+      status: 'base', minSpendRequired: null, totalCardSpent: null,
+      requiredPaymentChannel: null,
+    }
+  }
+
+  const requiredChannel = rateRow?.payment_channel ?? null
 
   // When a payment filter is active and the rate requires a different channel, earn base rate.
   const channelBlocked =
-    mccGate === null &&
     requiredChannel !== null &&
     paymentChannel !== null &&
     requiredChannel !== paymentChannel
 
-  const bonusMpd =
-    mccGate === 'base'  ? card.base_mpd
-    : mccGate === 'bonus' ? headlineBonus
-    : (rateRow && !channelBlocked) ? rateRow.mpd : card.base_mpd
-
-  // Banks award miles on the amount rounded down to their earning block ($1 for HSBC/Citi, $5 for most).
-  // Cap tracking always uses the real transaction amount; only miles calculations use milesAmount.
-  const milesAmount = Math.floor(amount / card.earn_increment) * card.earn_increment
+  const bonusMpd = (rateRow && !channelBlocked) ? rateRow.mpd : card.base_mpd
 
   const noCapResult = (status: CardRecommendation['status'] = bonusMpd === card.base_mpd ? 'base' : 'optimal'): EffResult => ({
     effectiveMpd: amount > 0 ? (milesAmount * bonusMpd) / amount : 0,
@@ -393,8 +398,6 @@ function getEffectiveForCard(
     requiredPaymentChannel: requiredChannel,
   })
 
-  // MCC says this merchant earns no bonus on this card → base rate, no cap.
-  if (mccGate === 'base') return noCapResult('base')
   if (channelBlocked) return noCapResult()
 
   // Channel cap: when paying by a specific method, check if a channel-level cap applies.
@@ -407,14 +410,8 @@ function getEffectiveForCard(
     resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId && !c.cap_payment_channel) ??
     resolvedCaps.find(c => c.card_id === card.id && c.category_id === null && !c.cap_payment_channel)
 
-  // When the MCC gate forces bonus but the picked category has no cap of its own,
-  // fall back to the card's combined-pool (cap_group) cap so pool cards still cap.
-  const groupCap = mccGate === 'bonus'
-    ? resolvedCaps.find(c => c.card_id === card.id && c.cap_group && c.spend_limit != null)
-    : undefined
-
   // Channel cap takes precedence when the wildcard rate is the active rate
-  const cap = (wildcardRateRow && channelCap) ? channelCap : (channelCap ?? nonChannelCap ?? groupCap)
+  const cap = (wildcardRateRow && channelCap) ? channelCap : (channelCap ?? nonChannelCap)
 
   if (!cap || cap.spend_limit === null) return noCapResult()
 
@@ -559,20 +556,17 @@ export function recommendCards(
   return cards
     .filter(c => c.active)
     .map(card => {
-      // Level-2 MCC gate for this card (null → category-based, as before).
+      // Level-2 MCC gate for this card ('base' = confirmed-ineligible MCC demotes
+      // to base; null = category-based, as before).
       const gate = resolveMccGate(card, mcc, overrides, paymentChannel, transactionDate)
 
-      // Resolve the displayed "bonus mpd" for the reason string. Under an MCC gate
-      // this is the card's headline bonus rate (or base); otherwise wildcard → category → base.
+      // Resolve the displayed "bonus mpd" for the reason string —
+      // check wildcard rate first, then category rate, then base.
       const categoryRateRow = resolved.find(r => r.card_id === card.id && r.category_id === categoryId)
       const wildcardRateRow = (paymentChannel === 'contactless' || paymentChannel === 'online')
         ? resolved.find(r => r.card_id === card.id && r.category_id === null && r.payment_channel === paymentChannel)
         : null
-      const headlineBonus = resolved.filter(r => r.card_id === card.id).reduce((m, r) => Math.max(m, r.mpd), card.base_mpd)
-      const bonusMpd =
-        gate === 'base'  ? card.base_mpd
-        : gate === 'bonus' ? headlineBonus
-        : (wildcardRateRow?.mpd ?? categoryRateRow?.mpd ?? card.base_mpd)
+      const bonusMpd = gate === 'base' ? card.base_mpd : (wildcardRateRow?.mpd ?? categoryRateRow?.mpd ?? card.base_mpd)
 
       const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate)
 
