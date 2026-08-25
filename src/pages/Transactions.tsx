@@ -252,15 +252,15 @@ export default function Transactions() {
     [transactions, editingId]
   )
 
-  // Level-2 MCC context for the engine. The MCC is "confirmed" (trusted to gate
-  // bonus vs base) when the user typed/edited it, or the vendor that supplied it is
-  // tagged 'confirmed'. A vendor-auto-filled MCC on a 'likely'/'unverified' vendor
-  // is NOT confirmed → the engine falls back to the category.
+  // Level-2 MCC context for the engine. The MCC is trusted to gate bonus vs base
+  // when the user typed/edited it, or the vendor that supplied it is tagged
+  // 'confirmed' or 'likely'. Only an 'unverified' vendor MCC is distrusted → the
+  // engine then falls back to the category.
   const mccContext = useMemo<MccContext | undefined>(() => {
     const code = mcc.trim()
     if (!code) return undefined
     const fromVendor = !!selectedVendor && selectedVendor.default_mcc === code
-    const confirmed = fromVendor ? selectedVendor!.mcc_confidence === 'confirmed' : true
+    const confirmed = fromVendor ? selectedVendor!.mcc_confidence !== 'unverified' : true
     return { code, confirmed, rows: cardMccEligibility, categories }
   }, [mcc, selectedVendor, cardMccEligibility, categories])
 

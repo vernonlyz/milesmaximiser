@@ -24,13 +24,14 @@ export default function Recommend() {
 
   const amount = parseFloat(amountStr) || 0
 
-  // Level-2 MCC context (see Transactions): confirmed when user-typed, or the
-  // supplying vendor is tagged 'confirmed'; else the engine uses the category.
+  // Level-2 MCC context (see Transactions): trusted when user-typed, or the
+  // supplying vendor is tagged 'confirmed'/'likely'; only 'unverified' vendor MCCs
+  // are distrusted → the engine then uses the category.
   const mccContext = useMemo<MccContext | undefined>(() => {
     const code = mcc.trim()
     if (!code) return undefined
     const fromVendor = !!selectedVendor && selectedVendor.default_mcc === code
-    const confirmed = fromVendor ? selectedVendor!.mcc_confidence === 'confirmed' : true
+    const confirmed = fromVendor ? selectedVendor!.mcc_confidence !== 'unverified' : true
     return { code, confirmed, rows: cardMccEligibility, categories }
   }, [mcc, selectedVendor, cardMccEligibility, categories])
 

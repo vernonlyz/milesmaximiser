@@ -9,8 +9,9 @@ import { resolveMccEligibility, chosenCategoryLabels } from './mcc'
 // engine falls back to the category-based path (Layer 2).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// What the engine is told about the transaction's MCC. `confirmed` is true when
-// the user typed the MCC or the vendor that supplied it is tagged 'confirmed'.
+// What the engine is told about the transaction's MCC. `confirmed` means "trusted
+// enough to gate": true when the user typed the MCC or the vendor that supplied it
+// is tagged 'confirmed' or 'likely'; false only for an 'unverified' vendor MCC.
 export type MccContext = {
   code: string | null
   confirmed: boolean
