@@ -100,9 +100,12 @@ export default function Dashboard() {
     [cards, rates, resolvedCaps, overrides]
   )
 
+  // MCC-aware cap usage: pass base rates so a bonus cap counts spend that actually
+  // earned bonus (MCC-eligible), matching the engine and the log form.
+  const baseMpdByCard = useMemo(() => new Map(allCards.map(c => [c.id, c.base_mpd])), [allCards])
   const periodSpending = useMemo(
-    () => buildPeriodSpending(transactions, effectiveCaps, now, statementDays),
-    [transactions, effectiveCaps, statementDays]
+    () => buildPeriodSpending(transactions, effectiveCaps, now, statementDays, baseMpdByCard),
+    [transactions, effectiveCaps, statementDays, baseMpdByCard]
   )
 
   // Min spend milestones — wallet cards that have a threshold requirement

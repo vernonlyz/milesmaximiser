@@ -147,14 +147,14 @@ describe('calcMiles', () => {
   })
 
   it('falls back to base rate once the cap is exhausted', () => {
-    const prior = [txn({ amount: 600, transaction_date: '2026-06-05' })]
+    const prior = [txn({ amount: 600, transaction_date: '2026-06-05', effective_mpd: 4 })]
     const { miles } = calcMiles(card(), rates, [cap({ spend_limit: 600 })], DINING, 100, prior, JUN)
     expect(miles).toBe(40) // 100 * base 0.4
   })
 
   it('splits a partial-cap transaction, flooring each tier to the block', () => {
     // $577 already spent → $23 cap left. $200 spend, $5 block, 4 mpd bonus / 0.4 base.
-    const prior = [txn({ amount: 577, transaction_date: '2026-06-05' })]
+    const prior = [txn({ amount: 577, transaction_date: '2026-06-05', effective_mpd: 4 })]
     const { miles } = calcMiles(card(), rates, [cap({ spend_limit: 600 })], DINING, 200, prior, JUN)
     // within = floor(23/5)*5 = 20 → 80 ; over = floor(177/5)*5 = 175 → 70
     expect(miles).toBe(150)
@@ -238,7 +238,7 @@ describe('recommendCards', () => {
     const c = card({ id: 'A' })
     const rates = [rate({ card_id: 'A', mpd: 4 })]
     const caps = [cap({ card_id: 'A', spend_limit: 600 })]
-    const prior = [txn({ card_id: 'A', amount: 577, transaction_date: '2026-06-05' })]
+    const prior = [txn({ card_id: 'A', amount: 577, transaction_date: '2026-06-05', effective_mpd: 4 })]
     const recs = recommendCards([c], rates, caps, DINING, 200, prior, JUN)
     expect(recs[0].status).toBe('partial')
   })
@@ -289,7 +289,7 @@ describe('MCC gate (Level 2)', () => {
     const poolCaps = [cap({ category_id: DINING, spend_limit: 600, cap_group: 'bonus' })]
     const rows = [eligRow({ mcc_start: '5651', mcc_end: '5651' })]
     // $580 already in the pool; $100 more (eligible MCC, non-bonus category) → partial.
-    const prior = [txn({ amount: 580, category_id: DINING, transaction_date: '2026-06-05' })]
+    const prior = [txn({ amount: 580, category_id: DINING, transaction_date: '2026-06-05', effective_mpd: 4 })]
     const rec = recommendCards([c], poolRates, poolCaps, GROCERY, 100, prior, JUN, [], null, new Map(), undefined, mccCtx('5651', true, rows))
     expect(rec[0].status).toBe('partial')
   })
@@ -336,5 +336,42 @@ describe('MCC gate (Level 2)', () => {
     expect(contactless.effectiveMpd).toBe(0.4) // resolver ineligible off-channel → base
     const online = calcMiles(c, onlineRate, [], DINING, 100, [], JUN, [], 'online', undefined, undefined, mccCtx('5812', true, rows))
     expect(online.effectiveMpd).toBe(4)        // online wildcard applies
+  })
+})
+
+// ── buildPeriodSpending — MCC-aware cap counting (base rates provided) ───────
+describe('buildPeriodSpending (MCC-aware)', () => {
+  const base = new Map([[CARD, 0.4]])
+
+  it('pool cap counts bonus-earning spend of ANY category, ignoring demoted spend', () => {
+    const caps = [
+      cap({ category_id: DINING, spend_limit: 1000, cap_group: 'bonus' }),
+      cap({ category_id: GROCERY, spend_limit: 1000, cap_group: 'bonus' }),
+    ]
+    const txns = [
+      txn({ category_id: 'cat-other', amount: 100, effective_mpd: 4 }),  // promoted (non-group category) → counts
+      txn({ category_id: DINING,      amount: 50,  effective_mpd: 0.4 }), // demoted (earned base) → excluded
+      txn({ category_id: DINING,      amount: 30,  effective_mpd: 4 }),   // bonus dining → counts
+    ]
+    const m = buildPeriodSpending(txns, caps, JUN, new Map(), base)
+    expect(m.get(`${CARD}:group:bonus`)).toBe(130)
+  })
+
+  it('channel cap counts only bonus-earning spend on that channel (DBS online-only)', () => {
+    const caps = [cap({ category_id: null, cap_payment_channel: 'online', spend_limit: 1000 })]
+    const txns = [
+      txn({ payment_channel: 'online',      amount: 100, effective_mpd: 4 }),   // online bonus → counts
+      txn({ payment_channel: 'online',      amount: 40,  effective_mpd: 0.4 }), // online but demoted → excluded
+      txn({ payment_channel: 'contactless', amount: 30,  effective_mpd: 4 }),   // wrong channel → excluded
+    ]
+    const m = buildPeriodSpending(txns, caps, JUN, new Map(), base)
+    expect(m.get(`${CARD}:channel:online:monthly`)).toBe(100)
+  })
+
+  it('without base rates, counting stays category-based (backward compatible)', () => {
+    const caps = [cap({ category_id: DINING, spend_limit: 1000, cap_group: 'bonus' })]
+    const txns = [txn({ category_id: DINING, amount: 50, effective_mpd: 0.4 })] // demoted, but no base map
+    const m = buildPeriodSpending(txns, caps, JUN) // no baseMpdByCard
+    expect(m.get(`${CARD}:group:bonus`)).toBe(50)   // counted by category
   })
 })

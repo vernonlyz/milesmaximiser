@@ -230,7 +230,12 @@ export function buildPeriodSpending(
   transactions: Transaction[],
   resolvedCaps: SpendingCap[],
   now: Date = new Date(),
-  statementDays: Map<string, number> = new Map()
+  statementDays: Map<string, number> = new Map(),
+  // When provided (card id → base mpd), a bonus cap counts a transaction by whether
+  // it actually EARNED bonus (effective_mpd > base) rather than by its category —
+  // so MCC-eligible spend consumes the cap and MCC-ineligible spend does not
+  // (Level-2). Omitted → category-based counting (unchanged / tests).
+  baseMpdByCard?: Map<string, number>
 ): Map<string, number> {
   const result = new Map<string, number>()
 
@@ -256,6 +261,16 @@ export function buildPeriodSpending(
     const startStr = isoDate(getPeriodStart(cap.cap_period, now, statDay))
     const endStr   = isoDate(getPeriodEnd(cap.cap_period, now, statDay))
 
+    // MCC-aware counting: a transaction consumes a bonus cap when it actually earned
+    // the bonus (its effective rate beat base). This reflects the MCC gate + channel
+    // + category decision made at log time, so it needs no re-evaluation here.
+    const baseMpd = baseMpdByCard?.get(cap.card_id)
+    const mccAware = baseMpd != null
+    const earnedBonus = (t: Transaction) => {
+      const mpd = t.effective_mpd ?? t.computed_mpd
+      return mpd != null && baseMpd != null && mpd > baseMpd
+    }
+
     if (cap.cap_payment_channel) {
       // Channel cap: sum only transactions paid via the specified payment method,
       // regardless of category. Key: `${card_id}:channel:${channel}:${period}`.
@@ -265,6 +280,7 @@ export function buildPeriodSpending(
         .filter(t => (
           t.card_id === cap.card_id &&
           t.payment_channel === cap.cap_payment_channel &&
+          (!mccAware || earnedBonus(t)) &&
           t.transaction_date >= startStr && t.transaction_date <= endStr
         ))
         .reduce((sum, t) => sum + t.amount, 0)
@@ -280,9 +296,13 @@ export function buildPeriodSpending(
       const spent = transactions
         .filter(t => (
           t.card_id === cap.card_id &&
-          t.category_id !== null &&
-          groupCatIds.includes(t.category_id) &&
           !countedByChannelCap(t) &&
+          // MCC-aware: any bonus-earning spend draws from the pool (so a promoted
+          // MCC under a non-group category counts, a demoted one doesn't). Else: by
+          // the group's categories.
+          (mccAware
+            ? earnedBonus(t)
+            : (t.category_id !== null && groupCatIds.includes(t.category_id))) &&
           t.transaction_date >= startStr && t.transaction_date <= endStr
         ))
         .reduce((sum, t) => sum + t.amount, 0)
@@ -297,6 +317,7 @@ export function buildPeriodSpending(
           if (t.card_id !== cap.card_id) return false
           if (cap.category_id !== null && t.category_id !== cap.category_id) return false
           if (countedByChannelCap(t)) return false
+          if (mccAware && !earnedBonus(t)) return false
           return t.transaction_date >= startStr && t.transaction_date <= endStr
         })
         .reduce((sum, t) => sum + t.amount, 0)
@@ -575,7 +596,7 @@ export function recommendCards(
   resolved = applyRateBoosts(cards, resolved, boosts, transactionDate)
   resolvedCaps = applyCapBoosts(cards, resolvedCaps, boosts, transactionDate)
 
-  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
+  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays, new Map(cards.map(c => [c.id, c.base_mpd])))
 
   return cards
     .filter(c => c.active)
@@ -706,7 +727,7 @@ export function calcMiles(
   resolvedCaps = applyCapBoosts([card], resolvedCaps, boosts, transactionDate)
 
   const gate = resolveMccGate(card, mcc, overrides, paymentChannel, transactionDate)
-  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays)
+  const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays, new Map([[card.id, card.base_mpd]]))
   const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate)
   return { miles: eff.milesEarned, effectiveMpd: eff.effectiveMpd }
 }
