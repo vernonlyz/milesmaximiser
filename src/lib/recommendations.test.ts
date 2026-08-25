@@ -275,12 +275,33 @@ describe('MCC gate (Level 2)', () => {
     expect(effectiveMpd).toBe(4)
   })
 
-  it('demotion does not promote: eligible MCC on a non-bonus category stays base (phase 1)', () => {
+  it('whitelist: eligible MCC promotes a non-bonus category to the bonus rate', () => {
     const c = card({ mcc_mode: 'whitelist' })
-    const rows = [eligRow({ mcc_start: '5812', mcc_end: '5812' })]
-    // Category GROCERY has no rate; an eligible MCC does NOT force bonus (rate stays category-driven).
-    const { effectiveMpd } = calcMiles(c, rates, caps, GROCERY, 100, [], JUN, [], null, undefined, undefined, mccCtx('5812', true, rows))
-    expect(effectiveMpd).toBe(0.4)
+    const rows = [eligRow({ mcc_start: '5651', mcc_end: '5651', category_label: 'Shop' })]
+    // Category GROCERY has no rate row, but MCC 5651 is whitelisted → earns the 4 mpd bonus.
+    const { effectiveMpd } = calcMiles(c, rates, caps, GROCERY, 100, [], JUN, [], null, undefined, undefined, mccCtx('5651', true, rows))
+    expect(effectiveMpd).toBe(4)
+  })
+
+  it('promotion draws from the combined-pool cap (headroom applies)', () => {
+    const c = card({ mcc_mode: 'whitelist' })
+    const poolRates = [rate({ category_id: DINING, mpd: 4 })]
+    const poolCaps = [cap({ category_id: DINING, spend_limit: 600, cap_group: 'bonus' })]
+    const rows = [eligRow({ mcc_start: '5651', mcc_end: '5651' })]
+    // $580 already in the pool; $100 more (eligible MCC, non-bonus category) → partial.
+    const prior = [txn({ amount: 580, category_id: DINING, transaction_date: '2026-06-05' })]
+    const rec = recommendCards([c], poolRates, poolCaps, GROCERY, 100, prior, JUN, [], null, new Map(), undefined, mccCtx('5651', true, rows))
+    expect(rec[0].status).toBe('partial')
+  })
+
+  it('blacklist eligible does NOT promote (keeps the category/flat rate)', () => {
+    // Flat blacklist card: only an FCY category rate exists; a local eligible MCC must
+    // NOT be promoted to that FCY rate — it earns base.
+    const c = card({ mcc_mode: 'blacklist', base_mpd: 1.4 })
+    const flatRates = [rate({ category_id: GROCERY, mpd: 2.4 })] // e.g. FCY-only bonus
+    const rows = [eligRow({ mcc_start: '6051', mcc_end: '6051' })] // 5812 not excluded
+    const { effectiveMpd } = calcMiles(c, flatRates, [], DINING, 100, [], JUN, [], null, undefined, undefined, mccCtx('5812', true, rows))
+    expect(effectiveMpd).toBe(1.4) // base, not the 2.4 category rate
   })
 
   it('an UNCONFIRMED MCC does not demote — falls back to the category (Layer 2)', () => {
