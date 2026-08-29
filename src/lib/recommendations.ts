@@ -571,6 +571,41 @@ function getEffectiveForCard(
   }
 }
 
+// Resolve the MCC gate for a channel and score the card.
+function evalCardForChannel(
+  card: CreditCard, resolved: CardRate[], resolvedCaps: SpendingCap[], categoryId: string,
+  amount: number, periodSpending: Map<string, number>,
+  channel: 'contactless' | 'online' | 'chip' | null, mcc: MccContext | undefined,
+  overrides: CategoryOverride[], date: Date,
+): { gate: 'bonus' | 'base' | null; eff: EffResult } {
+  const gate = resolveMccGate(card, mcc, overrides, channel, date)
+  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, channel, gate, mcc?.categoryId ?? null)
+  return { gate, eff }
+}
+
+// Best cap-aware outcome for a card. When no payment method is chosen, sweep the
+// bonus channels (contactless + online) and keep the highest-earning result — so a
+// channel-split card (e.g. UOB Preferred) can't show full bonus while the method the
+// user would actually use is capped. `winChannel` names the channel that wins when it
+// strictly beats the other (else null = channel doesn't matter / a method was given).
+function bestChannelEff(
+  card: CreditCard, resolved: CardRate[], resolvedCaps: SpendingCap[], categoryId: string,
+  amount: number, periodSpending: Map<string, number>,
+  channel: 'contactless' | 'online' | 'chip' | null, mcc: MccContext | undefined,
+  overrides: CategoryOverride[], date: Date,
+): { gate: 'bonus' | 'base' | null; eff: EffResult; winChannel: 'contactless' | 'online' | null } {
+  if (channel !== null) {
+    const r = evalCardForChannel(card, resolved, resolvedCaps, categoryId, amount, periodSpending, channel, mcc, overrides, date)
+    return { ...r, winChannel: null }
+  }
+  const cl = evalCardForChannel(card, resolved, resolvedCaps, categoryId, amount, periodSpending, 'contactless', mcc, overrides, date)
+  const on = evalCardForChannel(card, resolved, resolvedCaps, categoryId, amount, periodSpending, 'online', mcc, overrides, date)
+  const onWins = on.eff.effectiveMpd > cl.eff.effectiveMpd
+  const winner = onWins ? on : cl
+  const strict = cl.eff.effectiveMpd !== on.eff.effectiveMpd
+  return { ...winner, winChannel: strict ? (onWins ? 'online' : 'contactless') : null }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
@@ -610,27 +645,31 @@ export function recommendCards(
   return cards
     .filter(c => c.active)
     .map(card => {
-      // Level-2 MCC gate for this card ('base' = demote, 'bonus' = promote to the
-      // card's bonus rate, null = category-based, as before).
-      const gate = resolveMccGate(card, mcc, overrides, paymentChannel, transactionDate)
+      // Best cap-aware outcome. With no method chosen this sweeps contactless + online
+      // and keeps the highest-earning result (so a capped channel can't show full bonus).
+      const { gate, eff, winChannel } = bestChannelEff(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, mcc, overrides, transactionDate)
 
-      // Resolve the displayed "bonus mpd" for the reason string —
+      // The channel actually scored (the given method, or the sweep winner).
+      const effCh = paymentChannel ?? winChannel
+
+      // Resolve the displayed "bonus mpd" for the reason string, for the scored channel —
       // check wildcard rate first, then category rate, then base.
       const categoryRateRow = resolved.find(r => r.card_id === card.id && r.category_id === categoryId)
-      const wildcardRateRow = (paymentChannel === 'contactless' || paymentChannel === 'online')
-        ? resolved.find(r => r.card_id === card.id && r.category_id === null && r.payment_channel === paymentChannel)
+      const wildcardRateRow = (effCh === 'contactless' || effCh === 'online')
+        ? resolved.find(r => r.card_id === card.id && r.category_id === null && r.payment_channel === effCh)
         : null
       const promoMpd = resolved
-        .filter(r => r.card_id === card.id && (r.payment_channel == null || paymentChannel == null || r.payment_channel === paymentChannel))
+        .filter(r => r.card_id === card.id && (r.payment_channel == null || effCh == null || r.payment_channel === effCh))
         .reduce((m, r) => Math.max(m, r.mpd), card.base_mpd)
       const bonusMpd =
         gate === 'base'  ? card.base_mpd
         : gate === 'bonus' ? promoMpd
         : (wildcardRateRow?.mpd ?? categoryRateRow?.mpd ?? card.base_mpd)
 
-      const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate, mcc?.categoryId ?? null)
-
-      const channelNote = eff.requiredPaymentChannel === 'contactless' ? ' · tap to pay'
+      // When no method was chosen but one channel wins, tell the user which to use.
+      const channelNote = winChannel
+        ? ` · best via ${winChannel === 'contactless' ? 'tap to pay' : 'online'}`
+        : eff.requiredPaymentChannel === 'contactless' ? ' · tap to pay'
         : eff.requiredPaymentChannel === 'online' ? ' · online only'
         : ''
 
@@ -735,8 +774,7 @@ export function calcMiles(
   resolved = applyRateBoosts([card], resolved, boosts, transactionDate)
   resolvedCaps = applyCapBoosts([card], resolvedCaps, boosts, transactionDate)
 
-  const gate = resolveMccGate(card, mcc, overrides, paymentChannel, transactionDate)
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays, new Map([[card.id, card.base_mpd]]))
-  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate, mcc?.categoryId ?? null)
+  const { eff } = bestChannelEff(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, mcc, overrides, transactionDate)
   return { miles: eff.milesEarned, effectiveMpd: eff.effectiveMpd }
 }

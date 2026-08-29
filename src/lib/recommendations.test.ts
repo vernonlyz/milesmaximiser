@@ -164,8 +164,20 @@ describe('calcMiles', () => {
     const mixed = [rate({ mpd: 2 }), rate({ category_id: null, payment_channel: 'online', mpd: 4 })]
     const online = calcMiles(card(), mixed, [], DINING, 100, [], JUN, [], 'online')
     expect(online.miles).toBe(400)
-    const offline = calcMiles(card(), mixed, [], DINING, 100, [], JUN, [], null)
-    expect(offline.miles).toBe(200) // only the category 2 mpd applies
+    const chip = calcMiles(card(), mixed, [], DINING, 100, [], JUN, [], 'chip')
+    expect(chip.miles).toBe(200) // a non-online method earns only the category 2 mpd
+  })
+
+  it('with no method chosen, takes the best achievable channel (cap-aware)', () => {
+    const mixed = [rate({ mpd: 2 }), rate({ category_id: null, payment_channel: 'online', mpd: 4 })]
+    // No method → sweep channels and keep the best: the online wildcard (4 mpd) wins.
+    const noMethod = calcMiles(card(), mixed, [], DINING, 100, [], JUN, [], null)
+    expect(noMethod.miles).toBe(400)
+    // But if the online channel cap is exhausted, no-method falls back to the 2 mpd category rate.
+    const caps = [cap({ category_id: null, cap_payment_channel: 'online', spend_limit: 100 })]
+    const prior = [txn({ amount: 100, payment_channel: 'online', effective_mpd: 4 })]
+    const capped = calcMiles(card(), mixed, caps, DINING, 100, prior, JUN, [], null)
+    expect(capped.miles).toBe(200) // online capped → best is now the contactless/any 2 mpd category rate
   })
 
   it('earns base when the rate requires a different channel', () => {
