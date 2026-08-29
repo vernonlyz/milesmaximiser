@@ -375,3 +375,19 @@ describe('buildPeriodSpending (MCC-aware)', () => {
     expect(m.get(`${CARD}:group:bonus`)).toBe(50)   // counted by category
   })
 })
+
+describe('MCC gate — per-category cap attribution (1c)', () => {
+  it('a promoted MCC draws its MAPPED category cap, not another category cap', () => {
+    const A = 'cat-a', B = 'cat-b'
+    const c = card({ mcc_mode: 'whitelist' })
+    const rates = [rate({ category_id: A, mpd: 4 }), rate({ category_id: B, mpd: 4 })]
+    const caps = [cap({ category_id: A, spend_limit: 50 }), cap({ category_id: B, spend_limit: 500 })]
+    const rows: CardMccEligibility[] = [eligRow({ mcc_start: '5651', mcc_end: '5651' })]
+    const ctx: MccContext = { code: '5651', confirmed: true, rows, categories: [], categoryId: A }
+    // $40 already used in A → $10 left. Log $100 under an unrelated category with an
+    // eligible MCC mapped to A: it should draw A's $50 cap (→ partial), not B's $500.
+    const prior = [txn({ category_id: A, amount: 40, effective_mpd: 4 })]
+    const rec = recommendCards([c], rates, caps, 'cat-other', 100, prior, JUN, [], null, new Map(), undefined, ctx)
+    expect(rec[0].status).toBe('partial')
+  })
+})

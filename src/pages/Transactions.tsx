@@ -10,7 +10,7 @@ import PartialBonusNote from '../components/PartialBonusNote'
 import DatePicker from '../components/DatePicker'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
-import { recommendCards, calcMiles, MccContext } from '../lib/recommendations'
+import { recommendCards, calcMiles, MccContext, resolveMccGate } from '../lib/recommendations'
 import { resolveMccEligibility, chosenCategoryLabels } from '../lib/mcc'
 import MccInfo from '../components/MccInfo'
 import ConfidenceInfo from '../components/ConfidenceInfo'
@@ -262,8 +262,9 @@ export default function Transactions() {
     if (!code) return undefined
     const fromVendor = !!selectedVendor && selectedVendor.default_mcc === code
     const confirmed = fromVendor ? selectedVendor!.mcc_confidence !== 'unverified' : true
-    return { code, confirmed, rows: cardMccEligibility, categories }
-  }, [mcc, selectedVendor, cardMccEligibility, categories])
+    const categoryId = mccCatalogue.find(m => m.code === code)?.default_category_id ?? null
+    return { code, confirmed, rows: cardMccEligibility, categories, categoryId }
+  }, [mcc, selectedVendor, cardMccEligibility, categories, mccCatalogue])
 
   // Engine-computed MPD for the current form selection
   const computedMpd = useMemo(() => {
@@ -603,15 +604,26 @@ export default function Transactions() {
     setRecurEditorOpen(true)
   }
 
+  // Build the MCC context for a favourite's stored MCC (trusted unless its vendor
+  // is tagged 'unverified'), so recurring occurrences earn what a manual log would.
+  function mccCtxFor(code: string | null, vendorName: string | null): MccContext | undefined {
+    const c = (code ?? '').trim()
+    if (!c) return undefined
+    const vendor = vendorName ? vendorCatalogue.find(v => v.name.toLowerCase() === vendorName.toLowerCase() && v.default_mcc === c) : undefined
+    const confirmed = vendor ? vendor.mcc_confidence !== 'unverified' : true
+    const categoryId = mccCatalogue.find(m => m.code === c)?.default_category_id ?? null
+    return { code: c, confirmed, rows: cardMccEligibility, categories, categoryId }
+  }
+
   // Compute the earn fields for a generated occurrence, mirroring handleSave.
-  function computeEarn(card: typeof cards[number], categoryId: string, amount: number, dateStr: string, channel: typeof paymentChannel) {
+  function computeEarn(card: typeof cards[number], categoryId: string, amount: number, dateStr: string, channel: typeof paymentChannel, mccCtx?: MccContext) {
     if (card.card_type === 'cashback') {
       const override = cashbackRates.find(r => r.card_id === card.id && r.category_id === categoryId)
       const rate = override?.cashback_rate ?? card.cashback_rate ?? 0
       return { computed_mpd: null, manual_mpd: null, override_note: null, effective_mpd: null, miles_earned: null, cashback_earned: parseFloat((amount * rate).toFixed(4)) }
     }
     if (card.card_type === 'miles') {
-      const { effectiveMpd } = calcMiles(card, rates, caps, categoryId, amount, transactions, new Date(dateStr), overrides, channel, statementDays, boosts)
+      const { effectiveMpd } = calcMiles(card, rates, caps, categoryId, amount, transactions, new Date(dateStr), overrides, channel, statementDays, boosts, mccCtx)
       return { computed_mpd: parseFloat(effectiveMpd.toFixed(4)), manual_mpd: null, override_note: null, effective_mpd: parseFloat(effectiveMpd.toFixed(4)), miles_earned: Math.round(amount * effectiveMpd), cashback_earned: null }
     }
     return { computed_mpd: null, manual_mpd: null, override_note: null, effective_mpd: null, miles_earned: null, cashback_earned: null }
@@ -632,7 +644,7 @@ export default function Transactions() {
       card_id: fav.card_id, category_id: fav.category_id,
       amount: fav.amount, description: fav.description, vendor_name: fav.vendor_name,
       mcc: fav.mcc, payment_channel: fav.payment_channel, transaction_date: d,
-      ...computeEarn(card, fav.category_id!, fav.amount!, d, fav.payment_channel),
+      ...computeEarn(card, fav.category_id!, fav.amount!, d, fav.payment_channel, mccCtxFor(fav.mcc, fav.vendor_name)),
       personal_amount: null, reconciled: false, recurring_id: fav.id,
     }))
     if (rows.length) await supabase.from('transactions').insert(rows)
@@ -1912,6 +1924,22 @@ export default function Transactions() {
                         return <span title={tip} className={`text-[11px] font-medium ${color}`}>{glyph}</span>
                       })()}
                     </span>
+                    {mcc.length === 4 && mccContext && (() => {
+                      const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
+                      const gate = resolveMccGate(rec.card, mccContext, overrides, paymentChannel, txDate)
+                      const sel = form.card_id === rec.card.id
+                      if (gate === 'base') {
+                        return <span className={`block text-[11px] mt-0.5 ${sel ? 'text-white/80' : 'text-amber-600'}`}>MCC not eligible → base rate</span>
+                      }
+                      if (gate === 'bonus') {
+                        // Only note "via MCC" when the picked category alone wouldn't earn bonus (a real promotion).
+                        const hasCatBonus = rates.some(r => r.card_id === rec.card.id && r.mpd > rec.card.base_mpd
+                          && (r.category_id === form.category_id
+                            || (r.category_id === null && (paymentChannel === 'online' || paymentChannel === 'contactless') && r.payment_channel === paymentChannel)))
+                        if (!hasCatBonus) return <span className={`block text-[11px] mt-0.5 ${sel ? 'text-white/80' : 'text-emerald-600'}`}>bonus via MCC</span>
+                      }
+                      return null
+                    })()}
                   </span>
                 </button>
               ))}

@@ -32,8 +32,9 @@ export default function Recommend() {
     if (!code) return undefined
     const fromVendor = !!selectedVendor && selectedVendor.default_mcc === code
     const confirmed = fromVendor ? selectedVendor!.mcc_confidence !== 'unverified' : true
-    return { code, confirmed, rows: cardMccEligibility, categories }
-  }, [mcc, selectedVendor, cardMccEligibility, categories])
+    const categoryId = mccCatalogue.find(m => m.code === code)?.default_category_id ?? null
+    return { code, confirmed, rows: cardMccEligibility, categories, categoryId }
+  }, [mcc, selectedVendor, cardMccEligibility, categories, mccCatalogue])
 
   const recs = useMemo<CardRecommendation[]>(() => {
     if (!categoryId || amount <= 0) return []

@@ -17,6 +17,8 @@ export type MccContext = {
   confirmed: boolean
   rows: CardMccEligibility[]   // all cards' eligibility rows (filtered per card here)
   categories: Category[]       // for resolving a selectable card's chosen labels
+  categoryId?: string | null   // the MCC's mapped app category (mcc_catalogue.default_category_id),
+                               // so a promoted MCC draws the right per-category cap
 }
 
 // The gate a confirmed MCC applies to a card:
@@ -371,7 +373,10 @@ function getEffectiveForCard(
   paymentChannel: 'contactless' | 'online' | 'chip' | null = null,
   // Level-2 MCC gate: 'base' demotes (MCC ineligible), 'bonus' promotes to the
   // card's bonus rate (MCC eligible on a whitelist/hybrid card), null = normal path.
-  mccGate: 'bonus' | 'base' | null = null
+  mccGate: 'bonus' | 'base' | null = null,
+  // The MCC's mapped app category — a promoted transaction draws this category's
+  // cap first (so a per-category-cap card gets the right ceiling, not the pool fallback).
+  mccCategoryId: string | null = null
 ): EffResult {
   // Category-specific rate for this card
   const categoryRateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
@@ -447,16 +452,20 @@ function getEffectiveForCard(
     resolvedCaps.find(c => c.card_id === card.id && c.category_id === categoryId && !c.cap_payment_channel) ??
     resolvedCaps.find(c => c.card_id === card.id && c.category_id === null && !c.cap_payment_channel)
 
-  // Promotion: when the picked category has no cap of its own, fall back to the card's
-  // combined-pool cap, then any of its non-channel caps, so a promoted transaction
-  // still draws from the right ceiling (pool cards → pool; per-category-cap cards → $cap).
+  // Promotion cap selection. Prefer the MCC's own mapped-category cap (so Preferred's
+  // online-shopping / Lady's dining etc. draw the correct $cap even when logged under a
+  // different category), then the picked-category cap, then the combined pool, then any
+  // non-channel cap.
+  const mccCatCap = mccGate === 'bonus' && mccCategoryId
+    ? resolvedCaps.find(c => c.card_id === card.id && c.category_id === mccCategoryId && !c.cap_payment_channel)
+    : undefined
   const promoCap = mccGate === 'bonus'
     ? (resolvedCaps.find(c => c.card_id === card.id && c.cap_group && c.spend_limit != null)
        ?? resolvedCaps.find(c => c.card_id === card.id && c.spend_limit != null && !c.cap_payment_channel))
     : undefined
 
   // Channel cap takes precedence when the wildcard rate is the active rate
-  const cap = (wildcardRateRow && channelCap) ? channelCap : (channelCap ?? nonChannelCap ?? promoCap)
+  const cap = (wildcardRateRow && channelCap) ? channelCap : (channelCap ?? mccCatCap ?? nonChannelCap ?? promoCap)
 
   if (!cap || cap.spend_limit === null) return noCapResult()
 
@@ -619,7 +628,7 @@ export function recommendCards(
         : gate === 'bonus' ? promoMpd
         : (wildcardRateRow?.mpd ?? categoryRateRow?.mpd ?? card.base_mpd)
 
-      const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate)
+      const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate, mcc?.categoryId ?? null)
 
       const channelNote = eff.requiredPaymentChannel === 'contactless' ? ' · tap to pay'
         : eff.requiredPaymentChannel === 'online' ? ' · online only'
@@ -728,6 +737,6 @@ export function calcMiles(
 
   const gate = resolveMccGate(card, mcc, overrides, paymentChannel, transactionDate)
   const periodSpending = buildPeriodSpending(transactions, resolvedCaps, transactionDate, statementDays, new Map([[card.id, card.base_mpd]]))
-  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate)
+  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, paymentChannel, gate, mcc?.categoryId ?? null)
   return { miles: eff.milesEarned, effectiveMpd: eff.effectiveMpd }
 }

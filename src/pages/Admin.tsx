@@ -5,8 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { exportCsv } from '../lib/utils'
-import { resolveOverride } from '../lib/recommendations'
-import { CardExportAlias, Vendor } from '../lib/types'
+import { resolveOverride, calcMiles, MccContext } from '../lib/recommendations'
+import { CardExportAlias, Vendor, Transaction } from '../lib/types'
 
 const ADMIN_EMAIL = 'vernonlyz@gmail.com'
 
@@ -32,7 +32,8 @@ function toDisplayDate(iso: string) {
 
 export default function Admin() {
   const { user } = useAuth()
-  const { categories, cards, allCards, transactions, overrides, mccCatalogue, refreshVendors } = useApp()
+  const { categories, cards, allCards, transactions, overrides, mccCatalogue, refreshVendors,
+    rates, caps, statementDays, boosts, cardMccEligibility, vendorCatalogue, refresh } = useApp()
   const navigate = useNavigate()
 
   const [rows, setRows] = useState<FeedbackRow[]>([])
@@ -48,6 +49,14 @@ export default function Admin() {
   const [vendorSearch, setVendorSearch] = useState('')
   const [newV, setNewV] = useState<{ name: string; mcc: string; categoryId: string; confidence: Vendor['mcc_confidence'] }>({ name: '', mcc: '', categoryId: '', confidence: 'likely' })
   const [vendorMsg, setVendorMsg] = useState('')
+
+  // Recompute-miles (Level-2 backfill) state
+  const [recompBusy, setRecompBusy] = useState(false)
+  const [recompPlan, setRecompPlan] = useState<null | {
+    total: number; changed: number; netDelta: number
+    rows: { id: string; computed_mpd: number; effective_mpd: number; miles_earned: number }[]
+  }>(null)
+  const [recompMsg, setRecompMsg] = useState('')
 
   useEffect(() => {
     if (user?.email !== ADMIN_EMAIL) {
@@ -108,6 +117,80 @@ export default function Admin() {
   }
 
   const filteredVendors = vendors.filter(v => v.name.toLowerCase().includes(vendorSearch.trim().toLowerCase()))
+
+  // ── Recompute miles (Level-2 backfill) ─────────────────────────────────────
+  // Rebuild the MCC context for a stored transaction: its MCC is trusted unless the
+  // vendor that matches is tagged 'unverified'; mapped category from mcc_catalogue.
+  function recompMccCtx(t: Transaction): MccContext | undefined {
+    const code = (t.mcc ?? '').trim()
+    if (!code) return undefined
+    const vendor = t.vendor_name ? vendorCatalogue.find(v => v.name.toLowerCase() === t.vendor_name!.toLowerCase() && v.default_mcc === code) : undefined
+    const confirmed = vendor ? vendor.mcc_confidence !== 'unverified' : true
+    const categoryId = mccCatalogue.find(m => m.code === code)?.default_category_id ?? null
+    return { code, confirmed, rows: cardMccEligibility, categories, categoryId }
+  }
+
+  // Recompute every miles transaction's earned mpd/miles with the current engine
+  // (incl. the Level-2 MCC gate). Processed oldest-first so caps fill cumulatively
+  // and MCC-aware cap counting reads the freshly-recomputed priors. Manual overrides
+  // and cashback/debit rows are left untouched. Returns the change plan (dry run).
+  async function computeRecomputePlan() {
+    const { data } = await supabase.from('transactions').select('*').eq('user_id', user!.id)
+    const all = ((data as Transaction[]) ?? []).slice().sort((a, b) =>
+      a.transaction_date.localeCompare(b.transaction_date) || a.created_at.localeCompare(b.created_at))
+    const cardById = new Map(allCards.map(c => [c.id, c]))
+    const processed: Transaction[] = []
+    const rows: { id: string; computed_mpd: number; effective_mpd: number; miles_earned: number }[] = []
+    let netDelta = 0
+    for (const t of all) {
+      const card = t.card_id ? cardById.get(t.card_id) : null
+      // Only recompute engine-driven miles rows; keep manual overrides + non-miles as-is.
+      if (card && card.card_type === 'miles' && t.manual_mpd == null && t.category_id) {
+        const { effectiveMpd } = calcMiles(card, rates, caps, t.category_id, t.amount, processed,
+          new Date(t.transaction_date), overrides, t.payment_channel, statementDays, boosts, recompMccCtx(t))
+        const eff = parseFloat(effectiveMpd.toFixed(4))
+        const miles = Math.round(t.amount * effectiveMpd)
+        if (eff !== (t.effective_mpd ?? null) || miles !== (t.miles_earned ?? null)) {
+          rows.push({ id: t.id, computed_mpd: eff, effective_mpd: eff, miles_earned: miles })
+          netDelta += miles - (t.miles_earned ?? 0)
+        }
+        processed.push({ ...t, effective_mpd: eff, computed_mpd: eff, miles_earned: miles })
+      } else {
+        processed.push(t)
+      }
+    }
+    return { total: all.length, changed: rows.length, netDelta, rows }
+  }
+
+  async function dryRunRecompute() {
+    setRecompBusy(true); setRecompMsg('')
+    try {
+      setRecompPlan(await computeRecomputePlan())
+    } catch (e) {
+      setRecompMsg(e instanceof Error ? e.message : 'Recompute failed')
+    }
+    setRecompBusy(false)
+  }
+
+  async function applyRecompute() {
+    if (!recompPlan || recompPlan.changed === 0) return
+    setRecompBusy(true); setRecompMsg('')
+    try {
+      // Update changed rows in chunks.
+      for (let i = 0; i < recompPlan.rows.length; i += 100) {
+        const chunk = recompPlan.rows.slice(i, i + 100)
+        await Promise.all(chunk.map(r => supabase.from('transactions')
+          .update({ computed_mpd: r.computed_mpd, effective_mpd: r.effective_mpd, miles_earned: r.miles_earned })
+          .eq('id', r.id)))
+      }
+      setRecompMsg(`Applied — ${recompPlan.changed} transaction(s) updated.`)
+      setRecompPlan(null)
+      await refresh()
+    } catch (e) {
+      setRecompMsg(e instanceof Error ? e.message : 'Apply failed')
+    }
+    setRecompBusy(false)
+  }
 
   async function load() {
     setLoading(true)
@@ -220,6 +303,33 @@ export default function Admin() {
           <RefreshCw size={14} />
           Refresh
         </button>
+      </div>
+
+      {/* Recompute miles (Level-2 backfill) */}
+      <div className="card p-4 space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <RefreshCw size={15} className="text-indigo-500 shrink-0" />
+          <span className="text-sm font-medium text-gray-700">Recompute miles</span>
+          <span className="text-xs text-gray-400 flex-1 min-w-0">Re-run the engine (incl. the MCC gate) over all your miles transactions. Manual overrides untouched.</span>
+          <button onClick={dryRunRecompute} disabled={recompBusy} className="btn-secondary text-xs disabled:opacity-50">
+            {recompBusy && !recompPlan ? 'Checking…' : 'Dry run'}
+          </button>
+        </div>
+        {recompPlan && (
+          <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <span className="text-gray-600">
+              {recompPlan.total} txns · <strong className={recompPlan.changed ? 'text-indigo-700' : 'text-gray-500'}>{recompPlan.changed} would change</strong>
+              {recompPlan.changed > 0 && <> · net <span className={recompPlan.netDelta >= 0 ? 'text-emerald-600' : 'text-red-600'}>{recompPlan.netDelta >= 0 ? '+' : ''}{recompPlan.netDelta.toLocaleString()} miles</span></>}
+            </span>
+            {recompPlan.changed > 0
+              ? <div className="ml-auto flex items-center gap-2">
+                  <button onClick={applyRecompute} disabled={recompBusy} className="btn-primary text-xs disabled:opacity-50">{recompBusy ? 'Applying…' : 'Apply changes'}</button>
+                  <button onClick={() => setRecompPlan(null)} className="text-xs text-gray-500 hover:text-gray-700 underline">Cancel</button>
+                </div>
+              : <button onClick={() => setRecompPlan(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-700 underline">Dismiss</button>}
+          </div>
+        )}
+        {recompMsg && <p className="text-xs text-gray-500">{recompMsg}</p>}
       </div>
 
       {/* Export card */}
