@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info, Download, LineChart } from 'lucide-react'
+import { TrendingUp, Percent, Wallet, Receipt, RefreshCw, AlertCircle, BarChart2, Info, Download, LineChart, TrendingDown } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { formatSGD } from '../lib/utils'
 import * as XLSX from 'xlsx'
 import { Transaction } from '../lib/types'
 import ExpensesTrends from '../components/ExpensesTrends'
+import MissedMiles from '../components/MissedMiles'
 
 type QuickMode = 'month' | 'lastMonth' | '3m' | '6m' | 'all' | 'custom'
 
@@ -49,7 +50,7 @@ const QUICK_BTNS: { key: QuickMode; label: string }[] = [
 export default function Expenses() {
   const { cards, allCards, categories, transactions, loading, error, refresh } = useApp()
 
-  const [activeTab,  setActiveTab]  = useState<'overview' | 'trends'>('overview')
+  const [activeTab,  setActiveTab]  = useState<'overview' | 'trends' | 'missed'>('overview')
   const [viewMode,   setViewMode]   = useState<'card' | 'personal'>('card')
   const [quickMode,  setQuickMode]  = useState<QuickMode>('month')
   const [customFrom, setCustomFrom] = useState(() => monthsBack(6))
@@ -336,10 +337,14 @@ export default function Expenses() {
       <div className="flex gap-1 border-b border-gray-200">
         <TabBtn label="Overview" icon={<BarChart2 size={14} />} active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
         <TabBtn label="Trends"   icon={<LineChart  size={14} />} active={activeTab === 'trends'}   onClick={() => setActiveTab('trends')} />
+        <TabBtn label="Missed miles" icon={<TrendingDown size={14} />} active={activeTab === 'missed'} onClick={() => setActiveTab('missed')} />
       </div>
 
       {/* Trends tab */}
       {activeTab === 'trends' && <ExpensesTrends from={filterFrom} to={filterTo} />}
+
+      {/* Missed miles tab */}
+      {activeTab === 'missed' && <MissedMiles from={filterFrom} to={filterTo} />}
 
       {/* Overview tab */}
       {activeTab === 'overview' && <>
