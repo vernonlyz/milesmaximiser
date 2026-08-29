@@ -172,6 +172,9 @@ export interface CardRecommendation {
   totalCardSpent: number | null
   // Payment channel required to earn the bonus rate; null = no restriction
   requiredPaymentChannel: 'contactless' | 'online' | null
+  // When no method was selected and one channel wins the cap-aware sweep, the method
+  // to use to achieve this result (else null: a method was given, or channel-agnostic).
+  bestChannel: 'contactless' | 'online' | null
   reason: string
 }
 

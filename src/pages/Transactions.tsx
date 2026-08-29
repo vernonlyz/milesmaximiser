@@ -1924,19 +1924,28 @@ export default function Transactions() {
                         return <span title={tip} className={`text-[11px] font-medium ${color}`}>{glyph}</span>
                       })()}
                     </span>
-                    {mcc.length === 4 && mccContext && (() => {
-                      const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-                      const gate = resolveMccGate(rec.card, mccContext, overrides, paymentChannel, txDate)
+                    {(() => {
+                      // One "why" line, by priority: cap reached → partial → MCC-demoted
+                      // → best-via channel → MCC-promoted.
                       const sel = form.card_id === rec.card.id
-                      if (gate === 'base') {
-                        return <span className={`block text-[11px] mt-0.5 ${sel ? 'text-white/80' : 'text-amber-600'}`}>MCC not eligible → base rate</span>
-                      }
+                      const method = rec.bestChannel
+                        ? (rec.bestChannel === 'contactless' ? 'tap to pay' : 'online')
+                        : rec.requiredPaymentChannel === 'contactless' ? 'tap to pay'
+                        : rec.requiredPaymentChannel === 'online' ? 'online' : null
+                      const cat = categories.find(c => c.id === form.category_id)?.name ?? 'this category'
+                      const note = (text: string, tone: string) =>
+                        <span className={`block text-[11px] mt-0.5 ${sel ? 'text-white/80' : tone}`}>{text}</span>
+                      if (rec.status === 'capped') return note(`${cat} cap reached${method ? ` · ${method}` : ''} — earns base`, 'text-red-600')
+                      if (rec.status === 'partial') return note(`S$${Math.round(rec.capRemaining ?? 0)} left in ${cat} cap${method ? ` · ${method}` : ''}`, 'text-amber-600')
+                      const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
+                      const gate = mcc.length === 4 && mccContext ? resolveMccGate(rec.card, mccContext, overrides, paymentChannel, txDate) : null
+                      if (gate === 'base') return note('MCC not eligible → base rate', 'text-amber-600')
+                      if (rec.bestChannel) return note(`best via ${method}${rec.capRemaining != null ? ` · S$${Math.round(rec.capRemaining)} cap left` : ''}`, 'text-emerald-600')
                       if (gate === 'bonus') {
-                        // Only note "via MCC" when the picked category alone wouldn't earn bonus (a real promotion).
                         const hasCatBonus = rates.some(r => r.card_id === rec.card.id && r.mpd > rec.card.base_mpd
                           && (r.category_id === form.category_id
                             || (r.category_id === null && (paymentChannel === 'online' || paymentChannel === 'contactless') && r.payment_channel === paymentChannel)))
-                        if (!hasCatBonus) return <span className={`block text-[11px] mt-0.5 ${sel ? 'text-white/80' : 'text-emerald-600'}`}>bonus via MCC</span>
+                        if (!hasCatBonus) return note('bonus via MCC', 'text-emerald-600')
                       }
                       return null
                     })()}

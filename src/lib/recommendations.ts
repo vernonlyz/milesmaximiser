@@ -718,6 +718,7 @@ export function recommendCards(
         minSpendRequired: eff.minSpendRequired,
         totalCardSpent: eff.totalCardSpent,
         requiredPaymentChannel: eff.requiredPaymentChannel,
+        bestChannel: winChannel,
       } satisfies CardRecommendation
     })
     .sort((a, b) => {
