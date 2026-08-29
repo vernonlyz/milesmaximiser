@@ -1019,3 +1019,13 @@ Captures key architectural choices made during development — what was decided,
   - *Alternatives considered:* assume each card's `default_payment_channel` (simpler, but hides the better channel); require a method (accurate, adds friction). Best-across was chosen as the most accurate + actionable.
   - *Trade-off:* best-across is optimistic in that it assumes the user *can* use the winning channel; the "best via <method>" note makes that explicit. A transaction saved with a null channel won't consume either channel cap in `buildPeriodSpending` (rare; methods are usually prefilled).
 - **Log-form recs show one prioritised "why" line** (cap-reached → partial → MCC-demoted → best-via → MCC-promoted), so the tap/online hint and the explicit cap-for-category-and-method are visible in the log form, not only the Recommend page reason.
+
+---
+
+## 2026-08-26 — "Miles left on the table" is a greedy hindsight estimate (v9.2)
+
+**Decision:** The new Expenses → Missed miles tab computes, per past miles-card transaction, `best wallet card miles − actual miles` by re-scoring the wallet with `recommendCards` using the caps as they stood from **prior actual spend** (chronological). It reuses the full engine (MCC gate, channel sweep, MCC-aware caps) rather than a separate heuristic.
+
+**Why greedy hindsight, not global optimisation:** truly optimal is an assignment problem — the best card for one transaction changes which caps are free for the next, so a global re-plan could differ. A per-transaction "best at that moment given what actually happened" is cheap, explainable, and a fair "you used the wrong card here" signal. Labeled as an estimate in the UI.
+
+**Trade-offs:** O(N²) over the user's transactions (fine for hundreds; a beat for thousands); assumes the current wallet + chosen categories (not the wallet as it was historically); and depends on `miles_earned` reflecting the current engine — so the Admin recompute should be run first for pre-v9.0 rows. Scope is current-year transactions (AppContext), with the display filtered to the page's date range.

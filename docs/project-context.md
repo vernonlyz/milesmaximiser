@@ -22,7 +22,7 @@ Browser (React + Vite + TypeScript)
     │
     ├─ pages/             — Route-level components (all lazy-loaded via React.lazy + Suspense)
     │   ├─ Dashboard      — Monthly stats, wallet cap bars, recent transactions
-    │   ├─ Expenses       — Full spend breakdown: by type, category, card; Trends tab with Recharts bar charts
+    │   ├─ Expenses       — Full spend breakdown: by type, category, card; Trends (Recharts) + Missed-miles tabs
     │   ├─ MileValue      — Static mile value calculator (ticket price + miles → cpp vs 1.5¢ benchmark)
     │   ├─ Cards          — Card library browser (uniform tile grid + details modal); type/bank/wallet filters
     │   ├─ Recommend      — Ad-hoc card recommender for a given category + amount
@@ -36,7 +36,7 @@ Browser (React + Vite + TypeScript)
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
     ├─ context/          — AuthContext, AppContext, ToastContext (app-wide toast notifications)
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary, MccInfo, Skeleton, ErrorState)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary, MccInfo, MissedMiles, Skeleton, ErrorState)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine (unit-tested: recommendations.test.ts)
         ├─ types.ts            — All TypeScript interfaces
