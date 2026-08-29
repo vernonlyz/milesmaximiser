@@ -1005,3 +1005,17 @@ Captures key architectural choices made during development — what was decided,
 - **A `card_library` column for base-rounding / cap semantics.** Deferred; small curated predicates + the `effective_mpd` proxy avoid a schema change.
 
 **Scope / trade-offs:** No *promotion into the correct per-category cap* for the four per-category-cap cards (Lady's, Solitaire, Preferred, Visa Sig) when the picked category differs from the MCC's — the cap falls back to the pool/first cap; matters only for mismatched category+MCC (rare). Recurring-occurrence generation stays on Layer 2. The Dashboard combined-cap bar's bonus segment is now MCC-eligible spend while its per-category breakdown is still by category, so they can differ slightly (intended).
+
+---
+
+## 2026-08-26 — Closing the MCC-engine loop + no-method channel sweep (v9.1)
+
+**Decisions (follow-ups to v9.0):**
+
+- **Historical recompute is a deliberate admin action with a dry-run, not automatic.** Re-running the engine over stored miles rewrites `miles_earned`/`effective_mpd`, and MCC-aware caps now *read* `effective_mpd`, so old rows can mis-count. The Admin "Recompute miles" processes oldest-first (each transaction sees the freshly-recomputed priors, so caps fill cumulatively), skips manual overrides + non-miles rows, and shows "N · X changed · net Δ" before any write. Chosen over an auto-migration because it's user-visible, reversible-by-inspection, and one-off.
+- **Recurring occurrences go through the MCC gate** so a generated charge earns what a manual log would; the favourite's stored MCC is trusted unless its vendor is `unverified`.
+- **Per-category cap attribution uses the MCC's mapped category** (`mcc_catalogue.default_category_id`) at the *rate* layer (`getEffectiveForCard` cap preference). Left `buildPeriodSpending`'s per-category *usage* counting as category-match + earned-bonus — a promoted MCC logged under a mismatched category is the rare edge, and the visible rate/cap-remaining is what the recommender shows.
+- **No payment method → best achievable across channels (user's pick).** With `channel = null` the engine previously skipped the channel-cap check and took the optimistic rate, so a channel-split card (Preferred) showed full bonus while the method the user would use was capped. `bestChannelEff` now sweeps contactless + online (each with its caps + MCC gate) and keeps the highest-earning result; if a channel strictly wins it's named (`bestChannel` → "best via …"). Falls to base when both channels are capped/ineligible.
+  - *Alternatives considered:* assume each card's `default_payment_channel` (simpler, but hides the better channel); require a method (accurate, adds friction). Best-across was chosen as the most accurate + actionable.
+  - *Trade-off:* best-across is optimistic in that it assumes the user *can* use the winning channel; the "best via <method>" note makes that explicit. A transaction saved with a null channel won't consume either channel cap in `buildPeriodSpending` (rare; methods are usually prefilled).
+- **Log-form recs show one prioritised "why" line** (cap-reached → partial → MCC-demoted → best-via → MCC-promoted), so the tap/online hint and the explicit cap-for-category-and-method are visible in the log form, not only the Recommend page reason.

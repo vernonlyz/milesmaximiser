@@ -312,7 +312,7 @@ The app is a functional MVP. All core features are implemented:
 | Styled portal DatePicker replacing native date inputs (Transactions, Cards, Miles) | Complete |
 | Transaction reconciliation — per-row checkmark, filter, progress, statement-total compare (migration 034) | Complete |
 | SGT timezone fix — local YYYY-MM-DD boundaries; end-of-month transactions no longer dropped from totals/caps | Complete |
-| Vitest engine test suite — 36 tests over recommendations.ts (`npm test`); test files excluded from prod build | Complete |
+| Vitest engine test suite — 38 tests over recommendations.ts (`npm test`); test files excluded from prod build | Complete |
 | Error boundaries — ErrorBoundary around Layout Outlet (keyed by route) + app root; catches render crashes + lazy-chunk load failures | Complete |
 | README + .env.example — onboarding docs and documented env vars | Complete |
 | Recurring rules → real future transactions (every N units, end date/count); standalone create/edit editor; Transactions Upcoming section w/ range presets | Complete |
@@ -379,7 +379,7 @@ The app is a functional MVP. All core features are implemented:
 - **Annual fee-waiver tracker** — Track spend-to-waiver per card (needs new library data: fee + threshold).
 
 ### Done since last review
-- **Test suite** — ✅ Vitest: `npm test` runs 36 unit tests over `recommendations.ts` (cap types, blended/partial MPD, wildcard, channel caps, min-spend, block rounding, date boundaries, ranking). Add a test alongside any new cap/rate logic.
+- **Test suite** — ✅ Vitest: `npm test` runs 38 unit tests over `recommendations.ts` (cap types, blended/partial MPD, wildcard, channel caps, min-spend, block rounding, date boundaries, ranking). Add a test alongside any new cap/rate logic.
 - **`.env.example` + README** — ✅ Added; env vars documented and full setup/deploy instructions written.
 - **Error boundary** — ✅ `ErrorBoundary` around the Layout Outlet (keyed by route) and app root catches render crashes and lazy-chunk load failures (no more blank screens).
 
