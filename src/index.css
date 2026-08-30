@@ -4,8 +4,9 @@
 
 @layer base {
   body {
-    @apply text-gray-900 antialiased;
+    @apply text-gray-900 antialiased dark:text-gray-100;
   }
+  html.dark body { background-color: #0b1220; }
   /* Keyboard focus ring for any button/link that doesn't define its own (mouse clicks stay ring-free via :focus-visible).
      No border-radius here — the ring follows each element's own shape. */
   button:focus-visible, a:focus-visible {
@@ -18,18 +19,54 @@
     @apply inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1;
   }
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1;
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700;
   }
   .btn-danger {
     @apply inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1;
   }
   .input {
-    @apply w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition;
+    @apply w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-500;
   }
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    @apply block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300;
   }
   .card {
-    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700;
   }
 }
+
+/* ── Dark-mode utility remap ─────────────────────────────────────────────────
+   The pages use many inline light-palette utilities (bg-white, text-gray-*,
+   bg-gray-50/100, border-gray-*, accent -50 backgrounds). Rather than add a
+   dark: variant to ~700 call sites, remap the common ones under .dark here.
+   `.dark .x` (specificity 0,2,0) beats the single-class utility (0,1,0) and
+   comes later in source order, so it wins. Pragmatic v1 — refine per-page later. */
+.dark .bg-white { background-color: #1f2937; }          /* gray-800 */
+.dark .bg-gray-50 { background-color: #111827; }         /* gray-900 */
+.dark .bg-gray-100 { background-color: #374151; }        /* gray-700 */
+.dark .bg-gray-200 { background-color: #4b5563; }        /* gray-600 */
+.dark .hover\:bg-gray-50:hover { background-color: #1f2937; }
+.dark .hover\:bg-gray-100:hover { background-color: #374151; }
+.dark .hover\:bg-gray-200:hover { background-color: #4b5563; }
+
+.dark .text-gray-900 { color: #f3f4f6; }
+.dark .text-gray-800 { color: #e5e7eb; }
+.dark .text-gray-700 { color: #d1d5db; }
+.dark .text-gray-600 { color: #9ca3af; }
+.dark .text-gray-500 { color: #9ca3af; }
+.dark .text-gray-400 { color: #6b7280; }
+.dark .text-gray-300 { color: #4b5563; }
+
+.dark .border-gray-100 { border-color: #374151; }
+.dark .border-gray-200 { border-color: #374151; }
+.dark .border-gray-300 { border-color: #4b5563; }
+.dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #374151; }
+
+/* Soft accent backgrounds (stat tiles, notes) → translucent so they read on dark */
+.dark .bg-indigo-50 { background-color: rgba(99, 102, 241, 0.15); }
+.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.15); }
+.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.15); }
+.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.15); }
+.dark .bg-sky-50 { background-color: rgba(14, 165, 233, 0.15); }
+.dark .bg-gray-900 { background-color: #030712; }

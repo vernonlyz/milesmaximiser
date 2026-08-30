@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award, Loader2, RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from './ThemeToggle'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import Modal from './Modal'
@@ -283,6 +284,10 @@ export default function Layout() {
             <Info size={16} className="shrink-0" />
             <span>Rates are indicative — verify with bank</span>
           </button>
+          <div className="flex items-center justify-between gap-2 px-3 pt-2">
+            <span className="text-xs text-gray-400">Theme</span>
+            <ThemeToggle />
+          </div>
           <div className="flex items-center gap-2 px-3 pt-2">
             <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
               {user?.email?.[0].toUpperCase() ?? '?'}
