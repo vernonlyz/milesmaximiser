@@ -666,10 +666,9 @@ export function recommendCards(
         : gate === 'bonus' ? promoMpd
         : (wildcardRateRow?.mpd ?? categoryRateRow?.mpd ?? card.base_mpd)
 
-      // When no method was chosen but one channel wins, tell the user which to use.
-      const channelNote = winChannel
-        ? ` · best via ${winChannel === 'contactless' ? 'tap to pay' : 'online'}`
-        : eff.requiredPaymentChannel === 'contactless' ? ' · tap to pay'
+      // Channel requirement note (the "best via …" / cap notes are rendered separately
+      // via capChannelNote so the log form + Recommend page stay in sync).
+      const channelNote = eff.requiredPaymentChannel === 'contactless' ? ' · tap to pay'
         : eff.requiredPaymentChannel === 'online' ? ' · online only'
         : ''
 

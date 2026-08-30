@@ -11,6 +11,8 @@ import DatePicker from '../components/DatePicker'
 import VendorInput from '../components/VendorInput'
 import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles, MccContext, resolveMccGate } from '../lib/recommendations'
+import { capChannelNote } from '../lib/recNote'
+import ErrorState from '../components/ErrorState'
 import { resolveMccEligibility, chosenCategoryLabels } from '../lib/mcc'
 import MccInfo from '../components/MccInfo'
 import ConfidenceInfo from '../components/ConfidenceInfo'
@@ -70,7 +72,7 @@ const EMPTY_FORM: TransactionFormData = {
 type SortCol = 'date' | 'amount' | 'miles' | 'mpd'
 
 export default function Transactions() {
-  const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cashbackRates, cardMccEligibility, refreshTransactions } = useApp()
+  const { cards, allCards, selectedCardIds, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cashbackRates, cardMccEligibility, refreshTransactions, loading, error: appError, refresh } = useApp()
   const { user } = useAuth()
   const toast = useToast()
   const location = useLocation()
@@ -936,6 +938,7 @@ export default function Transactions() {
 
   return (
     <div className="space-y-6">
+      {appError && !loading && <ErrorState onRetry={refresh} />}
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
@@ -1926,21 +1929,18 @@ export default function Transactions() {
                     </span>
                     {(() => {
                       // One "why" line, by priority: cap reached → partial → MCC-demoted
-                      // → best-via channel → MCC-promoted.
+                      // → best-via channel → MCC-promoted. cap/partial/best-via come from
+                      // the shared helper (parity with the Recommend page).
                       const sel = form.card_id === rec.card.id
-                      const method = rec.bestChannel
-                        ? (rec.bestChannel === 'contactless' ? 'tap to pay' : 'online')
-                        : rec.requiredPaymentChannel === 'contactless' ? 'tap to pay'
-                        : rec.requiredPaymentChannel === 'online' ? 'online' : null
                       const cat = categories.find(c => c.id === form.category_id)?.name ?? 'this category'
                       const note = (text: string, tone: string) =>
                         <span className={`block text-[11px] mt-0.5 ${sel ? 'text-white/80' : tone}`}>{text}</span>
-                      if (rec.status === 'capped') return note(`${cat} cap reached${method ? ` · ${method}` : ''} — earns base`, 'text-red-600')
-                      if (rec.status === 'partial') return note(`S$${Math.round(rec.capRemaining ?? 0)} left in ${cat} cap${method ? ` · ${method}` : ''}`, 'text-amber-600')
+                      const shared = capChannelNote(rec, cat)
+                      if (shared && rec.status !== 'optimal') return note(shared.text, shared.tone) // cap reached / partial first
                       const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
                       const gate = mcc.length === 4 && mccContext ? resolveMccGate(rec.card, mccContext, overrides, paymentChannel, txDate) : null
                       if (gate === 'base') return note('MCC not eligible → base rate', 'text-amber-600')
-                      if (rec.bestChannel) return note(`best via ${method}${rec.capRemaining != null ? ` · S$${Math.round(rec.capRemaining)} cap left` : ''}`, 'text-emerald-600')
+                      if (shared) return note(shared.text, shared.tone) // best-via
                       if (gate === 'bonus') {
                         const hasCatBonus = rates.some(r => r.card_id === rec.card.id && r.mpd > rec.card.base_mpd
                           && (r.category_id === form.category_id

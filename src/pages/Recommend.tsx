@@ -5,13 +5,16 @@ import StatusBadge from '../components/StatusBadge'
 import PartialBonusNote from '../components/PartialBonusNote'
 import VendorInput from '../components/VendorInput'
 import { recommendCards, MccContext } from '../lib/recommendations'
+import { capChannelNote } from '../lib/recNote'
 import { formatSGD } from '../lib/utils'
 import { CardRecommendation, Vendor, CreditCard } from '../lib/types'
 import { resolveMccEligibility, chosenCategoryLabels, MccEligibility } from '../lib/mcc'
 import MccInfo from '../components/MccInfo'
+import ErrorState from '../components/ErrorState'
+import { PageSkeleton } from '../components/Skeleton'
 
 export default function Recommend() {
-  const { cards, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cardMccEligibility } = useApp()
+  const { cards, categories, rates, caps, transactions, overrides, statementDays, boosts, mccCatalogue, vendorCatalogue, cardMccEligibility, loading, error, refresh } = useApp()
 
   const [categoryId, setCategoryId] = useState('')
   const [amountStr, setAmountStr] = useState('')
@@ -83,6 +86,9 @@ export default function Recommend() {
           Find the best card to maximise miles, accounting for your current cap usage.
         </p>
       </div>
+
+      {error && !loading && <ErrorState onRetry={refresh} />}
+      {loading && cards.length === 0 && <PageSkeleton rows={2} />}
 
       <div className="lg:grid lg:grid-cols-[2fr_3fr] lg:gap-6 lg:items-start">
 
@@ -186,7 +192,7 @@ export default function Recommend() {
             </h2>
 
             {recs.map((rec, i) => (
-              <RecCard key={rec.card.id} rec={rec} rank={i + 1} amount={amount} mccElig={mccEligFor(rec.card)} />
+              <RecCard key={rec.card.id} rec={rec} rank={i + 1} amount={amount} mccElig={mccEligFor(rec.card)} categoryName={cat?.name ?? ''} />
             ))}
           </div>
         ) : mcc.length === 4 ? (
@@ -242,7 +248,7 @@ export default function Recommend() {
   )
 }
 
-function RecCard({ rec, rank, amount, mccElig }: { rec: CardRecommendation; rank: number; amount: number; mccElig: MccEligibility | null }) {
+function RecCard({ rec, rank, amount, mccElig, categoryName }: { rec: CardRecommendation; rank: number; amount: number; mccElig: MccEligibility | null; categoryName: string }) {
   const isBest = rank === 1
 
   return (
@@ -274,6 +280,7 @@ function RecCard({ rec, rank, amount, mccElig }: { rec: CardRecommendation; rank
             <StatusBadge status={rec.status} />
           </div>
           <p className="text-xs text-gray-500 mt-0.5">{rec.reason}</p>
+          {(() => { const n = capChannelNote(rec, categoryName); return n ? <p className={`text-xs mt-0.5 ${n.tone}`}>{n.text}</p> : null })()}
           {mccElig && mccElig.state !== 'nodata' && (
             mccElig.state === 'eligible'
               ? <p className="text-xs text-emerald-600 mt-0.5">✓ MCC eligible for bonus{mccElig.label ? ` · ${mccElig.label}` : ''}{mccElig.note ? ` — ${mccElig.note}` : ''}</p>

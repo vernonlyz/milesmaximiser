@@ -7,6 +7,8 @@ import { CreditCard, SpendingCap, CardBoost, CardMccEligibility } from '../lib/t
 import { resolveMccEligibility, chosenCategoryLabels } from '../lib/mcc'
 import Modal from '../components/Modal'
 import DatePicker from '../components/DatePicker'
+import ErrorState from '../components/ErrorState'
+import { PageSkeleton } from '../components/Skeleton'
 
 const todayLocal = () => new Date().toLocaleDateString('en-CA')
 function minusOneDay(dateStr: string): string {
@@ -37,6 +39,7 @@ export default function Cards() {
     addCardSelection, removeCardSelection, saveOverride, saveStatementDay,
     boosts, setRateBoost, updateBoost, deleteBoost,
     cardMccEligibility, mccCatalogue,
+    loading, error, refresh,
   } = useApp()
 
   // Bonus-eligible MCC viewer (Details modal)
@@ -242,6 +245,9 @@ export default function Cards() {
           {walletCount} card{walletCount !== 1 ? 's' : ''} in your wallet
         </p>
       </div>
+
+      {error && !loading && <ErrorState onRetry={refresh} />}
+      {loading && allCards.length === 0 && <PageSkeleton rows={3} />}
 
       {/* Info banner */}
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
