@@ -1049,3 +1049,13 @@ Captures key architectural choices made during development — what was decided,
 **Modal footer:** Added a `footer` prop to the shared `Modal` — a non-scrolling bar rendered below the scrollable body. The log form's Cancel/Save moved there. An earlier attempt made the Save row `sticky bottom-0` inside the scroll body, but the `space-y` gap above it let fields show through; a true footer (outside the scroll) is opaque and definitively fixes the peek-through. The `footer` prop is reusable for the other modals.
 
 **Trade-off:** the Recommendation panel is still `sticky top-0` within the scroll (it has a solid background so it covers content); only the action bar needed the non-scrolling treatment.
+
+---
+
+## 2026-08-30 — Shared UI primitives (BankBadge, Chip) + empty-state CTAs (v9.5)
+
+**Decision:** Extract two shared primitives to kill drift: `BankBadge` (the colour-coded 2-letter bank square, sizes sm/md/lg/xl) and `Chip` (unified pill, `tone` for static or `active` for filters). Replace the inline duplications (bank squares across Dashboard/Cards/Earnings/Onboarding; the MCC-confidence tag; Dashboard wallet filter chips). Add empty-state CTAs where a page could render blank (Recommend with no wallet miles cards; Cards' In-Wallet view when the wallet is empty).
+
+**Number formatting:** Added `formatMilesFull()` (round + en-SG thousands separators) and applied it to the prominent totals. An audit showed the remaining miles displays already use `Math.round().toLocaleString()`, so no churn was warranted — the helper standardises the locale for future use. `formatMiles` (compact "1.2k") is retained for charts/badges.
+
+**Scope note:** Cards/Earnings/Onboarding use the larger tile badge (`xl`, rounded-xl); the small inline ones are md/sm — all now flow through `BankBadge`. StatusBadge already matched Chip's shape, so it was left as its own typed component.

@@ -36,7 +36,7 @@ Browser (React + Vite + TypeScript)
     │   └─ Admin          — Feedback inbox (admin-only); resolve/reopen bug reports
     │
     ├─ context/          — AuthContext, AppContext, ToastContext (app-wide toast notifications)
-    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary, MccInfo, MissedMiles, Skeleton, ErrorState)
+    ├─ components/        — Shared UI (Layout, Modal, CapUsageBar, StatusBadge, VendorInput, ProtectedRoute, StatementDayPrompt, UpdatePrompt, ExpensesTrends, MilesTabs, DatePicker, PartialBonusNote, ErrorBoundary, MccInfo, MissedMiles, BankBadge, Chip, Skeleton, ErrorState)
     └─ lib/
         ├─ recommendations.ts  — Core cap-aware recommendation engine (unit-tested: recommendations.test.ts)
         ├─ types.ts            — All TypeScript interfaces
