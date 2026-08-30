@@ -1029,3 +1029,13 @@ Captures key architectural choices made during development — what was decided,
 **Why greedy hindsight, not global optimisation:** truly optimal is an assignment problem — the best card for one transaction changes which caps are free for the next, so a global re-plan could differ. A per-transaction "best at that moment given what actually happened" is cheap, explainable, and a fair "you used the wrong card here" signal. Labeled as an estimate in the UI.
 
 **Trade-offs:** O(N²) over the user's transactions (fine for hundreds; a beat for thousands); assumes the current wallet + chosen categories (not the wallet as it was historically); and depends on `miles_earned` reflecting the current engine — so the Admin recompute should be run first for pre-v9.0 rows. Scope is current-year transactions (AppContext), with the display filtered to the page's date range.
+
+---
+
+## 2026-08-30 — Shared cap/channel "why" note + per-page error states (v9.3)
+
+**Decision:** Extract the cap/channel recommendation note (`cap reached` / `partial` / `best via <method>`, colour-coded) into a single `capChannelNote(rec, categoryName)` helper (`src/lib/recNote.ts`) consumed by both the log-form rec widget and the Recommend page, so the two stay in sync. The engine `reason` string no longer appends its own "best via …" (the styled note owns it); `CardRecommendation.bestChannel` remains the data source.
+
+**Also:** Cards / Recommend / Transactions now render `ErrorState` (Retry → `refresh`) when AppContext's load `error` is set, closing the "silent empty state on query failure" gap noted in Partially-completed. These pages read AppContext (they don't self-fetch), so surfacing its top-level `error` is the right hook. (In Transactions the context `error` is aliased to `appError` to avoid a clash with a local `error` state.)
+
+**Why a shared helper:** the note logic had been duplicated inline; a helper prevents drift and made the Recommend-page parity a one-liner. Kept the MCC-gate notes ("MCC not eligible → base" / "bonus via MCC") in the log form only, since they need the gate + mcc context the Recommend page surfaces differently (its own eligibility hint).

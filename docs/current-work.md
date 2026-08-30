@@ -187,6 +187,7 @@ The project started 2026-06-04; all work has landed on `main` in rapid sprints.
 2026-08-26  Engine: no-method cap-aware channel sweep. With no payment method selected, bestChannelEff() evaluates contactless + online (each with its own caps + MCC gate) and keeps the highest-earning result — a channel-split card (UOB Preferred) can no longer show full bonus while the method you'd use is capped; falls to base if both channels are capped/ineligible. CardRecommendation gains bestChannel.
 2026-08-26  Log-form recs: single prioritised "why" line — "<category> cap reached · <method> — earns base" / "S$X left in <category> cap · <method>" / "MCC not eligible → base rate" / "best via <method> · S$X cap left" / "bonus via MCC". Surfaces the tap/online hint + explicit cap status in the log form (not just the Recommend reason).  [tag: v9.1-mcc-loop]
 2026-08-26  Expenses "Missed miles" tab — for each past miles-card transaction, compares miles earned vs what the best wallet card would have earned (category/amount/MCC/channel), cap-aware and chronological (reuses recommendCards + the MCC gate). Shows capture rate (actual/best), total miles left on the table, missed-by-month bars, and the biggest missed opportunities (used X → best Y · +N mi). Greedy hindsight estimate (assumes current wallet; no global re-plan). New MissedMiles component + third Expenses tab.  [tag: v9.2-missed-miles]
+2026-08-30  Polish: Recommend-page "why" note parity + per-page error states. Extracted capChannelNote() (cap reached / partial / best-via, colour-coded) into a shared helper used by the log form + Recommend page. Cards / Recommend / Transactions now render ErrorState (onRetry=refresh) on an AppContext load error instead of a silent empty state (Recommend/Cards also show a PageSkeleton while loading).  [tag: v9.3-polish]
 ```
 
 ---
@@ -382,9 +383,9 @@ The recommendation engine now consumes MCC eligibility (previously informational
 
 ## Partially completed
 
-### 1. Error handling outside Dashboard
+### 1. Error handling outside Dashboard — ✅ done (v9.3)
 
-A top-level + per-route `ErrorBoundary` now catches render crashes and failed lazy-chunk loads (no more blank screens). Still outstanding: **silent Supabase query failures** on Cards/Recommend/Transactions render an empty state with no error indication — these don't throw, so the boundary doesn't catch them; they'd need per-page error state.
+A top-level + per-route `ErrorBoundary` catches render crashes and failed lazy-chunk loads (no more blank screens). And as of **v9.3**, Cards / Recommend / Transactions render an inline `ErrorState` (Retry → `refresh`) on an AppContext load error instead of a silent empty state — matching the self-fetching pages (Miles/Earnings/Reconcile/Points/Expenses-Trends) and the Dashboard. All primary pages now surface load failures.
 
 ### 2. Admin tooling for library updates
 

@@ -338,7 +338,7 @@ The app is a functional MVP. All core features are implemented:
 | Log-form recommendation widget: compact per-card MCC glyph (✓/◐/✗) when an MCC is entered | Complete |
 | MccInfo (ⓘ) — collapsible legend + "estimated, do your own due diligence" disclaimer; log form + Recommend | Complete |
 | UI polish — keyboard focus rings (all buttons/links); popover click-outside/Esc; sticky Transactions header; Miles nav highlights on /earnings | Complete |
-| Skeleton loading states + per-page error/retry (Dashboard/Miles/Earnings/Reconcile/Points/Expenses-Trends) | Complete |
+| Skeleton loading states + per-page error/retry (Dashboard/Miles/Earnings/Reconcile/Points/Expenses-Trends + Cards/Recommend/Transactions as of v9.3) | Complete |
 | Log-transaction form MCC eligibility hint — ✓/⚠/no-data* asterisk + footnote | Complete |
 | HSBC Revolution rate boost → 8 mpd with an Everyday Global Account (effective-dated, engine-threaded) | Complete |
 | Recurring editor — Cash/Debit support + fields mirror the log form (single-column, same sequence) | Complete |
@@ -384,7 +384,7 @@ The app is a functional MVP. All core features are implemented:
 - **Error boundary** — ✅ `ErrorBoundary` around the Layout Outlet (keyed by route) and app root catches render crashes and lazy-chunk load failures (no more blank screens).
 
 ### Missing but lower priority
-- **Silent failures on some pages** — The self-fetching pages (Miles, Earnings, Reconcile, Points, Expenses→Trends) + Dashboard now show an inline "Couldn't load — Retry" (ErrorState) on a failed query, and skeletons while loading. Still outstanding: Cards / Recommend / Transactions read from AppContext, whose top-level load error isn't surfaced per-page yet (they'd show an empty state).
+- **Load-failure surfacing** — ✅ (v9.3) All primary pages show an inline "Couldn't load — Retry" (`ErrorState`) on a failed load and skeletons while loading: the self-fetching pages (Miles, Earnings, Reconcile, Points, Expenses→Trends) + Dashboard, and now Cards / Recommend / Transactions (which read from AppContext — its top-level `error` is surfaced per-page with Retry → `refresh`).
 - **No pagination or date-range control on transactions** — Loads the entire current year. Will become slow with very high transaction volumes.
 - **No push notifications or reminders** — Users must actively open the app; there is no proactive push. In-app nudges do exist on the Dashboard (cap "nearly maxed" via CapUsageBar; an expiring-miles chip when an account expires within 90 days), but nothing reaches the user while the app is closed.
 - **Mobile dashboard navigation** — Dashboard can be long on phones (stats, milestones, wallet bars, recent transactions all on one scroll). Ideas discussed (sticky sub-nav, collapsible sections, quick-jump chips) but deferred by design — not implementing for now.
