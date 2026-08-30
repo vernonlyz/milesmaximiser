@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { useApp } from '../context/AppContext'
 import BankBadge from '../components/BankBadge'
+import { useChartColors } from '../lib/useChartTheme'
 import { supabase } from '../lib/supabase'
 import MilesTabs from '../components/MilesTabs'
 import { PageSkeleton } from '../components/Skeleton'
@@ -63,16 +64,17 @@ function buildRows(months: number[], lastMonthIdx: number): ChartRow[] {
 }
 
 function EarnChart({ data, height }: { data: ChartRow[]; height: number }) {
+  const chart = useChartColors()
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
         <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
         <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={compact} />
         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={compact} />
         <Tooltip
           formatter={(value, name) => [Math.round(Number(value)).toLocaleString(), name === 'earned' ? 'This month' : 'Cumulative']}
-          contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+          contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => v === 'earned' ? 'This month' : 'Cumulative'} />
         <Bar yAxisId="left" dataKey="earned" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />

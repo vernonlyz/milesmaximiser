@@ -6,6 +6,7 @@ import { RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { Transaction } from '../lib/types'
+import { useChartColors } from '../lib/useChartTheme'
 import ErrorState from './ErrorState'
 
 const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4']
@@ -56,6 +57,7 @@ function fmtY(v: number) {
 export default function ExpensesTrends({ from, to }: Props) {
   const { allCards, categories } = useApp()
   const isMobile = useIsMobile()
+  const chart = useChartColors()
 
   const [txns, setTxns]     = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
@@ -197,13 +199,13 @@ export default function ExpensesTrends({ from, to }: Props) {
         <h2 className="font-semibold text-gray-800 mb-3">Monthly Spend by Card Type</h2>
         <ResponsiveContainer width="100%" height={chartH}>
           <BarChart data={spendData} barGap={barGap} barCategoryGap={catGap}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid} />
             <XAxis {...xProps} />
             <YAxis {...yProps} />
             <Tooltip
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={(v: any, name: any) => [`S$${Number(v).toFixed(2)}`, name]}
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+              contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
             />
             <Legend {...legendProps} />
             <Bar dataKey="Miles"    fill="#6366f1" radius={[3, 3, 0, 0]} />
@@ -223,7 +225,7 @@ export default function ExpensesTrends({ from, to }: Props) {
           {!(hasMiles && hasCashback) && <div className="mb-3" />}
           <ResponsiveContainer width="100%" height={chartH}>
             <BarChart data={rewardsData} barGap={barGap} barCategoryGap={catGap}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid} />
               <XAxis {...xProps} />
               {hasMiles && (
                 <YAxis
@@ -254,7 +256,7 @@ export default function ExpensesTrends({ from, to }: Props) {
                     ? [`${Number(v).toLocaleString()} mi`, 'Miles']
                     : [`S$${Number(v).toFixed(2)}`, 'Cashback']
                 }
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
               />
               <Legend {...legendProps} />
               {hasMiles    && <Bar yAxisId="miles"    dataKey="Miles"         fill="#6366f1" radius={[3, 3, 0, 0]} />}
@@ -270,13 +272,13 @@ export default function ExpensesTrends({ from, to }: Props) {
           <h2 className="font-semibold text-gray-800 mb-3">Top Categories by Month</h2>
           <ResponsiveContainer width="100%" height={chartH}>
             <BarChart data={catData} barGap={barGap} barCategoryGap={catGap}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid} />
               <XAxis {...xProps} />
               <YAxis {...yProps} />
               <Tooltip
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(v: any, name: any) => [`S$${Number(v).toFixed(2)}`, name]}
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
               />
               <Legend {...legendProps} />
               {topCats.map(({ label }, i) => (

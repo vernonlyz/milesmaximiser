@@ -2188,29 +2188,36 @@ export default function Transactions() {
       )}
 
       {favToDelete && (
-        <Modal title="Remove favourite" onClose={() => setFavToDelete(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Remove <span className="font-semibold text-gray-900">"{favToDelete.label}"</span>?
-              {favToDelete.recur_unit
-                ? ' Its upcoming (future-dated) transactions will be deleted; already-logged ones are kept.'
-                : " This won't affect any transactions you've already logged."}
-            </p>
+        <Modal
+          title="Remove favourite"
+          onClose={() => setFavToDelete(null)}
+          footer={
             <div className="flex gap-3">
               <button onClick={() => setFavToDelete(null)} className="btn-secondary flex-1">Cancel</button>
-              <button
-                onClick={confirmDeleteFavourite}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
-              >
-                Remove
-              </button>
+              <button onClick={confirmDeleteFavourite} className="btn-danger flex-1 justify-center">Remove</button>
             </div>
-          </div>
+          }
+        >
+          <p className="text-sm text-gray-600">
+            Remove <span className="font-semibold text-gray-900">"{favToDelete.label}"</span>?
+            {favToDelete.recur_unit
+              ? ' Its upcoming (future-dated) transactions will be deleted; already-logged ones are kept.'
+              : " This won't affect any transactions you've already logged."}
+          </p>
         </Modal>
       )}
 
       {favNameOpen && (
-        <Modal title="Save as favourite" onClose={() => setFavNameOpen(false)}>
+        <Modal
+          title="Save as favourite"
+          onClose={() => setFavNameOpen(false)}
+          footer={
+            <div className="flex gap-3">
+              <button onClick={() => setFavNameOpen(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={submitFavourite} className="btn-primary flex-1">Save favourite</button>
+            </div>
+          }
+        >
           <div className="space-y-4">
             <div>
               <label className="label">Name</label>
@@ -2225,17 +2232,22 @@ export default function Transactions() {
               <p className="text-xs text-gray-500 mt-1">Saves the card, category, vendor and payment method for quick reuse. For repeating charges, use <span className="font-medium">Recurring</span> in the toolbar.</p>
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setFavNameOpen(false)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={submitFavourite} className="btn-primary flex-1">Save favourite</button>
-            </div>
           </div>
         </Modal>
       )}
 
       {/* Standalone recurring-rule editor */}
       {recurEditorOpen && (
-        <Modal title={editingFavId ? 'Edit recurring charge' : 'New recurring charge'} onClose={() => { setRecurEditorOpen(false); setEditingFavId(null) }}>
+        <Modal
+          title={editingFavId ? 'Edit recurring charge' : 'New recurring charge'}
+          onClose={() => { setRecurEditorOpen(false); setEditingFavId(null) }}
+          footer={
+            <div className="flex gap-3">
+              <button onClick={() => { setRecurEditorOpen(false); setEditingFavId(null) }} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={submitRecurring} className="btn-primary flex-1">{editingFavId ? 'Save changes' : 'Create recurring'}</button>
+            </div>
+          }
+        >
           <div className="space-y-3">
             <div>
               <label className="label">Name</label>
@@ -2341,34 +2353,26 @@ export default function Transactions() {
             </div>
 
             {error && <p className="text-xs text-red-500">{error}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => { setRecurEditorOpen(false); setEditingFavId(null) }} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={submitRecurring} className="btn-primary flex-1">
-                {editingFavId ? 'Save changes' : 'Create recurring'}
-              </button>
-            </div>
           </div>
         </Modal>
       )}
 
       {txToDelete && (
-        <Modal title="Delete transaction" onClose={() => setTxToDelete(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Delete this transaction
-              {txToDelete.vendor_name ? <> at <span className="font-semibold text-gray-900">{txToDelete.vendor_name}</span></> : null}
-              {' '}for <span className="font-semibold text-gray-900">S${txToDelete.amount.toFixed(2)}</span>? This can't be undone.
-            </p>
+        <Modal
+          title="Delete transaction"
+          onClose={() => setTxToDelete(null)}
+          footer={
             <div className="flex gap-3">
               <button onClick={() => setTxToDelete(null)} className="btn-secondary flex-1">Cancel</button>
-              <button
-                onClick={confirmDeleteTransaction}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg py-2 transition-colors"
-              >
-                Delete
-              </button>
+              <button onClick={confirmDeleteTransaction} className="btn-danger flex-1 justify-center">Delete</button>
             </div>
-          </div>
+          }
+        >
+          <p className="text-sm text-gray-600">
+            Delete this transaction
+            {txToDelete.vendor_name ? <> at <span className="font-semibold text-gray-900">{txToDelete.vendor_name}</span></> : null}
+            {' '}for <span className="font-semibold text-gray-900">S${txToDelete.amount.toFixed(2)}</span>? This can't be undone.
+          </p>
         </Modal>
       )}
     </div>
