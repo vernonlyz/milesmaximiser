@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Sparkles, TrendingUp, Receipt, RefreshCw, AlertCircle, Target, Percent, Plus, CalendarClock, Repeat, ChevronDown, ChevronRight, Wallet, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import BankBadge from '../components/BankBadge'
+import Chip from '../components/Chip'
 import { useAuth } from '../context/AuthContext'
 import CapUsageBar from '../components/CapUsageBar'
 import { Skeleton, PageSkeleton } from '../components/Skeleton'
 import { SpendingCap, Transaction, TransactionFavourite } from '../lib/types'
 import { supabase } from '../lib/supabase'
 import { buildPeriodSpending, resolveCaps, applyAllSelectableOverrides, applyCapBoosts, resolveOverride } from '../lib/recommendations'
-import { currentMonthLabel, getPeriodLabel, getPeriodStart, getPeriodEnd, formatSGD, isoDate } from '../lib/utils'
+import { currentMonthLabel, getPeriodLabel, getPeriodStart, getPeriodEnd, formatSGD, formatMilesFull, isoDate } from '../lib/utils'
 import { isOnboarded, markOnboarded } from './Onboarding'
 
 export default function Dashboard() {
@@ -437,7 +439,7 @@ export default function Dashboard() {
         <Stat
           icon={<TrendingUp size={20} className="text-indigo-600" />}
           label="Miles Earned"
-          value={Math.round(totalMiles).toLocaleString()}
+          value={formatMilesFull(totalMiles)}
           sub="this month"
           bg="bg-indigo-50"
         />
@@ -476,12 +478,7 @@ export default function Dashboard() {
               return (
                 <div key={`${m.card.id}:${m.capPeriod}`} className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <div
-                      className="w-4 h-4 rounded text-white text-[8px] font-bold flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: m.card.color }}
-                    >
-                      {m.card.bank.slice(0, 2).toUpperCase()}
-                    </div>
+                    <BankBadge bank={m.card.bank} color={m.card.color} size="sm" />
                     <span className="text-sm font-medium text-gray-700 truncate">
                       {m.card.bank} {m.card.name}
                     </span>
@@ -532,17 +529,9 @@ export default function Dashboard() {
               {(hasMultipleTypes || walletBanks.length > 1 || debitMonthlySpent > 0) && (
                 <div className="flex flex-wrap gap-1.5 mb-4">
                   {(['all', ...(hasMultipleTypes ? ['miles', 'cashback'] : []), ...(debitMonthlySpent > 0 ? ['cash'] : []), ...walletBanks] as string[]).map(f => (
-                    <button
-                      key={f}
-                      onClick={() => setWalletFilter(f)}
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                        walletFilter === f
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
+                    <Chip key={f} active={walletFilter === f} onClick={() => setWalletFilter(f)}>
                       {f === 'all' ? 'All' : f === 'miles' ? 'Miles' : f === 'cashback' ? 'Cashback' : f === 'cash' ? 'Cash/Debit' : f}
-                    </button>
+                    </Chip>
                   ))}
                 </div>
               )}
@@ -555,12 +544,7 @@ export default function Dashboard() {
                     className="group flex items-center gap-2 mb-2 w-full text-left"
                     title="View this card's transactions"
                   >
-                    <div
-                      className="w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold shrink-0"
-                      style={{ backgroundColor: card.color }}
-                    >
-                      {card.bank.slice(0, 2).toUpperCase()}
-                    </div>
+                    <BankBadge bank={card.bank} color={card.color} />
                     <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-600 transition-colors">
                       {card.bank} {card.name}
                     </span>

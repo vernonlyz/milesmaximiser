@@ -9,6 +9,12 @@ export function formatMiles(miles: number): string {
   return Math.round(miles).toString()
 }
 
+// Full miles with thousands separators (rounded) — the standard for lists/tiles.
+// `formatMiles` stays the compact "1.2k" form for tight spots (charts, badges).
+export function formatMilesFull(miles: number): string {
+  return Math.round(miles).toLocaleString('en-SG')
+}
+
 export function formatMpd(mpd: number): string {
   return `${mpd.toFixed(2)} mpd`
 }

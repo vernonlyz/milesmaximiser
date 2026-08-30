@@ -5,6 +5,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { useApp } from '../context/AppContext'
+import BankBadge from '../components/BankBadge'
 import { supabase } from '../lib/supabase'
 import MilesTabs from '../components/MilesTabs'
 import { PageSkeleton } from '../components/Skeleton'
@@ -237,12 +238,7 @@ export default function Earnings() {
                   >
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </button>
-                  <div
-                    className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                    style={{ background: card.color ?? '#6366f1' }}
-                  >
-                    {card.bank.slice(0, 2).toUpperCase()}
-                  </div>
+                  <BankBadge bank={card.bank} color={card.color ?? '#6366f1'} size="xl" />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 text-sm truncate">{card.bank} {card.name}</p>
                     <p className="text-xs text-gray-500 flex items-center gap-1">

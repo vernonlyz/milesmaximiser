@@ -13,10 +13,11 @@ import { supabase } from '../lib/supabase'
 import { recommendCards, calcMiles, MccContext, resolveMccGate } from '../lib/recommendations'
 import { capChannelNote } from '../lib/recNote'
 import ErrorState from '../components/ErrorState'
+import Chip from '../components/Chip'
 import { resolveMccEligibility, chosenCategoryLabels } from '../lib/mcc'
 import MccInfo from '../components/MccInfo'
 import ConfidenceInfo from '../components/ConfidenceInfo'
-import { isoDate, exportCsv, getPeriodEnd } from '../lib/utils'
+import { isoDate, exportCsv, getPeriodEnd, formatMilesFull } from '../lib/utils'
 import { TransactionFormData, CardRecommendation, Transaction, Vendor, TransactionFavourite } from '../lib/types'
 
 type RecurUnit = 'day' | 'week' | 'month' | 'year'
@@ -1124,7 +1125,7 @@ export default function Transactions() {
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0"><TrendingUp size={18} className="text-indigo-600" /></div>
             <div className="min-w-0">
               <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Miles</p>
-              <p className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight truncate">+{Math.round(totalMiles).toLocaleString()}</p>
+              <p className="text-lg sm:text-2xl font-bold text-gray-900 leading-tight truncate">+{formatMilesFull(totalMiles)}</p>
             </div>
           </div>
           {totalCashback > 0 && (
@@ -1726,15 +1727,9 @@ export default function Transactions() {
                 </span>
                 {selectedVendor && selectedVendor.default_mcc === mcc && (
                   <span className="inline-flex items-center gap-1 shrink-0">
-                    <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${
-                        selectedVendor.mcc_confidence === 'confirmed' ? 'bg-emerald-100 text-emerald-700'
-                          : selectedVendor.mcc_confidence === 'unverified' ? 'bg-amber-100 text-amber-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
+                    <Chip tone={selectedVendor.mcc_confidence === 'confirmed' ? 'emerald' : selectedVendor.mcc_confidence === 'unverified' ? 'amber' : 'gray'} className="capitalize">
                       {selectedVendor.mcc_confidence}
-                    </span>
+                    </Chip>
                     <ConfidenceInfo />
                   </span>
                 )}

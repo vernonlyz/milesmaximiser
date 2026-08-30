@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { Sparkles, Trophy, ChevronDown, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import StatusBadge from '../components/StatusBadge'
@@ -191,9 +192,14 @@ export default function Recommend() {
               {mcc.length === 4 && <MccInfo />}
             </h2>
 
-            {recs.map((rec, i) => (
+            {recs.length > 0 ? recs.map((rec, i) => (
               <RecCard key={rec.card.id} rec={rec} rank={i + 1} amount={amount} mccElig={mccEligFor(rec.card)} categoryName={cat?.name ?? ''} />
-            ))}
+            )) : (
+              <div className="card p-8 text-center space-y-3">
+                <p className="text-sm text-gray-500">No miles cards in your wallet to compare.</p>
+                <Link to="/cards" className="btn-primary text-xs mx-auto inline-flex">Add cards to your wallet</Link>
+              </div>
+            )}
           </div>
         ) : mcc.length === 4 ? (
           <div className="space-y-3">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Check, Loader2, Smile } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
+import BankBadge from '../components/BankBadge'
 import { resolveRates } from '../lib/recommendations'
 
 export function markOnboarded(userId: string) {
@@ -108,12 +109,7 @@ export default function Onboarding() {
                     </div>
 
                     {/* Bank badge */}
-                    <div
-                      className="w-9 h-9 rounded-lg mb-3 flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ backgroundColor: card.color }}
-                    >
-                      {card.bank.slice(0, 2).toUpperCase()}
-                    </div>
+                    <div className="mb-3"><BankBadge bank={card.bank} color={card.color} size="xl" /></div>
 
                     <p className="font-semibold text-sm text-gray-900 leading-tight">{card.bank}</p>
                     <p className="text-xs text-gray-500 leading-tight mt-0.5 line-clamp-2">{card.name}</p>

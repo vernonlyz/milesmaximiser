@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Check, Plus, Minus, Info, Pencil, CalendarDays, Clock, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import BankBadge from '../components/BankBadge'
 import { resolveRates, resolveCaps, resolveOverride, applySelectableOverride } from '../lib/recommendations'
 import { capPeriodLabel, isoDate } from '../lib/utils'
 import { CreditCard, SpendingCap, CardBoost, CardMccEligibility } from '../lib/types'
@@ -314,7 +315,14 @@ export default function Cards() {
       </div>
 
       {sortedCards.length === 0 && (
-        <p className="text-sm text-gray-500 text-center py-6">No cards match the selected filters.</p>
+        walletFilter === 'wallet' && walletCount === 0 ? (
+          <div className="card p-8 text-center space-y-3">
+            <p className="text-sm text-gray-500">No cards in your wallet yet.</p>
+            <button onClick={() => setWalletFilter('all')} className="btn-primary text-xs mx-auto inline-flex">Browse all cards to add</button>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 text-center py-6">No cards match the selected filters.</p>
+        )
       )}
 
       {/* One uniform grid of card tiles */}
@@ -327,12 +335,7 @@ export default function Cards() {
                   className={`card p-4 flex flex-col ${inWallet ? 'ring-2 ring-indigo-400 border-indigo-200' : ''}`}
                 >
                   <div className="flex items-start gap-3">
-                    <div
-                      className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                      style={{ backgroundColor: card.color }}
-                    >
-                      {card.bank.slice(0, 2).toUpperCase()}
-                    </div>
+                    <BankBadge bank={card.bank} color={card.color} size="xl" />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 text-sm truncate">{card.bank} {card.name}</p>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">{headline(card, cardRates)}</p>
