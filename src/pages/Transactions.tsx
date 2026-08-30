@@ -1562,6 +1562,14 @@ export default function Transactions() {
         <Modal
           title={editingId ? 'Edit Transaction' : 'Log Transaction'}
           onClose={() => setShowModal(false)}
+          footer={
+            <div className="flex gap-3">
+              <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+                {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
+              </button>
+            </div>
+          }
         >
           {/* Favourites — quick prefill, only when adding */}
           {!editingId && favourites.length > 0 && (
@@ -2122,13 +2130,6 @@ export default function Transactions() {
             </p>
           )}
 
-          {/* Sticky action bar — always reachable without scrolling the long form */}
-          <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-white border-t border-gray-100 flex gap-3">
-            <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
-              {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
-            </button>
-          </div>
         </Modal>
       )}
 
