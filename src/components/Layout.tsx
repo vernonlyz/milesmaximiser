@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { NavLink, Link, Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award, Loader2, RefreshCw,
+  LayoutDashboard, Sparkles, Receipt, CreditCard, Menu, X, Smile, LogOut, Info, MessageSquare, ShieldCheck, BarChart2, Calculator, Download, Share, Award, Loader2, RefreshCw, Plus,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import ThemeToggle from './ThemeToggle'
@@ -411,6 +411,22 @@ export default function Layout() {
           More
         </button>
       </nav>
+
+      {/* Mobile "Log" FAB — one thumb-tap to log from any screen. Hidden on
+          /transactions itself (the header button is right there, and the
+          openModal state only fires on a route change). */}
+      {location.pathname !== '/transactions' && (
+        <Link
+          to="/transactions"
+          state={{ openModal: true }}
+          onClick={() => setOpen(false)}
+          aria-label="Log a transaction"
+          className="lg:hidden fixed right-4 z-30 w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 flex items-center justify-center active:scale-95 transition-transform"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.75rem)' }}
+        >
+          <Plus size={26} strokeWidth={2.5} />
+        </Link>
+      )}
 
       {genericInstall && (
         <Modal title="Install SmileMax" onClose={() => setGenericInstall(false)}>
