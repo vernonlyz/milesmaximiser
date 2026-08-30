@@ -1059,3 +1059,13 @@ Captures key architectural choices made during development — what was decided,
 **Number formatting:** Added `formatMilesFull()` (round + en-SG thousands separators) and applied it to the prominent totals. An audit showed the remaining miles displays already use `Math.round().toLocaleString()`, so no churn was warranted — the helper standardises the locale for future use. `formatMiles` (compact "1.2k") is retained for charts/badges.
 
 **Scope note:** Cards/Earnings/Onboarding use the larger tile badge (`xl`, rounded-xl); the small inline ones are md/sm — all now flow through `BankBadge`. StatusBadge already matched Chip's shape, so it was left as its own typed component.
+
+---
+
+## 2026-08-30 — Dark mode via a centralized utility remap (v9.6)
+
+**Decision:** Ship dark mode with Tailwind's `class` strategy + a no-flash pre-paint init script (default follows system), a `useTheme` hook (light/dark/system, persisted, live OS updates) and a 3-way `ThemeToggle` in the sidebar. Theme the shared component classes (`.card`/`.input`/`.btn-secondary`/`.label`/`body`) with `dark:` variants.
+
+**Key choice — centralized remap over a per-class sweep.** The pages use ~700 inline light-palette utilities (`bg-white`, `text-gray-*`, `bg-gray-50/100`, `border-gray-*`, accent `-50/-100`). Adding a `dark:` variant to each is impractical and churny. Instead, one CSS block under `.dark` remaps the common utilities (`.dark .bg-white { … }` etc.) — `.dark .x` (0,2,0) beats the single-class utility (0,1,0) and comes later in source order, so it wins with no JSX edits. Accent chips/badges/notes needed both the background (-50/-100 → translucent) and the dark accent text (-600/700/800 → lighter) remapped, or dark text sat on a dark bg (e.g. the log-form Favourites chips).
+
+**Trade-offs:** it's a broad-strokes approach, not a hand-tuned dark theme — a few surfaces (Recharts grid/tick colors hardcoded light, the odd un-remapped shade) may still need per-spot polish, done as reported. The always-dark sidebar chrome is unchanged. Refining specific screens with real `dark:` variants remains possible later.
