@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat, CheckCircle2, Circle, Receipt, TrendingUp, Percent, Wallet } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Sparkles, Pencil, X, Search, Users, Info, Download, AlertTriangle, Star, Repeat, CheckCircle2, Circle, Receipt, TrendingUp, Percent, Wallet, Filter } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -113,6 +113,7 @@ export default function Transactions() {
 
   const [paymentChannel, setPaymentChannel] = useState<'contactless' | 'online' | 'chip' | null>(null)
   const [recsExpanded, setRecsExpanded] = useState(false)  // log-form recommendation list: show all vs top 3
+  const [filtersOpen, setFiltersOpen] = useState(false)    // collapsible advanced-filter panel
 
   // MPD override state
   const [mpdOverrideActive, setMpdOverrideActive] = useState(false)
@@ -971,112 +972,108 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="card p-4 flex flex-wrap gap-3">
-        {/* Year select */}
-        <div className="relative">
-          <select
-            value={filterYear}
-            onChange={e => { setFilterYear(e.target.value); setFilterMonthNum('') }}
-            className="input w-24 appearance-none pr-7 text-sm"
-          >
-            {Array.from({ length: parseInt(nowYear) - 2023 }, (_, i) => String(parseInt(nowYear) - i)).map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
+      {/* Filters — collapsible panel + active-filter pills; search always visible */}
+      {(() => {
+        const chips: { key: string; label: string; clear: () => void }[] = []
+        if (filterCat) { const c = categories.find(x => x.id === filterCat); chips.push({ key: 'cat', label: `${c?.icon ?? ''} ${c?.name ?? 'Category'}`.trim(), clear: () => setFilterCat('') }) }
+        if (filterBank) chips.push({ key: 'bank', label: filterBank, clear: () => { setFilterBank(''); setFilterCard('') } })
+        if (filterCard) { const c = cards.find(x => x.id === filterCard) ?? allCards.find(x => x.id === filterCard); chips.push({ key: 'card', label: c ? `${c.bank} ${c.name}` : 'Card', clear: () => setFilterCard('') }) }
+        if (filterRecur) chips.push({ key: 'recur', label: filterRecur === 'recurring' ? 'Recurring' : 'One-off', clear: () => setFilterRecur('') })
+        const count = chips.length
+        return (
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setFiltersOpen(o => !o)} className="btn-secondary text-xs">
+            <Filter size={13} /> Filters
+            {count > 0 && <span className="ml-1 bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 rounded-full">{count}</span>}
+            <ChevronDown size={12} className={`transition-transform ${filtersOpen ? '' : '-rotate-90'}`} />
+          </button>
 
-        {/* Month select */}
-        <div className="relative">
-          <select
-            value={filterMonthNum}
-            onChange={e => setFilterMonthNum(e.target.value)}
-            className="input w-32 appearance-none pr-7 text-sm"
-          >
-            <option value="">All months</option>
-            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((name, i) => (
-              <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{name}</option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search vendor or notes…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="input pl-7 text-sm w-full"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600">
+                <X size={12} />
+              </button>
+            )}
+          </div>
 
-        {loadingYear && <span className="text-xs text-gray-500 self-center">Loading…</span>}
-
-        <div className="relative">
-          <select
-            value={filterCat}
-            onChange={e => setFilterCat(e.target.value)}
-            className="input w-40 appearance-none pr-7 text-sm"
-          >
-            <option value="">All categories</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-
-        <div className="relative">
-          <select
-            value={filterBank}
-            onChange={e => { setFilterBank(e.target.value); setFilterCard('') }}
-            className="input w-32 appearance-none pr-7 text-sm"
-          >
-            <option value="">All banks</option>
-            {bankOptions.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-
-        <div className="relative">
-          <select
-            value={filterCard}
-            onChange={e => setFilterCard(e.target.value)}
-            className="input w-48 appearance-none pr-7 text-sm"
-          >
-            <option value="">All cards</option>
-            {cards.filter(c => !filterBank || c.bank === filterBank).map(c => (
-              <option key={c.id} value={c.id}>{c.bank} {c.name}</option>
-            ))}
-            {allCards.filter(c => c.card_type === 'debit' && (!filterBank || c.bank === filterBank)).map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-
-        <div className="relative">
-          <select
-            value={filterRecur}
-            onChange={e => setFilterRecur(e.target.value as '' | 'recurring' | 'oneoff')}
-            className="input w-36 appearance-none pr-7 text-sm"
-          >
-            <option value="">All types</option>
-            <option value="recurring">Recurring only</option>
-            <option value="oneoff">One-off only</option>
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-
-        <div className="relative flex-1 min-w-[180px]">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search vendor or notes…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="input pl-7 text-sm w-full"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600">
-              <X size={12} />
-            </button>
+          {count > 0 && (
+            <button onClick={() => { setFilterCat(''); setFilterBank(''); setFilterCard(''); setFilterRecur('') }} className="text-xs text-gray-500 hover:text-gray-700 underline">Clear all</button>
           )}
         </div>
 
+        {/* Active filter pills */}
+        {count > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {chips.map(chip => (
+              <span key={chip.key} className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">
+                {chip.label}
+                <button onClick={chip.clear} className="hover:text-indigo-900" aria-label={`Clear ${chip.label}`}><X size={11} /></button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Collapsible controls */}
+        {filtersOpen && (
+          <div className="flex flex-wrap gap-3 pt-3 border-t border-gray-100">
+            <div className="relative">
+              <select value={filterYear} onChange={e => { setFilterYear(e.target.value); setFilterMonthNum('') }} className="input w-24 appearance-none pr-7 text-sm">
+                {Array.from({ length: parseInt(nowYear) - 2023 }, (_, i) => String(parseInt(nowYear) - i)).map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select value={filterMonthNum} onChange={e => setFilterMonthNum(e.target.value)} className="input w-32 appearance-none pr-7 text-sm">
+                <option value="">All months</option>
+                {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((name, i) => <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{name}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+            {loadingYear && <span className="text-xs text-gray-500 self-center">Loading…</span>}
+            <div className="relative">
+              <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="input w-40 appearance-none pr-7 text-sm">
+                <option value="">All categories</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select value={filterBank} onChange={e => { setFilterBank(e.target.value); setFilterCard('') }} className="input w-32 appearance-none pr-7 text-sm">
+                <option value="">All banks</option>
+                {bankOptions.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select value={filterCard} onChange={e => setFilterCard(e.target.value)} className="input w-48 appearance-none pr-7 text-sm">
+                <option value="">All cards</option>
+                {cards.filter(c => !filterBank || c.bank === filterBank).map(c => <option key={c.id} value={c.id}>{c.bank} {c.name}</option>)}
+                {allCards.filter(c => c.card_type === 'debit' && (!filterBank || c.bank === filterBank)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select value={filterRecur} onChange={e => setFilterRecur(e.target.value as '' | 'recurring' | 'oneoff')} className="input w-36 appearance-none pr-7 text-sm">
+                <option value="">All types</option>
+                <option value="recurring">Recurring only</option>
+                <option value="oneoff">One-off only</option>
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+          </div>
+        )}
       </div>
+        )
+      })()}
 
       {/* Date range (overrides year/month when set) + Timeframe control */}
       <div className="card px-4 py-2.5 flex flex-wrap items-center gap-2 text-sm">
@@ -1886,7 +1883,7 @@ export default function Transactions() {
 
           {/* Live recommendation — miles cards only, only shown when adding */}
           {formCard?.card_type !== 'cashback' && formCard?.card_type !== 'debit' && !editingId && recs.length > 0 && (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1.5">
+            <div className={`bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1.5 ${recsExpanded ? '' : 'sticky top-0 z-10 shadow-sm'}`}>
               <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
                 <Sparkles size={12} /> Recommendation
                 {mcc.length === 4 && <MccInfo className="ml-auto" />}
@@ -2125,7 +2122,8 @@ export default function Transactions() {
             </p>
           )}
 
-          <div className="flex gap-3 pt-2">
+          {/* Sticky action bar — always reachable without scrolling the long form */}
+          <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-white border-t border-gray-100 flex gap-3">
             <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
               {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Save Transaction'}
