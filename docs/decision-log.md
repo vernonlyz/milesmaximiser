@@ -1039,3 +1039,13 @@ Captures key architectural choices made during development — what was decided,
 **Also:** Cards / Recommend / Transactions now render `ErrorState` (Retry → `refresh`) when AppContext's load `error` is set, closing the "silent empty state on query failure" gap noted in Partially-completed. These pages read AppContext (they don't self-fetch), so surfacing its top-level `error` is the right hook. (In Transactions the context `error` is aliased to `appError` to avoid a clash with a local `error` state.)
 
 **Why a shared helper:** the note logic had been duplicated inline; a helper prevents drift and made the Recommend-page parity a one-liner. Kept the MCC-gate notes ("MCC not eligible → base" / "bonus via MCC") in the log form only, since they need the gate + mcc context the Recommend page surfaces differently (its own eligibility hint).
+
+---
+
+## 2026-08-30 — Transactions filter consolidation + Modal footer (v9.4)
+
+**Decision:** Collapse the Transactions advanced filters (year, month, category, bank, card, recurring) behind a "Filters (N)" toggle with an active-count badge; keep search always visible; render active filters as removable pills with "Clear all". The timeframe (All/Past/Upcoming) and date-range row are unchanged. Rationale: the flat row of ~7 selects wrapped badly (esp. mobile) and buried which filters were actually active; pills + a count make state legible and the default view calm.
+
+**Modal footer:** Added a `footer` prop to the shared `Modal` — a non-scrolling bar rendered below the scrollable body. The log form's Cancel/Save moved there. An earlier attempt made the Save row `sticky bottom-0` inside the scroll body, but the `space-y` gap above it let fields show through; a true footer (outside the scroll) is opaque and definitively fixes the peek-through. The `footer` prop is reusable for the other modals.
+
+**Trade-off:** the Recommendation panel is still `sticky top-0` within the scroll (it has a solid background so it covers content); only the action bar needed the non-scrolling treatment.
