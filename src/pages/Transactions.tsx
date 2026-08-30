@@ -1582,12 +1582,12 @@ export default function Transactions() {
                 {favourites.map(f => (
                   <span
                     key={f.id}
-                    className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-amber-800 overflow-hidden"
+                    className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-amber-800 overflow-hidden dark:border-amber-500/40 dark:text-amber-200"
                   >
                     <button
                       type="button"
                       onClick={() => applyFavourite(f)}
-                      className="text-xs pl-2.5 pr-1.5 py-1 hover:bg-amber-100 transition-colors flex items-center gap-1"
+                      className="text-xs pl-2.5 pr-1.5 py-1 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors flex items-center gap-1"
                     >
                       {f.recurrence === 'monthly' && <Repeat size={10} className="text-indigo-500 shrink-0" />}
                       {f.label}
