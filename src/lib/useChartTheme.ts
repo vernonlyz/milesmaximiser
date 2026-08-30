@@ -25,6 +25,9 @@ export function useChartColors() {
     tooltip: { fontSize: 12, borderRadius: 8, border: '1px solid #374151', backgroundColor: '#1f2937', color: '#f3f4f6' } as const,
     tooltipItem: { color: '#f3f4f6' } as const,
     tooltipLabel: { color: '#e5e7eb' } as const,
+    // The hover cursor (bar highlight rect / line) — default light gray reads as
+    // a white block on dark, so use a subtle light-on-dark wash.
+    cursor: { fill: 'rgba(148, 163, 184, 0.14)', stroke: '#4b5563' } as const,
   }
   return {
     grid: '#f0f0f0',
@@ -32,5 +35,6 @@ export function useChartColors() {
     tooltip: { fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' } as const,
     tooltipItem: {} as const,
     tooltipLabel: {} as const,
+    cursor: { fill: 'rgba(0, 0, 0, 0.04)' } as const,
   }
 }

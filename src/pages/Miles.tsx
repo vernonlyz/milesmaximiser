@@ -892,7 +892,7 @@ export default function Miles() {
                             />
                             <Tooltip
                               formatter={(v: any) => [Number(v).toLocaleString(), 'Balance']}
-                              contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
+                              cursor={chart.cursor} contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
                             />
                             <Line type="monotone" dataKey="balance" stroke="#6366f1" strokeWidth={2} dot={{ r: 2 }} />
                           </LineChart>

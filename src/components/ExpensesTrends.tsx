@@ -205,7 +205,7 @@ export default function ExpensesTrends({ from, to }: Props) {
             <Tooltip
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               formatter={(v: any, name: any) => [`S$${Number(v).toFixed(2)}`, name]}
-              contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
+              cursor={chart.cursor} contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
             />
             <Legend {...legendProps} />
             <Bar dataKey="Miles"    fill="#6366f1" radius={[3, 3, 0, 0]} />
@@ -256,7 +256,7 @@ export default function ExpensesTrends({ from, to }: Props) {
                     ? [`${Number(v).toLocaleString()} mi`, 'Miles']
                     : [`S$${Number(v).toFixed(2)}`, 'Cashback']
                 }
-                contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
+                cursor={chart.cursor} contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
               />
               <Legend {...legendProps} />
               {hasMiles    && <Bar yAxisId="miles"    dataKey="Miles"         fill="#6366f1" radius={[3, 3, 0, 0]} />}
@@ -278,7 +278,7 @@ export default function ExpensesTrends({ from, to }: Props) {
               <Tooltip
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(v: any, name: any) => [`S$${Number(v).toFixed(2)}`, name]}
-                contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
+                cursor={chart.cursor} contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
               />
               <Legend {...legendProps} />
               {topCats.map(({ label }, i) => (

@@ -74,7 +74,7 @@ function EarnChart({ data, height }: { data: ChartRow[]; height: number }) {
         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={compact} />
         <Tooltip
           formatter={(value, name) => [Math.round(Number(value)).toLocaleString(), name === 'earned' ? 'This month' : 'Cumulative']}
-          contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
+          cursor={chart.cursor} contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => v === 'earned' ? 'This month' : 'Cumulative'} />
         <Bar yAxisId="left" dataKey="earned" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />
