@@ -1069,3 +1069,11 @@ Captures key architectural choices made during development — what was decided,
 **Key choice — centralized remap over a per-class sweep.** The pages use ~700 inline light-palette utilities (`bg-white`, `text-gray-*`, `bg-gray-50/100`, `border-gray-*`, accent `-50/-100`). Adding a `dark:` variant to each is impractical and churny. Instead, one CSS block under `.dark` remaps the common utilities (`.dark .bg-white { … }` etc.) — `.dark .x` (0,2,0) beats the single-class utility (0,1,0) and comes later in source order, so it wins with no JSX edits. Accent chips/badges/notes needed both the background (-50/-100 → translucent) and the dark accent text (-600/700/800 → lighter) remapped, or dark text sat on a dark bg (e.g. the log-form Favourites chips).
 
 **Trade-offs:** it's a broad-strokes approach, not a hand-tuned dark theme — a few surfaces (Recharts grid/tick colors hardcoded light, the odd un-remapped shade) may still need per-spot polish, done as reported. The always-dark sidebar chrome is unchanged. Refining specific screens with real `dark:` variants remains possible later.
+
+---
+
+## 2026-08-30 — Theme-aware Recharts colours + Modal footer reuse (v9.7)
+
+**Decision:** Recharts renders colours from props, not CSS, so the dark utility remap couldn't reach charts. Added `useIsDark()` (MutationObserver on the `<html>` class, so it tracks both the toggle and system changes) and `useChartColors()` returning grid stroke, tick fill, tooltip content/item/label styles, and the hover `cursor`. Applied to ExpensesTrends, Earnings `EarnChart`, and the Miles trend chart. The hover cursor especially mattered — Recharts' default is a light-gray rect that reads as a white block on dark.
+
+**Also:** reused the `Modal` `footer` prop (added in v9.4) across the remove-favourite / save-as-favourite / recurring-editor / delete-transaction modals, so every modal has the same non-scrolling, always-visible action bar; danger confirms use `btn-danger`.
