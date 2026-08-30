@@ -1077,3 +1077,13 @@ Captures key architectural choices made during development — what was decided,
 **Decision:** Recharts renders colours from props, not CSS, so the dark utility remap couldn't reach charts. Added `useIsDark()` (MutationObserver on the `<html>` class, so it tracks both the toggle and system changes) and `useChartColors()` returning grid stroke, tick fill, tooltip content/item/label styles, and the hover `cursor`. Applied to ExpensesTrends, Earnings `EarnChart`, and the Miles trend chart. The hover cursor especially mattered — Recharts' default is a light-gray rect that reads as a white block on dark.
 
 **Also:** reused the `Modal` `footer` prop (added in v9.4) across the remove-favourite / save-as-favourite / recurring-editor / delete-transaction modals, so every modal has the same non-scrolling, always-visible action bar; danger confirms use `btn-danger`.
+
+---
+
+## 2026-08-30 — Mobile "Log" FAB (v9.8)
+
+**Decision:** Add a mobile-only floating action button (indigo circular `+`, fixed bottom-right, `lg:hidden`) so logging a transaction is one thumb-tap from any screen, not a trip to the header/bottom-nav. It's a `<Link to="/transactions" state={{ openModal: true }}>` — reusing the existing route-state pattern that Transactions already reads on mount to auto-open the log modal.
+
+**Placement:** sits above the bottom tab bar and clears the iOS home indicator via `bottom: calc(env(safe-area-inset-bottom) + 4.75rem)`; `z-30` matches the tab bar.
+
+**Key choice — hidden on `/transactions` itself.** The openModal state only fires on a *route change*, so a same-route tap wouldn't re-open the modal; and the header "Log" button is already on that page. Hiding the FAB there avoids a dead tap and visual redundancy. The bottom-nav "Log" tab (which just navigates to the page) stays as-is.
