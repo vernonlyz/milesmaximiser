@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { RewardProgram, CardRewardProgram, CreditReconciliation, CreditCard } from '../lib/types'
-import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, resolveBoost, resolveOverride } from '../lib/recommendations'
+import { splitBaseBonus, resolveRates, resolveCaps, applyAllSelectableOverrides, applyCapBoosts, resolveBoost, resolveOverride } from '../lib/recommendations'
 import { getPeriodStart, getPeriodEnd, isoDate } from '../lib/utils'
 import MilesTabs from '../components/MilesTabs'
 import DatePicker from '../components/DatePicker'
@@ -99,11 +99,18 @@ export default function Reconcile() {
     return m
   }, [mapping, programs])
 
-  // Monthly cap that bounds a bonus bucket: the category cap (or group) for
-  // by-category buckets, else a channel/global cap. Used to cap aggregate spend.
-  function capForBucket(card: CreditCard, categoryId: string | null): number | null {
-    const rel = caps.filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
-      && (categoryId ? (c.category_id === categoryId || c.cap_group != null) : (c.cap_payment_channel != null || c.category_id == null)))
+  // Monthly cap that bounds a bonus bucket: the category cap (or combined group
+  // pool) for by-category buckets, else a channel/global cap OR the combined group
+  // pool. Resolved to the cycle date and lifted to the boosted cap when active
+  // (e.g. HSBC Revolution + EGA → S$1,200) — a combined-pool card (bonus_by_category
+  // = false, cap_group set) would otherwise find no cap here and reconcile uncapped.
+  function capForBucket(card: CreditCard, categoryId: string | null, dateStr: string): number | null {
+    const date = new Date(dateStr)
+    const rel = applyCapBoosts([card], resolveCaps(caps, date), boosts, date)
+      .filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
+        && (categoryId
+            ? (c.category_id === categoryId || c.cap_group != null)
+            : (c.cap_payment_channel != null || c.category_id == null || c.cap_group != null)))
     return rel.length ? Math.min(...rel.map(c => c.spend_limit as number)) : null
   }
 
@@ -115,8 +122,9 @@ export default function Reconcile() {
   function bonusInfoByCat(card: CreditCard, dateStr: string): Map<string, { baseDelta: number; boostDelta: number; cap: number | null }> {
     const date = new Date(dateStr)
     const applied = applyAllSelectableOverrides(cards, resolveRates(rates, date), resolveCaps(caps, date), overrides, date)
+    const boostedCaps = applyCapBoosts([card], applied.caps, boosts, date)
     const capFor = (catId: string): number | null => {
-      const rel = applied.caps.filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
+      const rel = boostedCaps.filter(c => c.card_id === card.id && c.spend_limit != null && c.cap_period === 'monthly'
         && (c.category_id === catId || c.cap_group != null))
       return rel.length ? Math.min(...rel.map(c => c.spend_limit as number)) : null
     }
@@ -248,7 +256,7 @@ export default function Reconcile() {
         }
         for (const [key, b] of buckets) {
           const categoryId = card.bonus_by_category && key !== 'none' && key !== 'all' ? key : null
-          const capSpend = capForBucket(card, categoryId)
+          const capSpend = capForBucket(card, categoryId, blk.cycleEnd)
           const capMi = capSpend != null && b.delta > 0 ? Math.floor(capSpend / block) * block * b.delta : null  // max bonus miles
           let miles = b.miles
           let capped = false
