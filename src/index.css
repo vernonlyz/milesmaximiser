@@ -66,6 +66,12 @@
 /* Accent chips/badges/notes: soft -50/-100 backgrounds become translucent AND the
    dark accent text (-600/700/800) lightens, so both stay legible on dark surfaces. */
 .dark .bg-indigo-50 { background-color: rgba(99, 102, 241, 0.15); }
+/* Opacity-modifier variants (bg-indigo-50/40 etc.) generate their own classes,
+   so they miss the rule above and stay light — invisible under the remapped
+   light text. Map them to the same translucent dark wash. */
+.dark .bg-indigo-50\/40,
+.dark .bg-indigo-50\/50,
+.dark .bg-indigo-50\/60 { background-color: rgba(99, 102, 241, 0.15); }
 .dark .bg-indigo-100 { background-color: rgba(99, 102, 241, 0.22); }
 .dark .text-indigo-600, .dark .text-indigo-700 { color: #a5b4fc; }
 .dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.15); }
