@@ -1087,3 +1087,17 @@ Captures key architectural choices made during development — what was decided,
 **Placement:** sits above the bottom tab bar and clears the iOS home indicator via `bottom: calc(env(safe-area-inset-bottom) + 4.75rem)`; `z-30` matches the tab bar.
 
 **Key choice — hidden on `/transactions` itself.** The openModal state only fires on a *route change*, so a same-route tap wouldn't re-open the modal; and the header "Log" button is already on that page. Hiding the FAB there avoids a dead tap and visual redundancy. The bottom-nav "Log" tab (which just navigates to the page) stays as-is.
+
+---
+
+## 2026-09-01 — Reconcile cap/rounding correctness for HSBC Revolution & Maybank XL Rewards (v9.9)
+
+**Context:** Verified both cards' point formulas against the bank rules. Rates were right; Reconcile mis-modelled the cap grain and rounding.
+
+**HSBC Revolution — boosted bonus cap.** Reconcile computes its own cap via `capForBucket`. For a combined-pool card (`bonus_by_category = false`, `cap_group` set) the "all" bucket matched no cap row (its caps are category-scoped) → reconciled **uncapped**, and it never applied the EGA boost cap. Fix: match `cap_group` pool caps for the null bucket, and run the resolved caps through `applyCapBoosts` at the cycle date. Expected bonus now caps at $1,200×19 = **22,800 pts**. Mirrored into `bonusInfoByCat.capFor` (no-op for the UOB cards, which have no `boost_cap`). Note: the *stored* `miles_earned` on affected txns is independently inflated (recompute fixes that); this fix makes Reconcile's Expected correct regardless.
+
+**Maybank XL Rewards — aggregate grain + deferred credit.** TREATS accrues on **aggregated** eligible spend (sum → ÷5 → floor → ×rate: base ×5 / bonus ×45), and base+bonus credit together by the **end of the following month**. The app had it at `per_transaction` (floors each charge to $5 → under-credits the sub-$5 remainder) and `on_post` (same-month lump). Migration 080 sets `bonus_rounding='aggregate'` + `bonus_timing='next_calendar_month'`; `deferredCreditDate()` dates its lump to end-of-next-month. **Base:** dropped from `baseRoundsToNearest` so it floors to the $5 block per charge — chose option (a) (per-transaction $5-floor, keeps the per-txn tick UX) over (b) (full aggregate-sum base lump); the residual vs a true aggregate-sum base is the per-charge sub-$5 remainder on base only.
+
+**Dark mode.** `bg-indigo-50/40|/50|/60` opacity-modifier utilities generate their own classes and missed the `.dark .bg-indigo-50` remap, so those panels stayed light while the text was remapped light → invisible (Reconcile accumulated-bonus panels, Miles, Admin). Added a remap for the variants.
+
+**Seed gap closed.** `bonus_rounding` / `bonus_by_category` were never mirrored into `library_seed.sql` — migrations 036/038 key off card name and no-op on a fresh install (they run before the cards are inserted). Backfilled the UOB flags alongside the Maybank change so a clean DB matches a migrated one.
