@@ -923,6 +923,20 @@ UPDATE card_library SET default_payment_channel = 'online'      WHERE id = '0000
 -- ─────────────────────────────────────────────────────────────────────────────
 UPDATE card_library SET bonus_timing = 'next_calendar_month' WHERE id = '00000000-0000-0000-0001-000000000002';  -- DBS Woman's World
 
+-- Bonus rounding grain + by-category / deferred crediting (Reconcile). Mirrors
+-- migrations 036 / 038 / 080 by id — those key off card NAME and no-op on a fresh
+-- install (they run before library_seed inserts the cards), so set them here too.
+UPDATE card_library SET bonus_rounding = 'aggregate'
+  WHERE id IN ('00000000-0000-0000-0001-000000000010',   -- UOB Lady's Card
+               '00000000-0000-0000-0001-000000000011',   -- UOB Lady's Solitaire
+               '00000000-0000-0000-0001-000000000012',   -- UOB Visa Signature
+               '00000000-0000-0000-0001-000000000016');  -- Maybank XL Rewards
+UPDATE card_library SET bonus_by_category = true, bonus_timing = 'next_calendar_month'
+  WHERE id IN ('00000000-0000-0000-0001-000000000010',   -- UOB Lady's Card
+               '00000000-0000-0000-0001-000000000011');  -- UOB Lady's Solitaire
+UPDATE card_library SET bonus_timing = 'next_calendar_month'
+  WHERE id = '00000000-0000-0000-0001-000000000016';     -- Maybank XL Rewards (base+bonus credit end of next month)
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Wildcard contactless rates (null category = any category earns bonus when tapped)
 -- Supersedes the per-category contactless transport rates.

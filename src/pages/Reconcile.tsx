@@ -26,18 +26,20 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-SG', { day: 'n
 const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 
 // Cards whose 1X base reward points are awarded on the amount ROUNDED to the
-// nearest dollar (the bonus multiplier floors). HSBC Reward Points and Maybank
-// TREATS Points both credit base this way; extend this list as verified.
-const baseRoundsToNearest = (c: CreditCard) =>
-  c.bank === 'HSBC' || (c.bank === 'Maybank' && c.name === 'XL Rewards')
+// nearest dollar (the bonus multiplier floors). HSBC Reward Points credit base
+// this way; extend this list as verified. (Maybank XL Rewards floors base to the
+// $5 block on aggregate spend like its bonus, so it is NOT in this list.)
+const baseRoundsToNearest = (c: CreditCard) => c.bank === 'HSBC'
 
 // Credit date for a deferred (bonus_timing = 'next_calendar_month') bonus lump.
-// Default is the 1st of the following month; DBS Woman's World credits the
-// accumulated calendar-month bonus on the 15th of the following month.
-const deferredCreditDate = (c: CreditCard, cycleStart: string) =>
-  c.bank === 'DBS' && c.name === "Woman's World Card"
-    ? `${monthKey(firstOfNext(monthKey(cycleStart)))}-15`
-    : firstOfNext(monthKey(cycleStart))
+// Default is the 1st of the following month; DBS Woman's World credits on the
+// 15th of the following month; Maybank XL Rewards by the END of the following month.
+const deferredCreditDate = (c: CreditCard, cycleStart: string) => {
+  const nextMonth = monthKey(firstOfNext(monthKey(cycleStart)))
+  if (c.bank === 'DBS' && c.name === "Woman's World Card") return `${nextMonth}-15`
+  if (c.bank === 'Maybank' && c.name === 'XL Rewards') return lastDayOf(nextMonth)
+  return firstOfNext(monthKey(cycleStart))
+}
 
 // One transaction's expected split, in miles + (optional) program points.
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
