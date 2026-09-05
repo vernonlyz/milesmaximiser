@@ -1884,11 +1884,10 @@ export default function Transactions() {
             )}
           </div>
 
-          {/* Live recommendation — miles cards only, only shown when adding. Opaque
-              dark bg (dark:!bg) so the pinned panel doesn't let form fields show
-              through — the .dark remap makes bg-indigo-50 translucent. */}
+          {/* Live recommendation — miles cards only, only shown when adding. Scrolls
+              with the form (not sticky) so it never overlays the fields below it. */}
           {formCard?.card_type !== 'cashback' && formCard?.card_type !== 'debit' && !editingId && recs.length > 0 && (
-            <div className={`bg-indigo-50 dark:!bg-[#293353] border border-indigo-100 rounded-xl p-3 space-y-1.5 ${recsExpanded ? '' : 'sticky top-0 z-10 shadow-sm'}`}>
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 space-y-1.5">
               <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
                 <Sparkles size={12} /> Recommendation
                 {mcc.length === 4 && <MccInfo className="ml-auto" />}
