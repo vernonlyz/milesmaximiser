@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { Transaction } from '../lib/types'
 import { useChartColors } from '../lib/useChartTheme'
+import { formatSGD, formatMilesFull } from '../lib/utils'
 import ErrorState from './ErrorState'
 
 const CAT_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4']
@@ -125,6 +126,17 @@ export default function ExpensesTrends({ from, to }: Props) {
   const hasMiles    = rewardsData.some(d => d.Miles > 0)
   const hasCashback = rewardsData.some(d => d['Cashback (S$)'] > 0)
 
+  // Period totals — the headline numbers, shown as stat tiles above the charts.
+  const totals = useMemo(() => {
+    let spent = 0, miles = 0, cashback = 0
+    for (const t of txns) {
+      spent    += t.amount
+      miles    += t.miles_earned    ?? 0
+      cashback += t.cashback_earned ?? 0
+    }
+    return { spent, miles, cashback }
+  }, [txns])
+
   const { topCats, catData } = useMemo(() => {
     const totals = new Map<string, number>()
     for (const t of txns) {
@@ -170,7 +182,10 @@ export default function ExpensesTrends({ from, to }: Props) {
   }
   const chartH = 280
   const barGap = isMobile ? 2 : 3
-  const catGap = isMobile ? '12%' : '28%'
+  const catGap = isMobile ? '18%' : '34%'
+  // Cap bar width so a short range (few months) doesn't balloon into fat bars.
+  const stackBarMax = isMobile ? 30 : 44   // single stacked column per month
+  const groupBarMax = isMobile ? 12 : 20   // grouped series (rewards / categories)
 
   if (loading) {
     return (
@@ -194,11 +209,27 @@ export default function ExpensesTrends({ from, to }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Chart 1: Spend by card type */}
+      {/* Period totals */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="card p-4">
+          <p className="text-xs text-gray-500">Total spent</p>
+          <p className="text-lg sm:text-xl font-semibold text-gray-800 mt-0.5 truncate">{formatSGD(totals.spent)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-gray-500">Miles earned</p>
+          <p className="text-lg sm:text-xl font-semibold text-gray-800 mt-0.5 truncate">{formatMilesFull(totals.miles)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-gray-500">Cashback earned</p>
+          <p className="text-lg sm:text-xl font-semibold text-gray-800 mt-0.5 truncate">{formatSGD(totals.cashback)}</p>
+        </div>
+      </div>
+
+      {/* Chart 1: Spend by card type (stacked → each column's height is the month's total) */}
       <div className="card p-4 sm:p-5">
         <h2 className="font-semibold text-gray-800 mb-3">Monthly Spend by Card Type</h2>
         <ResponsiveContainer width="100%" height={chartH}>
-          <BarChart data={spendData} barGap={barGap} barCategoryGap={catGap}>
+          <BarChart data={spendData} barCategoryGap={catGap}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chart.grid} />
             <XAxis {...xProps} />
             <YAxis {...yProps} />
@@ -208,9 +239,9 @@ export default function ExpensesTrends({ from, to }: Props) {
               cursor={chart.cursor} contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
             />
             <Legend {...legendProps} />
-            <Bar dataKey="Miles"    fill="#6366f1" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Cashback" fill="#10b981" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Debit"    fill="#94a3b8" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="Miles"    stackId="spend" fill="#6366f1" maxBarSize={stackBarMax} />
+            <Bar dataKey="Cashback" stackId="spend" fill="#10b981" maxBarSize={stackBarMax} />
+            <Bar dataKey="Debit"    stackId="spend" fill="#94a3b8" maxBarSize={stackBarMax} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -259,8 +290,8 @@ export default function ExpensesTrends({ from, to }: Props) {
                 cursor={chart.cursor} contentStyle={chart.tooltip} itemStyle={chart.tooltipItem} labelStyle={chart.tooltipLabel}
               />
               <Legend {...legendProps} />
-              {hasMiles    && <Bar yAxisId="miles"    dataKey="Miles"         fill="#6366f1" radius={[3, 3, 0, 0]} />}
-              {hasCashback && <Bar yAxisId="cashback" dataKey="Cashback (S$)" fill="#10b981" radius={[3, 3, 0, 0]} />}
+              {hasMiles    && <Bar yAxisId="miles"    dataKey="Miles"         fill="#6366f1" radius={[3, 3, 0, 0]} maxBarSize={groupBarMax} />}
+              {hasCashback && <Bar yAxisId="cashback" dataKey="Cashback (S$)" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={groupBarMax} />}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -282,7 +313,7 @@ export default function ExpensesTrends({ from, to }: Props) {
               />
               <Legend {...legendProps} />
               {topCats.map(({ label }, i) => (
-                <Bar key={label} dataKey={label} fill={CAT_COLORS[i % CAT_COLORS.length]} radius={[3, 3, 0, 0]} />
+                <Bar key={label} dataKey={label} fill={CAT_COLORS[i % CAT_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={groupBarMax} />
               ))}
             </BarChart>
           </ResponsiveContainer>
