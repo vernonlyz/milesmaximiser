@@ -383,6 +383,30 @@ export default function Dashboard() {
     )
   }
 
+  // First-run get-started steps — only rendered when there are no transactions yet
+  // (auto-hides once anything is logged). "Add your cards" only shows if the wallet is empty.
+  const gettingStartedSteps = [
+    ...(cards.length === 0 ? [{
+      label: 'Add your cards',
+      desc: 'Pick the cards in your wallet to track caps and rewards.',
+      cta: <Link to="/cards" className="btn-primary text-xs whitespace-nowrap">Add cards</Link>,
+    }] : []),
+    {
+      label: 'Log your first transaction',
+      desc: 'Record a purchase to see miles, cashback and cap usage.',
+      cta: (
+        <button onClick={() => navigate('/transactions', { state: { openModal: true } })} className="btn-primary text-xs whitespace-nowrap">
+          <Plus size={13} /> Log now
+        </button>
+      ),
+    },
+    {
+      label: 'Find your best card',
+      desc: 'Enter a purchase and get the card that earns the most miles.',
+      cta: <Link to="/recommend" className="btn-secondary text-xs whitespace-nowrap">Recommend</Link>,
+    },
+  ]
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -410,6 +434,33 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Get started — first-run guidance, auto-hides once anything is logged */}
+      {transactions.length === 0 && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 shadow-sm p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+              <Sparkles size={20} className="text-indigo-600" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-semibold text-gray-900">Welcome to SmileMax 👋</h2>
+              <p className="text-sm text-gray-600 mt-0.5">A few quick steps to start maximising your miles:</p>
+              <ol className="mt-4 space-y-3">
+                {gettingStartedSteps.map((s, i) => (
+                  <li key={s.label} className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">{i + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800">{s.label}</p>
+                      <p className="text-xs text-gray-500">{s.desc}</p>
+                    </div>
+                    <div className="shrink-0">{s.cta}</div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expiring-miles nudge — only rendered when something is actually expiring soon */}
       {!expiryDismissed && expiring.length > 0 && (() => {
