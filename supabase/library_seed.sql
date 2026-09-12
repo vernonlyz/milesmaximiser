@@ -69,7 +69,9 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000023', 'Citi Cash Back+',          'Citibank',          'Mastercard', 0,    '#D42B28', NULL,
      ARRAY['1.6% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.016),
   ('00000000-0000-0000-0001-000000000024', 'Mari Credit Card',         'MariBank',          'Mastercard', 0,    '#00B3A4', NULL,
-     ARRAY['1.5% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.015)
+     ARRAY['1.5% cashback on all spend, uncapped, no minimum spend'], 'calendar', 1, 'cashback', 0.015),
+  ('00000000-0000-0000-0001-000000000025', 'Platinum Credit Card',     'American Express',  'Amex',       0.57, '#8E8E93', 'No expiry',
+     ARRAY['S$327 annual fee', 'Base 2 Membership Rewards pts per S$1.60 on local and FCY spend (~0.57 mpd after conversion)', '10Xcelerator partner outlets earn ~2.84 mpd (10 MR pts per S$1.60) — merchant-specific, uncapped, no min spend', 'Membership Rewards → KrisFlyer at 550:250 (since 23 Feb 2026), no conversion fee; MR points do not expire'], 'calendar', 5, 'miles', NULL)
 ON CONFLICT (id) DO NOTHING;
 
 
