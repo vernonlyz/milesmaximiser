@@ -630,6 +630,13 @@ export default function Dashboard() {
                       const nonBonusW = cap > 0 ? Math.min(nonBonus / cap, Math.max(0, 1 - bonusSpent / cap)) * 100 : 0
                       const bonusLeft = Math.max(0, cap - bonusSpent)
                       const overCap = monthlySpent > cap
+                      // Escalate the bar as the BONUS cap fills, matching CapUsageBar:
+                      // indigo < 75%, amber ≥ 75% (approaching), red once the bonus cap
+                      // is reached — so these combined bars warn like the single ones.
+                      const bonusPct = cap > 0 ? (bonusSpent / cap) * 100 : 0
+                      const bonusColor    = bonusPct >= 100 ? 'bg-red-500' : bonusPct >= 75 ? 'bg-amber-500' : 'bg-indigo-500'
+                      const nonBonusColor = bonusPct >= 100 ? 'bg-red-300' : bonusPct >= 75 ? 'bg-amber-300' : 'bg-indigo-200'
+                      const bonusTextColor = bonusPct >= 100 ? 'text-red-600' : bonusPct >= 75 ? 'text-amber-600' : 'text-indigo-500'
                       return (
                       <div key={row.key}>
                         <div>
@@ -640,12 +647,12 @@ export default function Dashboard() {
                             </span>
                           </div>
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-                            <div className={`h-full ${overCap ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${bonusW}%` }} title="Bonus spend (counts toward cap)" />
-                            <div className={`h-full ${overCap ? 'bg-red-300' : 'bg-indigo-200'}`} style={{ width: `${nonBonusW}%` }} title="Non-bonus spend" />
+                            <div className={`h-full ${bonusColor}`} style={{ width: `${bonusW}%` }} title="Bonus spend (counts toward cap)" />
+                            <div className={`h-full ${nonBonusColor}`} style={{ width: `${nonBonusW}%` }} title="Non-bonus spend" />
                           </div>
                           <div className="flex items-center justify-between text-[11px] mt-1">
                             <span className="text-gray-400">
-                              <span className="text-indigo-500 font-medium">S${bonusSpent.toFixed(0)} bonus</span> · S${nonBonus.toFixed(0)} other
+                              <span className={`${bonusTextColor} font-medium`}>S${bonusSpent.toFixed(0)} bonus</span> · S${nonBonus.toFixed(0)} other
                             </span>
                             <span className={bonusLeft > 0 ? 'text-gray-400' : 'text-amber-600 font-medium'}>
                               {bonusLeft > 0 ? `S$${bonusLeft.toFixed(0)} bonus cap left` : 'bonus cap maxed'}
