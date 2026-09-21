@@ -1101,3 +1101,19 @@ Captures key architectural choices made during development — what was decided,
 **Dark mode.** `bg-indigo-50/40|/50|/60` opacity-modifier utilities generate their own classes and missed the `.dark .bg-indigo-50` remap, so those panels stayed light while the text was remapped light → invisible (Reconcile accumulated-bonus panels, Miles, Admin). Added a remap for the variants.
 
 **Seed gap closed.** `bonus_rounding` / `bonus_by_category` were never mirrored into `library_seed.sql` — migrations 036/038 key off card name and no-op on a fresh install (they run before the cards are inserted). Backfilled the UOB flags alongside the Maybank change so a clean DB matches a migrated one.
+
+---
+
+## 2026-09-21 — Amex Platinum Credit Card modelled as a flat card (v9.11)
+
+**Decision:** Seeded the American Express Platinum Credit Card (id …025) as a **flat `base_mpd = 0.57`** card, not with bonus-category rates.
+
+**Why 0.57:** base earn is 2 Membership Rewards pts per S$1.60 on both local and FCY (1.25 MR/$), and MR→KrisFlyer is 550:250 (0.4545 mi/MR) after the 23 Feb 2026 devaluation → 1.25 × 250/550 ≈ 0.57 mpd. Verified against MileLion's 24-Feb-2026 review + Amex SG.
+
+**Why the accelerator isn't a category rate:** the only lift is 10Xcelerator (~2.84 mpd), which is tied to specific partner **merchants**, not MCC categories. Seeding it as a category/MCC rate would wrongly apply it to whole categories, so it lives in remarks — same treatment as the other cards' portal rates.
+
+**Why unmapped to a reward program:** `base_mpd` already stores the *net* KrisFlyer mpd (the conversion is baked in), like the KrisFlyer-direct cards. Mapping it to an "Amex Membership Rewards" program would double-count. If the Points page ever needs MR balances, add an MR program (0.4545 mi/pt) and map it then.
+
+## 2026-09-21 — Combined-cap bars escalate to amber (v9.11)
+
+**Decision:** The Dashboard's combined-cap segmented bars now colour by **bonus-cap fill** (indigo <75%, amber ≥75%, red at 100%), matching `CapUsageBar`. Previously they were hardcoded indigo and only turned red when *total* spend exceeded the cap — so they never warned amber as the bonus cap approached. Non-bonus segment and the bonus label follow the same escalation. The `overCap` (total > cap) red on the "S$X / S$cap" figure is kept as a separate signal.
