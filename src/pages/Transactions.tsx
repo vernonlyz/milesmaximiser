@@ -718,6 +718,10 @@ export default function Transactions() {
     .filter(f => f.recur_unit != null)
     .sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
 
+  // Plain quick-log favourites only — recurring rules auto-generate occurrences and
+  // are managed in the Recurring editor, so they're excluded from the prefill chips.
+  const quickFavourites = favourites.filter(f => f.recur_unit == null)
+
   function fmtDate(s: string) {
     return new Date(s + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
   }
@@ -1572,14 +1576,14 @@ export default function Transactions() {
             </div>
           }
         >
-          {/* Favourites — quick prefill, only when adding */}
-          {!editingId && favourites.length > 0 && (
+          {/* Favourites — quick prefill, only when adding (recurring rules excluded) */}
+          {!editingId && quickFavourites.length > 0 && (
             <div>
               <label className="label flex items-center gap-1">
                 <Star size={12} className="text-amber-400" /> Favourites
               </label>
               <div className="flex flex-wrap gap-1.5">
-                {favourites.map(f => (
+                {quickFavourites.map(f => (
                   <span
                     key={f.id}
                     className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-amber-800 overflow-hidden dark:border-amber-500/40 dark:text-amber-200"
