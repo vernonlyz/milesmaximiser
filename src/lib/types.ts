@@ -146,6 +146,7 @@ export interface CardMccEligibility {
   payment_channel: 'online' | 'contactless' | null  // null = applies to all channels
   reduced: boolean  // matched row earns a reduced rate (not full, not zero) — e.g. UOB Absolute 0.3%
   always_eligible: boolean  // earns the bonus on ANY channel, overriding the card's bonus_channel (e.g. Citi in-store fashion)
+  bonus_mpd?: number | null  // per-tier rate: a matched MCC earns THIS mpd instead of the card's top bonus (e.g. Maybank Horizon airlines 2.8 vs other bonus 1.2). null → legacy "promote to the card's max bonus".
 }
 
 // Admin-seeded known vendor with default MCC and category

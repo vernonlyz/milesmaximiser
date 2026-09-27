@@ -1943,7 +1943,7 @@ export default function Transactions() {
                       const shared = capChannelNote(rec, cat)
                       if (shared && rec.status !== 'optimal') return note(shared.text, shared.tone) // cap reached / partial first
                       const txDate = form.transaction_date ? new Date(form.transaction_date) : new Date()
-                      const gate = mcc.length === 4 && mccContext ? resolveMccGate(rec.card, mccContext, overrides, paymentChannel, txDate) : null
+                      const gate = mcc.length === 4 && mccContext ? resolveMccGate(rec.card, mccContext, overrides, paymentChannel, txDate).gate : null
                       if (gate === 'base') return note('MCC not eligible → base rate', 'text-amber-600')
                       if (shared) return note(shared.text, shared.tone) // best-via
                       if (gate === 'bonus') {

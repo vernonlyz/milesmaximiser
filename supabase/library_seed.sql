@@ -37,7 +37,7 @@ INSERT INTO card_library (id, name, bank, card_network, base_mpd, color, mile_va
   ('00000000-0000-0000-0001-000000000007', 'TravelOne Visa',            'HSBC',              'Visa',       1.2,  '#DB0011', '37 months',
      ARRAY['4 complimentary lounge visits per year (DragonPass/Mastercard Travel Pass)', '20 transfer partners — transfers instant and free of charge', 'Effective MPD varies by partner: 1.2/2.4 mpd (most partners), 1.0/2.0 mpd (KrisFlyer from Jan 2025)'], 'calendar', 1, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000008', 'Horizon Visa Signature',    'Maybank',           'Visa',       0.4,  '#F7A900', '12 months',
-     ARRAY['2.8 mpd on all foreign currency spend (no minimum spend, uncapped)', '2.8 mpd on air tickets, 1.2 mpd on dining/petrol/transport — both require S$800/month total spend', 'Miles expiry waived with S$24,000 annual spend (Rewards Infinite Programme)'], 'calendar', 5, 'miles', NULL),
+     ARRAY['2.8 mpd on all foreign currency spend (uncapped)', '2.8 mpd on air tickets — S$10,000/month cap; unlocks at S$800/month total spend', '1.2 mpd on dining, groceries, petrol, transport, hotels and other travel', 'Miles expiry waived with S$24,000 annual spend (Rewards Infinite Programme)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000009', 'PRVI Miles Amex',           'UOB',               'Amex',       1.4,  '#00427E', '2 years',
      ARRAY['2 complimentary airport transfers per quarter (requires S$1,000 FCY spend to unlock)', 'Annual fee waived + 20,000 bonus miles when annual spend reaches S$50,000', '8 mpd on Agoda and Expedia hotels (via UOB Travel portal)', '3 mpd on Expedia flights (via UOB Travel portal)'], 'calendar', 5, 'miles', NULL),
   ('00000000-0000-0000-0001-000000000010', 'Lady''s Card',              'UOB',               'Mastercard', 0.4,  '#C2185B', '2 years',
@@ -501,6 +501,16 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000008', 'Cruises / Travel / Car Rental', '3351', '3500', 'Car rental'),
   ('00000000-0000-0000-0001-000000000008', 'Cruises / Travel / Car Rental', '4411', '4411', 'Cruise lines'),
   ('00000000-0000-0000-0001-000000000008', 'Cruises / Travel / Car Rental', '4722', '4722', 'Travel agencies');
+-- Per-MCC-tier rates: airlines 2.8, everything else 1.2 (Maybank Horizon).
+UPDATE card_mcc_eligibility SET bonus_mpd = 2.8
+  WHERE card_id = '00000000-0000-0000-0001-000000000008' AND category_label = 'Air Tickets';
+UPDATE card_mcc_eligibility SET bonus_mpd = 1.2
+  WHERE card_id = '00000000-0000-0000-0001-000000000008'
+    AND category_label IN ('Hotels', 'Cruises / Travel / Car Rental', 'Supermarkets & Dining', 'Transport & Petrol', 'Department & Retail');
+-- Threshold: the airline 2.8 unlocks only at S$800/mo total spend (below → base).
+UPDATE library_caps SET min_spend = 800
+  WHERE card_id = '00000000-0000-0000-0001-000000000008'
+    AND category_id = '00000000-0000-0000-0000-000000000006' AND cap_period = 'monthly';
 
 -- ── Standard Chartered Journey (...004): whitelist, ONLINE-scoped ─────────────
 -- 3 mpd only on online (card-not-present) SGD transactions in these MCCs; mobile
@@ -791,9 +801,14 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   ('00000000-0000-0000-0001-000000000006','00000000-0000-0000-0000-000000000005', 2.1, '2000-01-01'),
   -- HSBC TravelOne — FCY 2.4 mpd (effective MPD varies by partner; see remarks)
   ('00000000-0000-0000-0001-000000000007','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
-  -- Maybank Horizon — FCY 2.8 mpd (uncapped); Travel (air tickets) 2.8 mpd (S$800/month threshold)
+  -- Maybank Horizon — FCY 2.8 (uncapped); Travel/air-tickets 2.8 (S$10k cap, S$800 threshold);
+  -- dining/groceries/petrol/transport 1.2 (no-MCC fallback; the airline 2.8 vs 1.2 split is by MCC tier below)
   ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000005', 2.8, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000006', 2.8, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000001', 1.2, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000002', 1.2, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000003', 1.2, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000008','00000000-0000-0000-0000-000000000008', 1.2, '2000-01-01'),
   -- UOB PRVI Miles Amex — FCY 2.4 mpd (no general travel rate; portal rates in remarks)
   ('00000000-0000-0000-0001-000000000009','00000000-0000-0000-0000-000000000005', 2.4, '2000-01-01'),
   -- UOB Lady's Card — 4 mpd on chosen category (default Dining; user sets override)

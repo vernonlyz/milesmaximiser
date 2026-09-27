@@ -403,3 +403,40 @@ describe('MCC gate — per-category cap attribution (1c)', () => {
     expect(rec[0].status).toBe('partial')
   })
 })
+
+// ── Level-2 MCC gate — per-tier rates (bonus_mpd) ────────────────────────────
+describe('MCC per-tier rates (bonus_mpd)', () => {
+  const rows = [
+    eligRow({ mcc_start: '3000', mcc_end: '3350', category_label: 'Air',    bonus_mpd: 2.8 }),
+    eligRow({ mcc_start: '5811', mcc_end: '5814', category_label: 'Dining',  bonus_mpd: 1.2 }),
+  ]
+
+  it('different MCCs earn their own tier rate (not the card max)', () => {
+    const c = card({ mcc_mode: 'whitelist', base_mpd: 0.4 })
+    // amount 100, earn_increment 5 → milesAmount 100, so effectiveMpd == the tier rate.
+    expect(calcMiles(c, [], [], GROCERY, 100, [], JUN, [], null, undefined, undefined, mccCtx('3000', true, rows)).effectiveMpd).toBe(2.8)
+    expect(calcMiles(c, [], [], GROCERY, 100, [], JUN, [], null, undefined, undefined, mccCtx('5812', true, rows)).effectiveMpd).toBe(1.2)
+    // MCC in no tier → base.
+    expect(calcMiles(c, [], [], GROCERY, 100, [], JUN, [], null, undefined, undefined, mccCtx('9999', true, rows)).effectiveMpd).toBe(0.4)
+  })
+
+  it('a lower tier is NOT capped by another tier\u2019s cap (no pool fallback)', () => {
+    const c = card({ mcc_mode: 'whitelist', base_mpd: 0.4 })
+    // A tiny cap exists on DINING (stand-in for the airline cap). A dining-MCC charge on
+    // an unrelated category must earn its full 1.2, not inherit that cap.
+    const caps = [cap({ category_id: DINING, spend_limit: 50 })]
+    const r = calcMiles(c, [rate({ category_id: DINING, mpd: 2.8 })], caps, GROCERY, 100, [], JUN, [], null, undefined, undefined, mccCtx('5812', true, rows))
+    expect(r.effectiveMpd).toBe(1.2)
+  })
+
+  it('a tiered top rate still respects its category cap + min-spend threshold', () => {
+    const c = card({ mcc_mode: 'whitelist', base_mpd: 0.4 })
+    const rates = [rate({ category_id: DINING, mpd: 2.8 })]
+    const caps = [cap({ category_id: DINING, spend_limit: 10000, min_spend: 800 })]
+    // Below the S$800 total-spend threshold → locked to base.
+    expect(calcMiles(c, rates, caps, DINING, 100, [], JUN, [], null, undefined, undefined, mccCtx('3000', true, rows)).effectiveMpd).toBe(0.4)
+    // With ≥S$800 prior spend, the airline tier unlocks at 2.8.
+    const prior = [txn({ amount: 800, category_id: DINING, effective_mpd: 2.8, transaction_date: '2026-06-10' })]
+    expect(calcMiles(c, rates, caps, DINING, 100, prior, JUN, [], null, undefined, undefined, mccCtx('3000', true, rows)).effectiveMpd).toBe(2.8)
+  })
+})

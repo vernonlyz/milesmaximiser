@@ -2,7 +2,7 @@ import { CardMccEligibility, CreditCard, CategoryOverride, Category } from './ty
 import { resolveOverride } from './recommendations'
 
 export type MccChannel = 'online' | 'contactless' | 'chip' | null
-export type MccEligibility = { state: 'eligible' | 'ineligible' | 'reduced' | 'nodata'; label?: string | null; note?: string | null }
+export type MccEligibility = { state: 'eligible' | 'ineligible' | 'reduced' | 'nodata'; label?: string | null; note?: string | null; mpd?: number | null }
 
 const inRange = (r: CardMccEligibility, mcc: string) => mcc >= r.mcc_start && mcc <= r.mcc_end
 const addNote = (a: string | null | undefined, b: string) => (a ? `${a} · ${b}` : b)
@@ -58,7 +58,7 @@ export function resolveMccEligibility(
   // Any-channel inclusions (e.g. Citi Rewards in-store fashion) win over the
   // card's online-only restriction.
   const incl = cardRows.find(r => r.always_eligible && inRange(r, mcc))
-  if (incl) return { state: 'eligible', label: incl.category_label ?? null, note: incl.note ?? 'in-store & online' }
+  if (incl) return { state: 'eligible', label: incl.category_label ?? null, note: incl.note ?? 'in-store & online', mpd: incl.bonus_mpd ?? null }
 
   // whitelist / blacklist — rows may be channel-scoped (payment_channel). An
   // unspecified channel matches any row, flagging the requirement in the note.
@@ -79,10 +79,11 @@ export function resolveMccEligibility(
       if (matched.category_label && !chosenLabels.includes(matched.category_label))
         return { state: 'ineligible', label: matched.category_label, note: 'not your chosen category' }
     }
-    if (matched.reduced) return { state: 'reduced', label: matched.category_label ?? null, note: matched.note ?? null }
+    if (matched.reduced) return { state: 'reduced', label: matched.category_label ?? null, note: matched.note ?? null, mpd: matched.bonus_mpd ?? null }
     let note = matched.note ?? null
     if (matched.payment_channel && channel == null) note = addNote(note, `${matched.payment_channel} only`)
-    return channelScoped(card, channel, matched.category_label ?? null, note)
+    const scoped = channelScoped(card, channel, matched.category_label ?? null, note)
+    return scoped.state === 'eligible' ? { ...scoped, mpd: matched.bonus_mpd ?? null } : scoped
   }
   // Listed only for a different channel than the one used → earns base here.
   const otherChannel = channel != null ? cardRows.find(r => inRange(r, mcc) && r.payment_channel && r.payment_channel !== channel) : undefined

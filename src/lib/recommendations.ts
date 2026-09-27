@@ -35,17 +35,20 @@ export function resolveMccGate(
   overrides: CategoryOverride[],
   channel: 'contactless' | 'online' | 'chip' | null,
   date: Date,
-): 'bonus' | 'base' | null {
-  if (!mcc || !mcc.code || !mcc.confirmed || !card.mcc_mode) return null
+): { gate: 'bonus' | 'base' | null; mpd: number | null } {
+  if (!mcc || !mcc.code || !mcc.confirmed || !card.mcc_mode) return { gate: null, mpd: null }
   const cardRows = mcc.rows.filter(r => r.card_id === card.id)
   const chosen = chosenCategoryLabels(card, overrides, mcc.categories, date)
   const elig = resolveMccEligibility(card, mcc.code, cardRows, channel, chosen)
-  if (elig.state === 'ineligible') return 'base'
+  if (elig.state === 'ineligible') return { gate: 'base', mpd: null }
   // Promote only whitelist/hybrid cards, whose bonus is a distinct rate. Blacklist
   // cards earn their normal (wildcard/flat) rate via the category path, so promoting
   // them would wrongly pick up a category-specific rate (e.g. a flat card's FCY rate).
-  if (elig.state === 'eligible' && (card.mcc_mode === 'whitelist' || card.mcc_mode === 'hybrid')) return 'bonus'
-  return null
+  // `mpd` is the matched tier's own rate (Maybank Horizon airlines 2.8 vs 1.2); when
+  // null the engine promotes to the card's top bonus rate (legacy behaviour).
+  if (elig.state === 'eligible' && (card.mcc_mode === 'whitelist' || card.mcc_mode === 'hybrid'))
+    return { gate: 'bonus', mpd: elig.mpd ?? null }
+  return { gate: null, mpd: null }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -376,7 +379,12 @@ function getEffectiveForCard(
   mccGate: 'bonus' | 'base' | null = null,
   // The MCC's mapped app category — a promoted transaction draws this category's
   // cap first (so a per-category-cap card gets the right ceiling, not the pool fallback).
-  mccCategoryId: string | null = null
+  mccCategoryId: string | null = null,
+  // Per-tier MCC rate (from the matched eligibility row's bonus_mpd). When set, a
+  // promoted transaction earns THIS rate instead of the card's top bonus, and only
+  // draws a cap tied to its own category (no pool fallback) — so lower tiers stay
+  // uncapped. null → legacy "promote to the card's max bonus rate".
+  mccTierMpd: number | null = null
 ): EffResult {
   // Category-specific rate for this card
   const categoryRateRow = resolvedRates.find(r => r.card_id === card.id && r.category_id === categoryId)
@@ -426,7 +434,7 @@ function getEffectiveForCard(
     paymentChannel !== null &&
     requiredChannel !== paymentChannel
 
-  const bonusMpd = mccGate === 'bonus' ? promoMpd : ((rateRow && !channelBlocked) ? rateRow.mpd : card.base_mpd)
+  const bonusMpd = mccGate === 'bonus' ? (mccTierMpd ?? promoMpd) : ((rateRow && !channelBlocked) ? rateRow.mpd : card.base_mpd)
 
   const noCapResult = (status: CardRecommendation['status'] = bonusMpd === card.base_mpd ? 'base' : 'optimal'): EffResult => ({
     effectiveMpd: amount > 0 ? (milesAmount * bonusMpd) / amount : 0,
@@ -459,7 +467,11 @@ function getEffectiveForCard(
   const mccCatCap = mccGate === 'bonus' && mccCategoryId
     ? resolvedCaps.find(c => c.card_id === card.id && c.category_id === mccCategoryId && !c.cap_payment_channel)
     : undefined
-  const promoCap = mccGate === 'bonus'
+  // Pool fallback for a promoted transaction — but NOT for a per-tier rate: a tiered
+  // card (e.g. Horizon airlines vs 1.2 everyday) must only draw the cap tied to its own
+  // MCC category (mccCatCap) or the picked category, so lower, uncapped tiers don't
+  // wrongly inherit the airline cap + threshold.
+  const promoCap = mccGate === 'bonus' && mccTierMpd == null
     ? (resolvedCaps.find(c => c.card_id === card.id && c.cap_group && c.spend_limit != null)
        ?? resolvedCaps.find(c => c.card_id === card.id && c.spend_limit != null && !c.cap_payment_channel))
     : undefined
@@ -578,8 +590,8 @@ function evalCardForChannel(
   channel: 'contactless' | 'online' | 'chip' | null, mcc: MccContext | undefined,
   overrides: CategoryOverride[], date: Date,
 ): { gate: 'bonus' | 'base' | null; eff: EffResult } {
-  const gate = resolveMccGate(card, mcc, overrides, channel, date)
-  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, channel, gate, mcc?.categoryId ?? null)
+  const { gate, mpd: tierMpd } = resolveMccGate(card, mcc, overrides, channel, date)
+  const eff = getEffectiveForCard(card, resolved, resolvedCaps, categoryId, amount, periodSpending, channel, gate, mcc?.categoryId ?? null, tierMpd)
   return { gate, eff }
 }
 
