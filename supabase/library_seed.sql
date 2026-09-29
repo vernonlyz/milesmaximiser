@@ -818,9 +818,8 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   -- UOB Visa Signature — 4 mpd on overseas FCY; contactless wildcard handled separately below
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000005', 4.0, '2000-01-01'),
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000008', 4.0, '2000-01-01'),
-  -- UOB Preferred Platinum Visa — 4 mpd on online shopping + contactless
-  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),
-  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000008', 4.0, '2000-01-01'),
+  -- UOB Preferred Visa — 4 mpd on contactless (all) + online (whitelisted MCCs); both
+  -- are wildcard channel rates with a S$600/mo cap each, handled in the channel block below
   -- UOB KrisFlyer Visa — 3.0 mpd on SIA Group; no FCY bonus (overseas earns base 1.2 mpd)
   ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000006', 3.0, '2000-01-01'),
   -- HSBC Revolution — 4 mpd on dining, online shopping, transport, travel
@@ -865,9 +864,8 @@ INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, effecti
   ('00000000-0000-0000-0001-000000000011','00000000-0000-0000-0000-000000000001','monthly',  750.00,'2000-01-01'),
   -- UOB Visa Signature — FCY S$1,200/month; contactless S$1,200/month channel cap added below
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000005','monthly', 1200.00,'2000-01-01'),
-  -- UOB Preferred Platinum — S$600/month per category (online and contactless are separate caps)
-  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000004','monthly',  600.00,'2000-01-01'),
-  ('00000000-0000-0000-0001-000000000013','00000000-0000-0000-0000-000000000008','monthly',  600.00,'2000-01-01'),
+  -- UOB Preferred Visa — S$600/mo contactless + S$600/mo online, two separate channel
+  -- caps (added in the channel block below), not per-category
   -- HSBC Revolution — S$1,000/month combined across dining, shopping, transport, travel
   ('00000000-0000-0000-0001-000000000015','00000000-0000-0000-0000-000000000001','monthly', 1000.00,'2000-01-01'),
   ('00000000-0000-0000-0001-000000000015','00000000-0000-0000-0000-000000000004','monthly', 1000.00,'2000-01-01'),
@@ -980,6 +978,11 @@ INSERT INTO library_rates (card_id, category_id, mpd, payment_channel, effective
 SELECT '00000000-0000-0000-0001-000000000013', NULL, 4.0, 'contactless', '2000-01-01'
 WHERE NOT EXISTS (SELECT 1 FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id IS NULL AND payment_channel = 'contactless');
 
+-- UOB Preferred Visa — online-channel bonus (whitelisted MCCs gated by hybrid mcc_mode)
+INSERT INTO library_rates (card_id, category_id, mpd, payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000013', NULL, 4.0, 'online', '2000-01-01'
+WHERE NOT EXISTS (SELECT 1 FROM library_rates WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id IS NULL AND payment_channel = 'online');
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Contactless channel caps (replace per-category transport caps)
 -- Only contactless-flagged transactions count toward these caps.
@@ -1000,6 +1003,11 @@ WHERE card_id = '00000000-0000-0000-0001-000000000012'
 INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
 SELECT '00000000-0000-0000-0001-000000000013', NULL, 'monthly', 600.00, 'contactless', '2000-01-01'
 WHERE NOT EXISTS (SELECT 1 FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id IS NULL AND cap_payment_channel = 'contactless');
+
+-- UOB Preferred Visa — separate S$600/mo online-channel cap (strictly separate from contactless)
+INSERT INTO library_caps (card_id, category_id, cap_period, spend_limit, cap_payment_channel, effective_from)
+SELECT '00000000-0000-0000-0001-000000000013', NULL, 'monthly', 600.00, 'online', '2000-01-01'
+WHERE NOT EXISTS (SELECT 1 FROM library_caps WHERE card_id = '00000000-0000-0000-0001-000000000013' AND category_id IS NULL AND cap_payment_channel = 'online');
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Wildcard online rates (null category = any category earns bonus when paid online)
