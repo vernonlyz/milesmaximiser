@@ -208,6 +208,13 @@ INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, n
   ('00000000-0000-0000-0001-000000000014', 'Online Shopping', '5944', '5949', 'Jewelry, toys, cameras, gifts, leather goods'),
   ('00000000-0000-0000-0001-000000000014', 'Online Shopping', '5999', '5999', NULL),
   ('00000000-0000-0000-0001-000000000014', 'Online Shopping', '7278', '7278', 'Shopee / Lazada / Qoo10');
+-- Per-MCC tiers: SIA Group / airlines 3.0, everyday categories 2.4 (base 1.2).
+INSERT INTO card_mcc_eligibility (card_id, category_label, mcc_start, mcc_end, note, bonus_mpd) VALUES
+  ('00000000-0000-0000-0001-000000000014', 'Air Tickets', '3000', '3350', 'Airlines / SIA Group', 3.0),
+  ('00000000-0000-0000-0001-000000000014', 'Air Tickets', '4511', '4511', 'Air carriers', 3.0);
+UPDATE card_mcc_eligibility SET bonus_mpd = 2.4
+  WHERE card_id = '00000000-0000-0000-0001-000000000014'
+    AND category_label IN ('Dining', 'Online Shopping', 'Transport');
 
 -- ── HSBC Revolution (...015): whitelist (flat list) ──────────────────────────
 DELETE FROM card_mcc_eligibility WHERE card_id = '00000000-0000-0000-0001-000000000015';
@@ -820,8 +827,12 @@ INSERT INTO library_rates (card_id, category_id, mpd, effective_from) VALUES
   ('00000000-0000-0000-0001-000000000012','00000000-0000-0000-0000-000000000008', 4.0, '2000-01-01'),
   -- UOB Preferred Visa — 4 mpd on contactless (all) + online (whitelisted MCCs); both
   -- are wildcard channel rates with a S$600/mo cap each, handled in the channel block below
-  -- UOB KrisFlyer Visa — 3.0 mpd on SIA Group; no FCY bonus (overseas earns base 1.2 mpd)
+  -- UOB KrisFlyer Visa — Travel/SIA 3.0 (airlines 3.0 by MCC tier); dining/online/transport
+  -- 2.4 (no-MCC fallback; 2.4 vs 3.0 vs base split is by MCC tier); no FCY bonus (base 1.2)
   ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000006', 3.0, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000001', 2.4, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000004', 2.4, '2000-01-01'),
+  ('00000000-0000-0000-0001-000000000014','00000000-0000-0000-0000-000000000008', 2.4, '2000-01-01'),
   -- HSBC Revolution — 4 mpd on dining, online shopping, transport, travel
   ('00000000-0000-0000-0001-000000000015','00000000-0000-0000-0000-000000000001', 4.0, '2000-01-01'),  -- dining
   ('00000000-0000-0000-0001-000000000015','00000000-0000-0000-0000-000000000004', 4.0, '2000-01-01'),  -- online shopping
