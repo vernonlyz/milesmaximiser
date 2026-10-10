@@ -962,6 +962,8 @@ UPDATE card_library SET bonus_by_category = true, bonus_timing = 'next_calendar_
                '00000000-0000-0000-0001-000000000011');  -- UOB Lady's Solitaire
 UPDATE card_library SET bonus_timing = 'next_calendar_month'
   WHERE id = '00000000-0000-0000-0001-000000000016';     -- Maybank XL Rewards (base+bonus credit end of next month)
+UPDATE card_library SET bonus_timing = 'next_calendar_month'
+  WHERE id = '00000000-0000-0000-0001-000000000015';     -- HSBC Revolution (bonus credits end of next month)
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Wildcard contactless rates (null category = any category earns bonus when tapped)

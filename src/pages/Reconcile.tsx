@@ -33,11 +33,13 @@ const baseRoundsToNearest = (c: CreditCard) => c.bank === 'HSBC'
 
 // Credit date for a deferred (bonus_timing = 'next_calendar_month') bonus lump.
 // Default is the 1st of the following month; DBS Woman's World credits on the
-// 15th of the following month; Maybank XL Rewards by the END of the following month.
+// 15th of the following month; Maybank XL Rewards and HSBC Revolution by the END
+// of the following month.
 const deferredCreditDate = (c: CreditCard, cycleStart: string) => {
   const nextMonth = monthKey(firstOfNext(monthKey(cycleStart)))
   if (c.bank === 'DBS' && c.name === "Woman's World Card") return `${nextMonth}-15`
   if (c.bank === 'Maybank' && c.name === 'XL Rewards') return lastDayOf(nextMonth)
+  if (c.bank === 'HSBC' && c.name === 'Revolution') return lastDayOf(nextMonth)
   return firstOfNext(monthKey(cycleStart))
 }
 
