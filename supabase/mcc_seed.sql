@@ -40,6 +40,7 @@ INSERT INTO mcc_catalogue (code, description, default_category_id) VALUES
 -- ── Travel (006) ─────────────────────────────────────────────────────────────
 -- Note: 005 = Overseas/FCY (currency-based, not merchant-type based)
 -- Use 006 for travel MCCs (airlines, hotels, travel agencies)
+('3075', 'Singapore Airlines',                    '00000000-0000-0000-0000-000000000006'),
 ('4411', 'Cruise Lines',                          '00000000-0000-0000-0000-000000000006'),
 ('4511', 'Airlines, Air Carriers',                '00000000-0000-0000-0000-000000000006'),
 ('4722', 'Travel Agencies, Tour Operators',       '00000000-0000-0000-0000-000000000006'),
