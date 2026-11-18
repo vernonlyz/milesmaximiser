@@ -481,22 +481,42 @@ export default function Reconcile() {
               </div>
 
               {/* Per-card "how it's calculated & credited" explainer */}
-              {openHow.has(blk.key) && (
-                <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 space-y-1.5 leading-relaxed">
-                  <p>
-                    <span className="font-semibold text-gray-700">Base</span> — {blk.card.base_mpd} mpd on every eligible transaction,
-                    <span className="font-medium"> posts on charge</span> (usually 1–3 business days). Tick each below as it appears.
-                  </p>
-                  <p>
-                    <span className="font-semibold text-gray-700">Bonus</span> — the extra earned above base{blk.prog ? ` (${blk.prog.name})` : ''},
-                    accumulated over this cycle and <span className="font-medium">{bonusCreditText(blk.card)}</span>
-                    {blk.lumps.length > 0 && <> — see the credited-on date on each bonus row below</>}.
-                  </p>
-                  {blk.prog && (
-                    <p>Shown in {blk.prog.unit_label} with the miles equivalent alongside (×{blk.prog.miles_per_point} per {blk.prog.unit_label}). Indicative — verify against your statement.</p>
-                  )}
-                </div>
-              )}
+              {openHow.has(blk.key) && (() => {
+                const prog = blk.prog
+                const mpp = prog?.miles_per_point ?? null
+                const unit = prog?.unit_label ?? null
+                const base = blk.card.base_mpd
+                const fmtR = (n: number) => (+n.toFixed(2)).toString()
+                // Earn rate in both units: miles-per-dollar and the points-per-S$1 equivalent.
+                const rateBoth = (mpd: number) => mpp ? `${fmtR(mpd / mpp)} ${unit} / S$1 · ${fmtR(mpd)} mpd` : `${fmtR(mpd)} mpd`
+                // Bonus = the portion above base, across the card's resolved category rates (+ boost).
+                const bonusMpds = resolveRates(rates, new Date(blk.cycleEnd))
+                  .filter(r => r.card_id === blk.card.id && r.mpd > base).map(r => r.mpd)
+                if (blk.card.boost_mpd && blk.card.boost_mpd > base) bonusMpds.push(blk.card.boost_mpd)
+                const loB = bonusMpds.length ? Math.min(...bonusMpds) - base : null
+                const hiB = bonusMpds.length ? Math.max(...bonusMpds) - base : null
+                const bonusBoth = loB == null ? null
+                  : Math.abs((hiB as number) - loB) < 0.001
+                    ? rateBoth(loB)
+                    : (mpp ? `${fmtR(loB / mpp)}–${fmtR((hiB as number) / mpp)} ${unit} / S$1 · ${fmtR(loB)}–${fmtR(hiB as number)} mpd`
+                           : `${fmtR(loB)}–${fmtR(hiB as number)} mpd`)
+                return (
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 space-y-1.5 leading-relaxed">
+                    <p>
+                      <span className="font-semibold text-gray-700">Base</span> — {rateBoth(base)}, earned on every eligible transaction;
+                      <span className="font-medium"> posts on charge</span> (1–3 business days). Tick each below as it appears.
+                    </p>
+                    {bonusBoth && (
+                      <p>
+                        <span className="font-semibold text-gray-700">Bonus</span> — {bonusBoth} above base on eligible spend,
+                        accumulated over this cycle and <span className="font-medium">{bonusCreditText(blk.card)}</span>
+                        {blk.lumps.length > 0 && <> — see each bonus row's credited-on date</>}.
+                      </p>
+                    )}
+                    {mpp && <p>1 {unit} = {mpp} miles. Indicative — verify against your statement.</p>}
+                  </div>
+                )
+              })()}
 
               {/* Per-transaction: base (with tick) + bonus contribution */}
               <div className="divide-y divide-gray-50">
@@ -571,7 +591,7 @@ export default function Reconcile() {
                           </p>
                           {l.capMi != null && (
                             <p className="text-[11px] text-gray-400">
-                              cap {l.capPt != null ? <>{fmtNum(l.capPt)} {l.unit}</> : <>{fmtNum(l.capMi)} mi</>}
+                              cap {l.capPt != null ? <>{fmtNum(l.capPt)} {l.unit} · {fmtNum(l.capMi)} mi</> : <>{fmtNum(l.capMi)} mi</>}
                             </p>
                           )}
                         </div>
