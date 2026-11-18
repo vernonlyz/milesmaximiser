@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardCheck, FlaskConical, Check, AlertTriangle } from 'lucide-react'
+import { ClipboardCheck, FlaskConical, Check, AlertTriangle, Info, ChevronDown, ChevronRight } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -32,14 +32,13 @@ const fmtNum = (n: number) => Math.round(n).toLocaleString('en-SG')
 const baseRoundsToNearest = (c: CreditCard) => c.bank === 'HSBC'
 
 // Credit date for a deferred (bonus_timing = 'next_calendar_month') bonus lump.
-// Default is the 1st of the following month; DBS Woman's World credits on the
-// 15th of the following month; Maybank XL Rewards and HSBC Revolution by the END
-// of the following month.
+// Default is the 1st of the following month; Maybank XL Rewards credits on the 11th;
+// DBS Woman's World and HSBC Revolution on the 15th of the following month.
 const deferredCreditDate = (c: CreditCard, cycleStart: string) => {
   const nextMonth = monthKey(firstOfNext(monthKey(cycleStart)))
   if (c.bank === 'DBS' && c.name === "Woman's World Card") return `${nextMonth}-15`
-  if (c.bank === 'Maybank' && c.name === 'XL Rewards') return lastDayOf(nextMonth)
-  if (c.bank === 'HSBC' && c.name === 'Revolution') return lastDayOf(nextMonth)
+  if (c.bank === 'Maybank' && c.name === 'XL Rewards') return `${nextMonth}-11`
+  if (c.bank === 'HSBC' && c.name === 'Revolution') return `${nextMonth}-15`
   return firstOfNext(monthKey(cycleStart))
 }
 
@@ -61,6 +60,9 @@ export default function Reconcile() {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  // "How crediting works" explainer — open on first visit, remembers a collapse.
+  const [howOpen, setHowOpen] = useState(() => localStorage.getItem('reconHowCollapsed') !== '1')
+  function toggleHow() { setHowOpen(o => { localStorage.setItem('reconHowCollapsed', o ? '1' : '0'); return !o }) }
   const [filterBank, setFilterBank] = useState<string>('all')
   const [filterCard, setFilterCard] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
@@ -376,6 +378,35 @@ export default function Reconcile() {
         <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
           <FlaskConical size={11} /> Experimental
         </span>
+      </div>
+
+      {/* How crediting works — collapsible explainer */}
+      <div className="rounded-lg border border-gray-200 bg-gray-50">
+        <button onClick={toggleHow} className="w-full flex items-center gap-2 px-3 py-2 text-left">
+          <Info size={14} className="text-indigo-500 shrink-0" />
+          <span className="text-sm font-medium text-gray-700">How points are calculated &amp; credited</span>
+          <span className="ml-auto text-gray-400">{howOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</span>
+        </button>
+        {howOpen && (
+          <div className="px-3 pb-3 pt-0 text-xs text-gray-600 space-y-2 leading-relaxed">
+            <p>
+              <span className="font-semibold text-gray-700">Base points (1X)</span> are earned on every eligible transaction —
+              the amount × the card's base rate — and <span className="font-medium">post on charge</span> (usually 1–3 business days).
+              Tick each one here as it appears on your statement.
+            </p>
+            <p>
+              <span className="font-semibold text-gray-700">Bonus points</span> (the extra multiplier — e.g. HSBC Revolution 9X,
+              or 19X with EGA; Maybank XL Rewards 9X) are <span className="font-medium">accumulated over the qualifying month</span> and
+              credited as a <span className="font-medium">single lump the following month</span>. Each bonus row below shows its own
+              <span className="font-medium"> credited-on date</span> (e.g. Maybank XL Rewards ~11th, HSBC Revolution &amp; DBS Woman's World ~15th).
+            </p>
+            <p>
+              Figures are shown in the card's <span className="font-medium">points</span> where a programme is mapped, with the
+              <span className="font-medium"> miles</span> equivalent alongside (converted at the programme's rate). Rates, caps and
+              timing are indicative — verify against your statement.
+            </p>
+          </div>
+        )}
       </div>
 
       {loading ? (
