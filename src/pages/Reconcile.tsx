@@ -369,8 +369,16 @@ export default function Reconcile() {
   )
   const filtersActive = filterBank !== 'all' || filterCard !== 'all' || filterMonth !== 'all' || filterStatus !== 'all' || rangeActive
 
+  // Inline: points with the miles equivalent alongside (points-less cards show miles only).
   const unitCol = (pt: number | null, mi: number, unit: string | null) =>
-    pt != null ? <>{fmtNum(pt)} <span className="text-gray-400">{unit}</span></> : <>{fmtNum(mi)} <span className="text-gray-400">mi</span></>
+    pt != null
+      ? <>{fmtNum(pt)} <span className="text-gray-400">{unit} · {fmtNum(mi)} mi</span></>
+      : <>{fmtNum(mi)} <span className="text-gray-400">mi</span></>
+  // Stacked for the narrow columns: points on top, miles muted below.
+  const unitStack = (pt: number | null, mi: number, unit: string | null) =>
+    pt != null
+      ? <><div>{fmtNum(pt)} <span className="text-gray-400">{unit}</span></div><div className="text-[10px] text-gray-400 font-normal leading-tight">{fmtNum(mi)} mi</div></>
+      : <>{fmtNum(mi)} <span className="text-gray-400">mi</span></>
 
   return (
     <div className="space-y-5">
@@ -510,8 +518,8 @@ export default function Reconcile() {
                         )}
                       </p>
                     </div>
-                    <span className="w-20 text-right text-gray-700">{unitCol(l.basePt, l.baseMi, blk.prog?.unit_label ?? null)}</span>
-                    <span className="w-20 text-right text-gray-400 hidden sm:block">{l.bonusMi > 0 ? unitCol(l.bonusPt, l.bonusMi, blk.prog?.unit_label ?? null) : '—'}</span>
+                    <span className="w-20 text-right text-gray-700">{unitStack(l.basePt, l.baseMi, blk.prog?.unit_label ?? null)}</span>
+                    <span className="w-20 text-right text-gray-400 hidden sm:block">{l.bonusMi > 0 ? unitStack(l.bonusPt, l.bonusMi, blk.prog?.unit_label ?? null) : '—'}</span>
                     <button onClick={() => toggleBase(l.txn.id)} title={baseDone.has(l.txn.id) ? 'Base reconciled' : 'Mark base reconciled'}
                       className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${baseDone.has(l.txn.id) ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-300 hover:text-gray-400'}`}>
                       <Check size={14} />
@@ -524,7 +532,7 @@ export default function Reconcile() {
                   return (
                     <div className="flex items-center gap-2 pt-1.5 text-sm font-medium">
                       <span className="flex-1 text-gray-500">Base total</span>
-                      <span className="w-20 text-right text-gray-800">{unitCol(basePtTotal, baseMiTotal, blk.prog?.unit_label ?? null)}</span>
+                      <span className="w-20 text-right text-gray-800">{unitStack(basePtTotal, baseMiTotal, blk.prog?.unit_label ?? null)}</span>
                       <span className="w-20 hidden sm:block" />
                       <span className="w-7" />
                     </div>
