@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardCheck, FlaskConical, Check, AlertTriangle, Info, ChevronDown, ChevronRight } from 'lucide-react'
+import { ClipboardCheck, FlaskConical, Check, AlertTriangle, Info } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -42,6 +42,16 @@ const deferredCreditDate = (c: CreditCard, cycleStart: string) => {
   return firstOfNext(monthKey(cycleStart))
 }
 
+// Human-readable crediting rule for a card's bonus lump (for the per-card explainer).
+function bonusCreditText(c: CreditCard): string {
+  if (c.no_bonus_split) return 'credited together with the base, on charge'
+  if (c.bonus_timing !== 'next_calendar_month') return 'credited with that month’s statement'
+  if (c.bank === 'Maybank' && c.name === 'XL Rewards') return 'credited as one lump on the ~11th of the following month'
+  if ((c.bank === 'HSBC' && c.name === 'Revolution') || (c.bank === 'DBS' && c.name === "Woman's World Card"))
+    return 'credited as one lump on the ~15th of the following month'
+  return 'credited as one lump early the following month'
+}
+
 // One transaction's expected split, in miles + (optional) program points.
 interface Line { txn: TxnRow; catName: string | null; baseMi: number; bonusMi: number; basePt: number | null; bonusPt: number | null }
 // A bonus lump as it appears on the statement.
@@ -60,9 +70,9 @@ export default function Reconcile() {
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  // "How crediting works" explainer — open on first visit, remembers a collapse.
-  const [howOpen, setHowOpen] = useState(() => localStorage.getItem('reconHowCollapsed') !== '1')
-  function toggleHow() { setHowOpen(o => { localStorage.setItem('reconHowCollapsed', o ? '1' : '0'); return !o }) }
+  // Per-card "how it's calculated & credited" explainer — tracked by block key.
+  const [openHow, setOpenHow] = useState<Set<string>>(new Set())
+  const toggleHow = (key: string) => setOpenHow(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
   const [filterBank, setFilterBank] = useState<string>('all')
   const [filterCard, setFilterCard] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
@@ -380,35 +390,6 @@ export default function Reconcile() {
         </span>
       </div>
 
-      {/* How crediting works — collapsible explainer */}
-      <div className="rounded-lg border border-gray-200 bg-gray-50">
-        <button onClick={toggleHow} className="w-full flex items-center gap-2 px-3 py-2 text-left">
-          <Info size={14} className="text-indigo-500 shrink-0" />
-          <span className="text-sm font-medium text-gray-700">How points are calculated &amp; credited</span>
-          <span className="ml-auto text-gray-400">{howOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</span>
-        </button>
-        {howOpen && (
-          <div className="px-3 pb-3 pt-0 text-xs text-gray-600 space-y-2 leading-relaxed">
-            <p>
-              <span className="font-semibold text-gray-700">Base points (1X)</span> are earned on every eligible transaction —
-              the amount × the card's base rate — and <span className="font-medium">post on charge</span> (usually 1–3 business days).
-              Tick each one here as it appears on your statement.
-            </p>
-            <p>
-              <span className="font-semibold text-gray-700">Bonus points</span> (the extra multiplier — e.g. HSBC Revolution 9X,
-              or 19X with EGA; Maybank XL Rewards 9X) are <span className="font-medium">accumulated over the qualifying month</span> and
-              credited as a <span className="font-medium">single lump the following month</span>. Each bonus row below shows its own
-              <span className="font-medium"> credited-on date</span> (e.g. Maybank XL Rewards ~11th, HSBC Revolution &amp; DBS Woman's World ~15th).
-            </p>
-            <p>
-              Figures are shown in the card's <span className="font-medium">points</span> where a programme is mapped, with the
-              <span className="font-medium"> miles</span> equivalent alongside (converted at the programme's rate). Rates, caps and
-              timing are indicative — verify against your statement.
-            </p>
-          </div>
-        )}
-      </div>
-
       {loading ? (
         <PageSkeleton />
       ) : loadError ? (
@@ -478,8 +459,36 @@ export default function Reconcile() {
                     )
                   })()}
                 </div>
-                <span className="text-xs text-gray-500 shrink-0">{blk.label}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-gray-500">{blk.label}</span>
+                  <button
+                    onClick={() => toggleHow(blk.key)}
+                    title="How this card's points are calculated & credited"
+                    aria-label="How it's calculated & credited"
+                    className="text-gray-300 hover:text-indigo-500 transition-colors"
+                  >
+                    <Info size={14} />
+                  </button>
+                </div>
               </div>
+
+              {/* Per-card "how it's calculated & credited" explainer */}
+              {openHow.has(blk.key) && (
+                <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600 space-y-1.5 leading-relaxed">
+                  <p>
+                    <span className="font-semibold text-gray-700">Base</span> — {blk.card.base_mpd} mpd on every eligible transaction,
+                    <span className="font-medium"> posts on charge</span> (usually 1–3 business days). Tick each below as it appears.
+                  </p>
+                  <p>
+                    <span className="font-semibold text-gray-700">Bonus</span> — the extra earned above base{blk.prog ? ` (${blk.prog.name})` : ''},
+                    accumulated over this cycle and <span className="font-medium">{bonusCreditText(blk.card)}</span>
+                    {blk.lumps.length > 0 && <> — see the credited-on date on each bonus row below</>}.
+                  </p>
+                  {blk.prog && (
+                    <p>Shown in {blk.prog.unit_label} with the miles equivalent alongside (×{blk.prog.miles_per_point} per {blk.prog.unit_label}). Indicative — verify against your statement.</p>
+                  )}
+                </div>
+              )}
 
               {/* Per-transaction: base (with tick) + bonus contribution */}
               <div className="divide-y divide-gray-50">
